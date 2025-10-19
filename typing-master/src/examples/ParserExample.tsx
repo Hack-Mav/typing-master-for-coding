@@ -25,6 +25,8 @@ export const ParserExample: React.FC = () => {
       javascript:
         'function helloWorld() {\n    console.log("Hello, World!");\n    return true;\n}',
       yaml: 'name: example\nversion: 1.0.0\ndependencies:\n  - react\n  - typescript',
+      cpp: '#include <iostream>\n\nint main() {\n    std::cout << "Hello, World!" << std::endl;\n    return 0;\n}',
+      rust: 'fn main() {\n    println!("Hello, World!");\n}',
     };
 
     setCode(sampleCode[selectedLanguage]);

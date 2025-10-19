@@ -1,6 +1,6 @@
 // Parser-related type definitions
 
-export type Language = 'python' | 'javascript' | 'yaml';
+export type Language = 'python' | 'javascript' | 'yaml' | 'cpp' | 'rust';
 
 export interface Token {
   type: string;

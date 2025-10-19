@@ -97,6 +97,19 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 
 			// Leaderboard routes
 			protected.GET("/leaderboards", handlers.GetLeaderboards(cacheClient))
+
+			// Assessment routes
+			protected.GET("/assessments/blueprints", handlers.GetAssessmentBlueprints(db, cacheClient))
+			protected.GET("/assessments/blueprints/:id", handlers.GetAssessmentBlueprint(db, cacheClient))
+			protected.POST("/assessments/blueprints", handlers.CreateAssessmentBlueprint(db, cacheClient))
+			protected.POST("/assessments/sessions", handlers.CreateAssessmentSession(db, cacheClient))
+			protected.GET("/assessments/sessions/:id", handlers.GetAssessmentSession(db, cacheClient))
+			protected.POST("/assessments/sessions/:id/snippets", handlers.RecordSnippetResult(db, cacheClient))
+			protected.POST("/assessments/sessions/:id/finalize", handlers.FinalizeAssessment(db, cacheClient))
+			protected.GET("/assessments/blueprints/:blueprintId/snippets/:snippetId", handlers.GetAssessmentSnippet(db, cacheClient))
+			protected.GET("/assessments/analytics", handlers.GetAssessmentAnalytics(db, cacheClient))
+			protected.GET("/assessments/badges", handlers.GetUserBadges(db, cacheClient))
+			protected.POST("/assessments/schedule", handlers.ScheduleAssessment(db, cacheClient))
 		}
 
 		// Admin routes (requires admin privileges)

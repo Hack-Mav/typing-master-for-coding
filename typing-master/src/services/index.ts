@@ -5,11 +5,18 @@ export {
   tokenizationService,
 } from './TokenizationService';
 
+// Content management exports
+export { ContentService, contentService } from './ContentService';
+
 // Session management exports
 export { SessionManager, sessionManager } from './SessionManager';
 
 // Metrics exports
 export { MetricsCalculator, metricsCalculator } from './MetricsCalculator';
+
+// Assessment exports
+export { AssessmentService, assessmentService } from './AssessmentService';
+export { StructuralAnalyzer, structuralAnalyzer } from './StructuralAnalyzer';
 
 // Authentication and user management exports
 export { authService } from './AuthService';
@@ -81,3 +88,34 @@ export type {
   ErrorCluster,
   SessionMetrics,
 } from '../types/metrics';
+
+export type {
+  AssessmentBlueprint,
+  AssessmentSession,
+  AssessmentResult,
+  AssessmentSnippetResult,
+  AssessmentCriteria,
+  StructuralConformityScore,
+  AssessmentGrade,
+  AdvancedScoringConfig,
+  AssessmentWeights,
+  AssessmentScoreBreakdown,
+  AssessmentBadge,
+  AssessmentSchedule,
+  AssessmentAnalytics,
+  ASTConformityAnalysis,
+  ASTNodeDifference,
+  StructuralPenalty,
+  StructuralPenaltyType,
+} from '../types/assessment';
+
+export type {
+  LanguageEntity,
+  Lesson,
+  Snippet,
+  Playlist,
+  ContentVersion,
+  ContentValidation,
+  ValidationError,
+  ValidationWarning,
+} from '../types/content';

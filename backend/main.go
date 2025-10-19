@@ -32,6 +32,20 @@ func main() {
 	// Initialize in-memory cache
 	cacheClient := cache.NewInMemoryCache(cfg.CacheMaxSize, cfg.CacheTTLMinutes)
 
+	// Initialize default languages
+	if err := database.InitializeDefaultLanguages(db); err != nil {
+		log.Printf("Warning: Failed to initialize default languages: %v", err)
+	} else {
+		log.Println("Default languages initialized successfully")
+	}
+
+	// Initialize default assessments
+	if err := database.InitializeDefaultAssessments(db); err != nil {
+		log.Printf("Warning: Failed to initialize default assessments: %v", err)
+	} else {
+		log.Println("Default assessments initialized successfully")
+	}
+
 	// Set Gin mode
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)

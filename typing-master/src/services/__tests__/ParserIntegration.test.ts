@@ -22,7 +22,7 @@ describe('Parser Integration', () => {
 
     it('should return correct supported languages', () => {
       const languages = parserManager.getSupportedLanguages();
-      expect(languages).toEqual(['python', 'javascript', 'yaml']);
+      expect(languages).toEqual(['python', 'javascript', 'yaml', 'cpp', 'rust']);
     });
 
     it('should provide language grammars', () => {

@@ -696,3 +696,278 @@ func (abt *ABTest) Save() ([]datastore.Property, error) {
 func (abt *ABTest) Load(ps []datastore.Property) error {
 	return datastore.LoadStruct(abt, ps)
 }
+
+// Assessment Models
+
+// AssessmentBlueprint entity for Datastore
+type AssessmentBlueprint struct {
+	ID                string                 `datastore:"-" json:"id"`
+	Name              string                 `datastore:"name" json:"name"`
+	Description       string                 `datastore:"description" json:"description"`
+	Language          string                 `datastore:"language" json:"language"`
+	Difficulty        int                    `datastore:"difficulty" json:"difficulty"`
+	EstimatedDuration int                    `datastore:"estimated_duration" json:"estimated_duration"` // minutes
+	SnippetIDs        []string               `datastore:"snippet_ids" json:"snippet_ids"`
+	PassingCriteria   AssessmentCriteria     `datastore:"passing_criteria" json:"passing_criteria"`
+	ScoringWeights    AssessmentWeights      `datastore:"scoring_weights" json:"scoring_weights"`
+	Version           int                    `datastore:"version" json:"version"`
+	CreatedAt         time.Time              `datastore:"created_at" json:"created_at"`
+}
+
+func (ab *AssessmentBlueprint) LoadKey(k *datastore.Key) error {
+	ab.ID = k.Name
+	if ab.ID == "" && k.ID != 0 {
+		ab.ID = k.Encode()
+	}
+	return nil
+}
+
+func (ab *AssessmentBlueprint) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(ab)
+}
+
+// AssessmentCriteria embedded struct
+type AssessmentCriteria struct {
+	MinimumAccuracy          float64 `datastore:"minimum_accuracy" json:"minimum_accuracy"`
+	MinimumSpeed             float64 `datastore:"minimum_speed" json:"minimum_speed"`
+	MaximumErrorRate         float64 `datastore:"maximum_error_rate" json:"maximum_error_rate"`
+	StructuralAccuracyWeight float64 `datastore:"structural_accuracy_weight" json:"structural_accuracy_weight"`
+	SyntaxPenaltyMultiplier  float64 `datastore:"syntax_penalty_multiplier" json:"syntax_penalty_multiplier"`
+	TimeLimit                *int    `datastore:"time_limit" json:"time_limit,omitempty"`
+}
+
+// AssessmentWeights embedded struct
+type AssessmentWeights struct {
+	Speed                float64 `datastore:"speed" json:"speed"`
+	Accuracy             float64 `datastore:"accuracy" json:"accuracy"`
+	StructuralConformity float64 `datastore:"structural_conformity" json:"structural_conformity"`
+	SyntaxCorrectness    float64 `datastore:"syntax_correctness" json:"syntax_correctness"`
+	Consistency          float64 `datastore:"consistency" json:"consistency"`
+	ErrorRecovery        float64 `datastore:"error_recovery" json:"error_recovery"`
+}
+
+// AssessmentSession entity for Datastore
+type AssessmentSession struct {
+	ID                  string                      `datastore:"-" json:"id"`
+	BlueprintID         string                      `datastore:"blueprint_id" json:"blueprint_id"`
+	UserID              string                      `datastore:"user_id" json:"user_id"`
+	StartedAt           time.Time                   `datastore:"started_at" json:"started_at"`
+	CompletedAt         *time.Time                  `datastore:"completed_at" json:"completed_at,omitempty"`
+	Status              string                      `datastore:"status" json:"status"`
+	CurrentSnippetIndex int                         `datastore:"current_snippet_index" json:"current_snippet_index"`
+	SnippetResults      []AssessmentSnippetResult   `datastore:"snippet_results" json:"snippet_results"`
+	OverallResult       *AssessmentResult           `datastore:"overall_result" json:"overall_result,omitempty"`
+	Metadata            AssessmentMetadata          `datastore:"metadata" json:"metadata"`
+}
+
+func (as *AssessmentSession) LoadKey(k *datastore.Key) error {
+	as.ID = k.Name
+	if as.ID == "" && k.ID != 0 {
+		as.ID = k.Encode()
+	}
+	return nil
+}
+
+func (as *AssessmentSession) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(as)
+}
+
+// AssessmentSnippetResult embedded struct
+type AssessmentSnippetResult struct {
+	SnippetID        string                     `datastore:"snippet_id" json:"snippet_id"`
+	StartedAt        time.Time                  `datastore:"started_at" json:"started_at"`
+	CompletedAt      *time.Time                 `datastore:"completed_at" json:"completed_at,omitempty"`
+	ExpectedText     string                     `datastore:"expected_text,noindex" json:"expected_text"`
+	ActualText       string                     `datastore:"actual_text,noindex" json:"actual_text"`
+	KeystrokeEvents  []map[string]interface{}   `datastore:"keystroke_events,noindex" json:"keystroke_events"`
+	Metrics          SessionMetrics             `datastore:"metrics" json:"metrics"`
+	StructuralScore  StructuralConformityScore  `datastore:"structural_score" json:"structural_score"`
+	Passed           bool                       `datastore:"passed" json:"passed"`
+	TimeSpent        int64                      `datastore:"time_spent" json:"time_spent"` // milliseconds
+}
+
+// SessionMetrics embedded struct (reused from existing models)
+type SessionMetrics struct {
+	CPM              float64 `datastore:"cpm" json:"cpm"`
+	TWPM             float64 `datastore:"twpm" json:"twpm"`
+	KPS              float64 `datastore:"kps" json:"kps"`
+	RawAccuracy      float64 `datastore:"raw_accuracy" json:"raw_accuracy"`
+	TokenAccuracy    float64 `datastore:"token_accuracy" json:"token_accuracy"`
+	SyntaxAccuracy   float64 `datastore:"syntax_accuracy" json:"syntax_accuracy"`
+	BackspaceRate    float64 `datastore:"backspace_rate" json:"backspace_rate"`
+	ErrorsPerMinute  float64 `datastore:"errors_per_minute" json:"errors_per_minute"`
+	CorrectionLatency float64 `datastore:"correction_latency" json:"correction_latency"`
+}
+
+// StructuralConformityScore embedded struct
+type StructuralConformityScore struct {
+	ASTSimilarity           float64             `datastore:"ast_similarity" json:"ast_similarity"`
+	TokenSequenceAccuracy   float64             `datastore:"token_sequence_accuracy" json:"token_sequence_accuracy"`
+	SyntaxValidationScore   float64             `datastore:"syntax_validation_score" json:"syntax_validation_score"`
+	StructuralPenalties     []StructuralPenalty `datastore:"structural_penalties" json:"structural_penalties"`
+	OverallConformity       float64             `datastore:"overall_conformity" json:"overall_conformity"`
+}
+
+// StructuralPenalty embedded struct
+type StructuralPenalty struct {
+	Type         string  `datastore:"type" json:"type"`
+	Severity     string  `datastore:"severity" json:"severity"`
+	Position     int     `datastore:"position" json:"position"`
+	Description  string  `datastore:"description" json:"description"`
+	PenaltyPoints float64 `datastore:"penalty_points" json:"penalty_points"`
+}
+
+// AssessmentResult entity for Datastore
+type AssessmentResult struct {
+	SessionID               string                    `datastore:"-" json:"session_id"`
+	OverallScore            int                       `datastore:"overall_score" json:"overall_score"`
+	Passed                  bool                      `datastore:"passed" json:"passed"`
+	Grade                   string                    `datastore:"grade" json:"grade"`
+	Breakdown               AssessmentScoreBreakdown  `datastore:"breakdown" json:"breakdown"`
+	Recommendations         []string                  `datastore:"recommendations" json:"recommendations"`
+	CertificateEligible     bool                      `datastore:"certificate_eligible" json:"certificate_eligible"`
+	RetakeAllowed           bool                      `datastore:"retake_allowed" json:"retake_allowed"`
+	NextAssessmentSuggestion *string                  `datastore:"next_assessment_suggestion" json:"next_assessment_suggestion,omitempty"`
+	CreatedAt               time.Time                 `datastore:"created_at" json:"created_at"`
+}
+
+func (ar *AssessmentResult) LoadKey(k *datastore.Key) error {
+	ar.SessionID = k.Name
+	if ar.SessionID == "" && k.ID != 0 {
+		ar.SessionID = k.Encode()
+	}
+	return nil
+}
+
+func (ar *AssessmentResult) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(ar)
+}
+
+// AssessmentScoreBreakdown embedded struct
+type AssessmentScoreBreakdown struct {
+	SpeedScore         float64 `datastore:"speed_score" json:"speed_score"`
+	AccuracyScore      float64 `datastore:"accuracy_score" json:"accuracy_score"`
+	StructuralScore    float64 `datastore:"structural_score" json:"structural_score"`
+	SyntaxScore        float64 `datastore:"syntax_score" json:"syntax_score"`
+	ConsistencyScore   float64 `datastore:"consistency_score" json:"consistency_score"`
+	ErrorRecoveryScore float64 `datastore:"error_recovery_score" json:"error_recovery_score"`
+	TotalPenalties     float64 `datastore:"total_penalties" json:"total_penalties"`
+	BonusPoints        float64 `datastore:"bonus_points" json:"bonus_points"`
+}
+
+// AssessmentMetadata embedded struct
+type AssessmentMetadata struct {
+	Language          string                 `datastore:"language" json:"language"`
+	Difficulty        int                    `datastore:"difficulty" json:"difficulty"`
+	TotalSnippets     int                    `datastore:"total_snippets" json:"total_snippets"`
+	EstimatedDuration int                    `datastore:"estimated_duration" json:"estimated_duration"`
+	ActualDuration    *int                   `datastore:"actual_duration" json:"actual_duration,omitempty"`
+	Environment       map[string]interface{} `datastore:"environment" json:"environment"`
+	Settings          map[string]interface{} `datastore:"settings" json:"settings"`
+}
+
+// AssessmentSchedule entity for Datastore
+type AssessmentSchedule struct {
+	ID               string    `datastore:"-" json:"id"`
+	UserID           string    `datastore:"user_id" json:"user_id"`
+	AssessmentID     string    `datastore:"assessment_id" json:"assessment_id"`
+	ScheduledAt      time.Time `datastore:"scheduled_at" json:"scheduled_at"`
+	ReminderSent     bool      `datastore:"reminder_sent" json:"reminder_sent"`
+	Completed        bool      `datastore:"completed" json:"completed"`
+	RescheduledCount int       `datastore:"rescheduled_count" json:"rescheduled_count"`
+}
+
+func (as *AssessmentSchedule) LoadKey(k *datastore.Key) error {
+	as.ID = k.Name
+	if as.ID == "" && k.ID != 0 {
+		as.ID = k.Encode()
+	}
+	return nil
+}
+
+func (as *AssessmentSchedule) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(as)
+}
+
+// AssessmentBadge entity for Datastore
+type AssessmentBadge struct {
+	ID          string        `datastore:"-" json:"id"`
+	Name        string        `datastore:"name" json:"name"`
+	Description string        `datastore:"description" json:"description"`
+	IconURL     string        `datastore:"icon_url" json:"icon_url"`
+	Criteria    BadgeCriteria `datastore:"criteria" json:"criteria"`
+	Rarity      string        `datastore:"rarity" json:"rarity"`
+	EarnedAt    *time.Time    `datastore:"earned_at" json:"earned_at,omitempty"`
+	CreatedAt   time.Time     `datastore:"created_at" json:"created_at"`
+}
+
+func (ab *AssessmentBadge) LoadKey(k *datastore.Key) error {
+	ab.ID = k.Name
+	if ab.ID == "" && k.ID != 0 {
+		ab.ID = k.Encode()
+	}
+	return nil
+}
+
+func (ab *AssessmentBadge) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(ab)
+}
+
+// BadgeCriteria embedded struct
+type BadgeCriteria struct {
+	MinimumScore      *int     `datastore:"minimum_score" json:"minimum_score,omitempty"`
+	MinimumGrade      *string  `datastore:"minimum_grade" json:"minimum_grade,omitempty"`
+	SpecificLanguage  *string  `datastore:"specific_language" json:"specific_language,omitempty"`
+	ConsecutivePasses *int     `datastore:"consecutive_passes" json:"consecutive_passes,omitempty"`
+	TimeConstraint    *int     `datastore:"time_constraint" json:"time_constraint,omitempty"`
+	PerfectAccuracy   *bool    `datastore:"perfect_accuracy" json:"perfect_accuracy,omitempty"`
+	SpeedThreshold    *float64 `datastore:"speed_threshold" json:"speed_threshold,omitempty"`
+}
+
+// UserBadge entity for Datastore (junction table for user-badge relationships)
+type UserBadge struct {
+	ID       string    `datastore:"-" json:"id"`
+	UserID   string    `datastore:"user_id" json:"user_id"`
+	BadgeID  string    `datastore:"badge_id" json:"badge_id"`
+	EarnedAt time.Time `datastore:"earned_at" json:"earned_at"`
+}
+
+func (ub *UserBadge) LoadKey(k *datastore.Key) error {
+	ub.ID = k.Name
+	if ub.ID == "" && k.ID != 0 {
+		ub.ID = k.Encode()
+	}
+	return nil
+}
+
+func (ub *UserBadge) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(ub)
+}
+
+// AssessmentAnalytics struct for analytics responses
+type AssessmentAnalytics struct {
+	TotalAttempts          int                              `json:"total_attempts"`
+	PassRate               float64                          `json:"pass_rate"`
+	AverageScore           float64                          `json:"average_score"`
+	AverageDuration        float64                          `json:"average_duration"`
+	CommonFailurePoints    []FailurePoint                   `json:"common_failure_points"`
+	DifficultyDistribution map[int]float64                  `json:"difficulty_distribution"`
+	LanguagePerformance    map[string]LanguagePerformance   `json:"language_performance"`
+}
+
+// FailurePoint embedded struct
+type FailurePoint struct {
+	SnippetID           string  `json:"snippet_id"`
+	Position            int     `json:"position"`
+	ErrorType           string  `json:"error_type"`
+	Frequency           float64 `json:"frequency"`
+	AverageRecoveryTime int64   `json:"average_recovery_time"`
+}
+
+// LanguagePerformance embedded struct
+type LanguagePerformance struct {
+	AverageScore  float64  `json:"average_score"`
+	PassRate      float64  `json:"pass_rate"`
+	CommonErrors  []string `json:"common_errors"`
+	StrengthAreas []string `json:"strength_areas"`
+}

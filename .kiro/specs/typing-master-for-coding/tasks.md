@@ -158,15 +158,15 @@
     - Add content analytics and usage tracking for optimization
     - _Requirements: FR-20 (Versioned content), Content lifecycle management_
 
-- [ ] 9. Add remaining programming languages and advanced features
-  - [ ] 9.1 Integrate C++ and Rust language support
+- [x] 9. Add remaining programming languages and advanced features
+  - [x] 9.1 Integrate C++ and Rust language support
     - Add Tree-sitter parsers for C++ and Rust
     - Create language-specific lesson content and syntax tutorials
     - Implement advanced tokenization for complex language features
     - Add language-specific whitespace and formatting rules
     - _Requirements: FR-1 (Complete syntax tutorials for all 5 languages)_
   
-  - [ ] 9.2 Implement Assessment mode and advanced scoring
+  - [x] 9.2 Implement Assessment mode and advanced scoring
     - Create standardized assessment framework with blueprints
     - Build AST-shape conformity checking for structural validation
     - Implement advanced accuracy scoring with structural penalties
