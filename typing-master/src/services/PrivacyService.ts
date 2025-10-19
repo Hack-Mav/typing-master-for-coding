@@ -45,7 +45,9 @@ class PrivacyService {
   /**
    * Update privacy settings
    */
-  async updatePrivacySettings(settings: PrivacySettings): Promise<PrivacySettings> {
+  async updatePrivacySettings(
+    settings: PrivacySettings
+  ): Promise<PrivacySettings> {
     const response = await authService.authenticatedRequest<PrivacySettings>(
       '/privacy/settings',
       {
@@ -68,7 +70,9 @@ class PrivacyService {
   /**
    * Export user data (GDPR compliance)
    */
-  async exportUserData(options: DataExportOptions = { format: 'json' }): Promise<Blob> {
+  async exportUserData(
+    options: DataExportOptions = { format: 'json' }
+  ): Promise<Blob> {
     const response = await fetch(
       `${authService['apiBaseUrl']}/privacy/export?format=${options.format}`,
       {
@@ -117,9 +121,7 @@ class PrivacyService {
     }
 
     // Anonymize data if in privacy mode
-    const anonymizedData = user.privacyMode
-      ? this.anonymizeData(data)
-      : data;
+    const anonymizedData = user.privacyMode ? this.anonymizeData(data) : data;
 
     const event: TelemetryEvent = {
       eventType,

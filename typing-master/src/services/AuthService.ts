@@ -59,7 +59,8 @@ class AuthService {
   private tokenRefreshTimeout: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
+    this.apiBaseUrl =
+      process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
     this.loadFromStorage();
   }
 
@@ -112,7 +113,7 @@ class AuthService {
 
     // Refresh token 1 minute before expiration (default 15 min - 1 min = 14 min)
     const refreshTime = 14 * 60 * 1000; // 14 minutes in milliseconds
-    
+
     this.tokenRefreshTimeout = setTimeout(async () => {
       try {
         await this.refreshAccessToken();
@@ -182,7 +183,9 @@ class AuthService {
   /**
    * Create an anonymous session (no server-side storage)
    */
-  async createAnonymousSession(request: AnonymousSessionRequest): Promise<AuthResponse> {
+  async createAnonymousSession(
+    request: AnonymousSessionRequest
+  ): Promise<AuthResponse> {
     const response = await fetch(`${this.apiBaseUrl}/auth/anonymous`, {
       method: 'POST',
       headers: {
@@ -292,7 +295,7 @@ class AuthService {
       return {};
     }
     return {
-      'Authorization': `Bearer ${this.accessToken}`,
+      Authorization: `Bearer ${this.accessToken}`,
     };
   }
 
@@ -328,11 +331,11 @@ class AuthService {
           ...options,
           headers: retryHeaders,
         });
-        
+
         if (!retryResponse.ok) {
           throw new Error('Request failed after token refresh');
         }
-        
+
         return await retryResponse.json();
       } catch (error) {
         this.logout();

@@ -1,0 +1,17 @@
+# Dispatch rules for routing requests to different services
+dispatch:
+  # API requests go to default service
+  - url: "*/api/*"
+    service: default
+
+  # Admin CMS requests
+  - url: "*/admin/*"
+    service: admin
+
+  # Static assets (if using separate service)
+  # - url: "*/static/*"
+  #   service: static
+
+  # Default catch-all
+  - url: "*/*"
+    service: default

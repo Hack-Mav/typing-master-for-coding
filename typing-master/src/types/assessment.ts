@@ -50,9 +50,9 @@ export interface AssessmentSession {
   metadata: AssessmentMetadata;
 }
 
-export type AssessmentStatus = 
+export type AssessmentStatus =
   | 'not_started'
-  | 'in_progress' 
+  | 'in_progress'
   | 'paused'
   | 'completed'
   | 'failed'
@@ -108,7 +108,18 @@ export interface AssessmentResult {
   nextAssessmentSuggestion?: string;
 }
 
-export type AssessmentGrade = 'A+' | 'A' | 'A-' | 'B+' | 'B' | 'B-' | 'C+' | 'C' | 'C-' | 'D' | 'F';
+export type AssessmentGrade =
+  | 'A+'
+  | 'A'
+  | 'A-'
+  | 'B+'
+  | 'B'
+  | 'B-'
+  | 'C+'
+  | 'C'
+  | 'C-'
+  | 'D'
+  | 'F';
 
 export interface AssessmentScoreBreakdown {
   speedScore: number;

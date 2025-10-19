@@ -52,7 +52,7 @@ const ABTestingFramework: React.FC = () => {
       try {
         const response = await fetch('/api/v1/admin/ab-tests', {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
@@ -64,7 +64,9 @@ const ABTestingFramework: React.FC = () => {
         const data = await response.json();
         setTests(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch A/B tests');
+        setError(
+          err instanceof Error ? err.message : 'Failed to fetch A/B tests'
+        );
       } finally {
         setLoading(false);
       }
@@ -81,7 +83,7 @@ const ABTestingFramework: React.FC = () => {
       const response = await fetch('/api/v1/admin/ab-tests', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(testData),
@@ -91,12 +93,12 @@ const ABTestingFramework: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const newTest = await response.json();
+      await response.json();
 
       // Refresh tests
       const testsResponse = await fetch('/api/v1/admin/ab-tests', {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -109,7 +111,9 @@ const ABTestingFramework: React.FC = () => {
       setShowCreateForm(false);
       alert('A/B test created successfully!');
     } catch (err) {
-      alert(`Failed to create test: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      alert(
+        `Failed to create test: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     } finally {
       setCreating(false);
     }
@@ -120,7 +124,7 @@ const ABTestingFramework: React.FC = () => {
       const response = await fetch(`/api/v1/admin/ab-tests/${testId}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(updates),
@@ -133,7 +137,7 @@ const ABTestingFramework: React.FC = () => {
       // Refresh tests
       const testsResponse = await fetch('/api/v1/admin/ab-tests', {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -145,12 +149,18 @@ const ABTestingFramework: React.FC = () => {
 
       alert('Test updated successfully!');
     } catch (err) {
-      alert(`Failed to update test: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      alert(
+        `Failed to update test: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     }
   };
 
   const handleDeleteTest = async (testId: string) => {
-    if (!confirm('Are you sure you want to delete this A/B test? This action cannot be undone.')) {
+    if (
+      !window.confirm(
+        'Are you sure you want to delete this A/B test? This action cannot be undone.'
+      )
+    ) {
       return;
     }
 
@@ -158,7 +168,7 @@ const ABTestingFramework: React.FC = () => {
       const response = await fetch(`/api/v1/admin/ab-tests/${testId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -170,7 +180,7 @@ const ABTestingFramework: React.FC = () => {
       // Refresh tests
       const testsResponse = await fetch('/api/v1/admin/ab-tests', {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -182,7 +192,9 @@ const ABTestingFramework: React.FC = () => {
 
       alert('Test deleted successfully!');
     } catch (err) {
-      alert(`Failed to delete test: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      alert(
+        `Failed to delete test: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     }
   };
 
@@ -190,7 +202,7 @@ const ABTestingFramework: React.FC = () => {
     try {
       const response = await fetch(`/api/v1/admin/ab-tests/${testId}/results`, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -203,7 +215,9 @@ const ABTestingFramework: React.FC = () => {
       setTestResults(results);
       setSelectedTest(tests.find(t => t.id === testId) || null);
     } catch (err) {
-      alert(`Failed to fetch results: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      alert(
+        `Failed to fetch results: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     }
   };
 
@@ -213,10 +227,14 @@ const ABTestingFramework: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'paused': return 'bg-yellow-100 text-yellow-800';
-      case 'completed': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'active':
+        return 'bg-green-100 text-green-800';
+      case 'paused':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'completed':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -289,25 +307,38 @@ const ABTestingFramework: React.FC = () => {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Status:</span>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(testResults.status)}`}>
+                    <span
+                      className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(testResults.status)}`}
+                    >
                       {testResults.status}
                     </span>
                   </div>
 
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Participants:</span>
-                    <span className="text-sm font-medium">{testResults.total_participants}</span>
+                    <span className="text-sm font-medium">
+                      {testResults.total_participants}
+                    </span>
                   </div>
 
                   <div>
-                    <span className="text-sm text-gray-600 block mb-2">Conversion Rates:</span>
+                    <span className="text-sm text-gray-600 block mb-2">
+                      Conversion Rates:
+                    </span>
                     <div className="space-y-1">
-                      {Object.entries(testResults.conversion_rates).map(([variant, rate]) => (
-                        <div key={variant} className="flex justify-between text-sm">
-                          <span>{variant}:</span>
-                          <span className="font-medium">{(rate * 100).toFixed(1)}%</span>
-                        </div>
-                      ))}
+                      {Object.entries(testResults.conversion_rates).map(
+                        ([variant, rate]) => (
+                          <div
+                            key={variant}
+                            className="flex justify-between text-sm"
+                          >
+                            <span>{variant}:</span>
+                            <span className="font-medium">
+                              {(rate * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        )
+                      )}
                     </div>
                   </div>
                 </div>
@@ -354,8 +385,11 @@ const ABTestingFramework: React.FC = () => {
               </p>
             ) : (
               <div className="space-y-4">
-                {tests.map((test) => (
-                  <div key={test.id} className="border border-gray-200 rounded-lg p-4">
+                {tests.map(test => (
+                  <div
+                    key={test.id}
+                    className="border border-gray-200 rounded-lg p-4"
+                  >
                     <div className="flex items-center justify-between mb-3">
                       <div>
                         <h4 className="text-lg font-medium text-gray-900">
@@ -365,7 +399,9 @@ const ABTestingFramework: React.FC = () => {
                           {test.description}
                         </p>
                       </div>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(test.status)}`}>
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(test.status)}`}
+                      >
                         {test.status}
                       </span>
                     </div>
@@ -373,19 +409,27 @@ const ABTestingFramework: React.FC = () => {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                       <div>
                         <span className="text-gray-500">Type:</span>
-                        <span className="ml-2 font-medium">{test.test_type}</span>
+                        <span className="ml-2 font-medium">
+                          {test.test_type}
+                        </span>
                       </div>
                       <div>
                         <span className="text-gray-500">Variants:</span>
-                        <span className="ml-2 font-medium">{test.variants.length}</span>
+                        <span className="ml-2 font-medium">
+                          {test.variants.length}
+                        </span>
                       </div>
                       <div>
                         <span className="text-gray-500">Participants:</span>
-                        <span className="ml-2 font-medium">{test.user_percentage}%</span>
+                        <span className="ml-2 font-medium">
+                          {test.user_percentage}%
+                        </span>
                       </div>
                       <div>
                         <span className="text-gray-500">End Date:</span>
-                        <span className="ml-2 font-medium">{formatDate(test.end_date)}</span>
+                        <span className="ml-2 font-medium">
+                          {formatDate(test.end_date)}
+                        </span>
                       </div>
                     </div>
 
@@ -398,7 +442,9 @@ const ABTestingFramework: React.FC = () => {
                       </button>
                       <select
                         value={test.status}
-                        onChange={(e) => handleUpdateTest(test.id, { status: e.target.value })}
+                        onChange={e =>
+                          handleUpdateTest(test.id, { status: e.target.value })
+                        }
                         className="text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="active">Active</option>
@@ -430,14 +476,32 @@ interface CreateTestFormProps {
   loading: boolean;
 }
 
-const CreateTestForm: React.FC<CreateTestFormProps> = ({ onSubmit, onCancel, loading }) => {
+const CreateTestForm: React.FC<CreateTestFormProps> = ({
+  onSubmit,
+  onCancel,
+  loading,
+}) => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     test_type: 'scoring_weights',
     variants: [
-      { name: 'Control', twpm_weight: 0.4, raw_accuracy_weight: 0.3, syntax_accuracy_weight: 0.3, backspace_penalty: 0.1, idle_time_penalty: 0.05 },
-      { name: 'Variant A', twpm_weight: 0.5, raw_accuracy_weight: 0.25, syntax_accuracy_weight: 0.25, backspace_penalty: 0.15, idle_time_penalty: 0.05 },
+      {
+        name: 'Control',
+        twpm_weight: 0.4,
+        raw_accuracy_weight: 0.3,
+        syntax_accuracy_weight: 0.3,
+        backspace_penalty: 0.1,
+        idle_time_penalty: 0.05,
+      },
+      {
+        name: 'Variant A',
+        twpm_weight: 0.5,
+        raw_accuracy_weight: 0.25,
+        syntax_accuracy_weight: 0.25,
+        backspace_penalty: 0.15,
+        idle_time_penalty: 0.05,
+      },
     ],
     duration_days: 7,
     rollout_percentage: 10,
@@ -479,27 +543,37 @@ const CreateTestForm: React.FC<CreateTestFormProps> = ({ onSubmit, onCancel, loa
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label htmlFor="test_name" className="block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="test_name"
+            className="block text-sm font-medium text-gray-700"
+          >
             Test Name
           </label>
           <input
             type="text"
             id="test_name"
             value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            onChange={e =>
+              setFormData(prev => ({ ...prev, name: e.target.value }))
+            }
             className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
             required
           />
         </div>
 
         <div>
-          <label htmlFor="test_type" className="block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="test_type"
+            className="block text-sm font-medium text-gray-700"
+          >
             Test Type
           </label>
           <select
             id="test_type"
             value={formData.test_type}
-            onChange={(e) => setFormData(prev => ({ ...prev, test_type: e.target.value }))}
+            onChange={e =>
+              setFormData(prev => ({ ...prev, test_type: e.target.value }))
+            }
             className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="scoring_weights">Scoring Weights</option>
@@ -509,13 +583,18 @@ const CreateTestForm: React.FC<CreateTestFormProps> = ({ onSubmit, onCancel, loa
       </div>
 
       <div>
-        <label htmlFor="test_description" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="test_description"
+          className="block text-sm font-medium text-gray-700"
+        >
           Description
         </label>
         <textarea
           id="test_description"
           value={formData.description}
-          onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+          onChange={e =>
+            setFormData(prev => ({ ...prev, description: e.target.value }))
+          }
           rows={3}
           className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
           placeholder="Describe what this test is measuring..."
@@ -524,14 +603,22 @@ const CreateTestForm: React.FC<CreateTestFormProps> = ({ onSubmit, onCancel, loa
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label htmlFor="duration" className="block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="duration"
+            className="block text-sm font-medium text-gray-700"
+          >
             Duration (days)
           </label>
           <input
             type="number"
             id="duration"
             value={formData.duration_days}
-            onChange={(e) => setFormData(prev => ({ ...prev, duration_days: parseInt(e.target.value) }))}
+            onChange={e =>
+              setFormData(prev => ({
+                ...prev,
+                duration_days: parseInt(e.target.value),
+              }))
+            }
             min="1"
             max="30"
             className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
@@ -539,14 +626,22 @@ const CreateTestForm: React.FC<CreateTestFormProps> = ({ onSubmit, onCancel, loa
         </div>
 
         <div>
-          <label htmlFor="rollout" className="block text-sm font-medium text-gray-700">
+          <label
+            htmlFor="rollout"
+            className="block text-sm font-medium text-gray-700"
+          >
             Rollout Percentage
           </label>
           <input
             type="number"
             id="rollout"
             value={formData.rollout_percentage}
-            onChange={(e) => setFormData(prev => ({ ...prev, rollout_percentage: parseFloat(e.target.value) }))}
+            onChange={e =>
+              setFormData(prev => ({
+                ...prev,
+                rollout_percentage: parseFloat(e.target.value),
+              }))
+            }
             min="1"
             max="100"
             step="0.1"
@@ -577,11 +672,19 @@ const CreateTestForm: React.FC<CreateTestFormProps> = ({ onSubmit, onCancel, loa
               {formData.test_type === 'scoring_weights' && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-gray-500">TWPM Weight</label>
+                    <label className="block text-xs font-medium text-gray-500">
+                      TWPM Weight
+                    </label>
                     <input
                       type="number"
                       value={variant.twpm_weight}
-                      onChange={(e) => updateVariant(index, 'twpm_weight', parseFloat(e.target.value))}
+                      onChange={e =>
+                        updateVariant(
+                          index,
+                          'twpm_weight',
+                          parseFloat(e.target.value)
+                        )
+                      }
                       step="0.01"
                       min="0"
                       max="1"
@@ -589,11 +692,19 @@ const CreateTestForm: React.FC<CreateTestFormProps> = ({ onSubmit, onCancel, loa
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500">Raw Accuracy Weight</label>
+                    <label className="block text-xs font-medium text-gray-500">
+                      Raw Accuracy Weight
+                    </label>
                     <input
                       type="number"
                       value={variant.raw_accuracy_weight}
-                      onChange={(e) => updateVariant(index, 'raw_accuracy_weight', parseFloat(e.target.value))}
+                      onChange={e =>
+                        updateVariant(
+                          index,
+                          'raw_accuracy_weight',
+                          parseFloat(e.target.value)
+                        )
+                      }
                       step="0.01"
                       min="0"
                       max="1"
@@ -601,11 +712,19 @@ const CreateTestForm: React.FC<CreateTestFormProps> = ({ onSubmit, onCancel, loa
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500">Syntax Accuracy Weight</label>
+                    <label className="block text-xs font-medium text-gray-500">
+                      Syntax Accuracy Weight
+                    </label>
                     <input
                       type="number"
                       value={variant.syntax_accuracy_weight}
-                      onChange={(e) => updateVariant(index, 'syntax_accuracy_weight', parseFloat(e.target.value))}
+                      onChange={e =>
+                        updateVariant(
+                          index,
+                          'syntax_accuracy_weight',
+                          parseFloat(e.target.value)
+                        )
+                      }
                       step="0.01"
                       min="0"
                       max="1"
@@ -613,11 +732,19 @@ const CreateTestForm: React.FC<CreateTestFormProps> = ({ onSubmit, onCancel, loa
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500">Backspace Penalty</label>
+                    <label className="block text-xs font-medium text-gray-500">
+                      Backspace Penalty
+                    </label>
                     <input
                       type="number"
                       value={variant.backspace_penalty}
-                      onChange={(e) => updateVariant(index, 'backspace_penalty', parseFloat(e.target.value))}
+                      onChange={e =>
+                        updateVariant(
+                          index,
+                          'backspace_penalty',
+                          parseFloat(e.target.value)
+                        )
+                      }
                       step="0.01"
                       min="0"
                       max="1"
@@ -625,11 +752,19 @@ const CreateTestForm: React.FC<CreateTestFormProps> = ({ onSubmit, onCancel, loa
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500">Idle Time Penalty</label>
+                    <label className="block text-xs font-medium text-gray-500">
+                      Idle Time Penalty
+                    </label>
                     <input
                       type="number"
                       value={variant.idle_time_penalty}
-                      onChange={(e) => updateVariant(index, 'idle_time_penalty', parseFloat(e.target.value))}
+                      onChange={e =>
+                        updateVariant(
+                          index,
+                          'idle_time_penalty',
+                          parseFloat(e.target.value)
+                        )
+                      }
                       step="0.01"
                       min="0"
                       max="1"

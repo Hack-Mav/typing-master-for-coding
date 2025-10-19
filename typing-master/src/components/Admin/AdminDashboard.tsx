@@ -26,7 +26,9 @@ interface AdminDashboardData {
 }
 
 const AdminDashboard: React.FC = () => {
-  const [dashboardData, setDashboardData] = useState<AdminDashboardData | null>(null);
+  const [dashboardData, setDashboardData] = useState<AdminDashboardData | null>(
+    null
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { token, user } = useAuth();
@@ -46,7 +48,7 @@ const AdminDashboard: React.FC = () => {
       try {
         const response = await fetch('/api/v1/admin/dashboard', {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
@@ -58,7 +60,9 @@ const AdminDashboard: React.FC = () => {
         const data = await response.json();
         setDashboardData(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch dashboard data');
+        setError(
+          err instanceof Error ? err.message : 'Failed to fetch dashboard data'
+        );
       } finally {
         setLoading(false);
       }
@@ -146,8 +150,18 @@ const AdminDashboard: React.FC = () => {
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                    <svg
+                      className="w-5 h-5 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+                      />
                     </svg>
                   </div>
                 </div>
@@ -170,8 +184,18 @@ const AdminDashboard: React.FC = () => {
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 bg-green-500 rounded-md flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <svg
+                      className="w-5 h-5 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                   </div>
                 </div>
@@ -194,8 +218,18 @@ const AdminDashboard: React.FC = () => {
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 bg-purple-500 rounded-md flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    <svg
+                      className="w-5 h-5 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                      />
                     </svg>
                   </div>
                 </div>
@@ -205,7 +239,11 @@ const AdminDashboard: React.FC = () => {
                       Total Content
                     </dt>
                     <dd className="text-lg font-medium text-gray-900">
-                      {formatNumber(dashboardData.stats.total_languages + dashboardData.stats.total_lessons + dashboardData.stats.total_snippets)}
+                      {formatNumber(
+                        dashboardData.stats.total_languages +
+                          dashboardData.stats.total_lessons +
+                          dashboardData.stats.total_snippets
+                      )}
                     </dd>
                   </dl>
                 </div>
@@ -256,13 +294,26 @@ const AdminDashboard: React.FC = () => {
               Recent Activity
             </h3>
             <div className="space-y-4">
-              {dashboardData.recent_activity.map((activity) => (
-                <div key={activity.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-md">
+              {dashboardData.recent_activity.map(activity => (
+                <div
+                  key={activity.id}
+                  className="flex items-center justify-between p-3 border border-gray-200 rounded-md"
+                >
                   <div className="flex items-center">
                     <div className="flex-shrink-0">
                       <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <svg
+                          className="w-4 h-4 text-gray-600"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
                         </svg>
                       </div>
                     </div>
@@ -271,7 +322,8 @@ const AdminDashboard: React.FC = () => {
                         Session {activity.id.substring(0, 8)}...
                       </p>
                       <p className="text-sm text-gray-500">
-                        {activity.mode} • {activity.language} • Started {formatDate(activity.started_at)}
+                        {activity.mode} • {activity.language} • Started{' '}
+                        {formatDate(activity.started_at)}
                       </p>
                     </div>
                   </div>

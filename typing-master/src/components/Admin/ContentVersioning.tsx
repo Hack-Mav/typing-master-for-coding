@@ -28,7 +28,6 @@ const ContentVersioning: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<ContentItem | null>(null);
   const [versions, setVersions] = useState<ContentVersion[]>([]);
-  const [showVersions, setShowVersions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { token, user } = useAuth();
   const navigate = useNavigate();
@@ -46,28 +45,33 @@ const ContentVersioning: React.FC = () => {
     const fetchContentOverview = async () => {
       try {
         // Fetch all content types and aggregate version info
-        const [languagesResponse, lessonsResponse, snippetsResponse] = await Promise.all([
-          fetch('/api/v1/admin/languages', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }),
-          fetch('/api/v1/admin/lessons', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }),
-          fetch('/api/v1/admin/snippets', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          }),
-        ]);
+        const [languagesResponse, lessonsResponse, snippetsResponse] =
+          await Promise.all([
+            fetch('/api/v1/admin/languages', {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            }),
+            fetch('/api/v1/admin/lessons', {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            }),
+            fetch('/api/v1/admin/snippets', {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            }),
+          ]);
 
-        if (!languagesResponse.ok || !lessonsResponse.ok || !snippetsResponse.ok) {
+        if (
+          !languagesResponse.ok ||
+          !lessonsResponse.ok ||
+          !snippetsResponse.ok
+        ) {
           throw new Error('Failed to fetch content');
         }
 
@@ -104,7 +108,9 @@ const ContentVersioning: React.FC = () => {
 
         setContentItems(allItems);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch content');
+        setError(
+          err instanceof Error ? err.message : 'Failed to fetch content'
+        );
       } finally {
         setLoading(false);
       }
@@ -117,12 +123,15 @@ const ContentVersioning: React.FC = () => {
 
   const fetchVersions = async (contentType: string, contentId: string) => {
     try {
-      const response = await fetch(`/api/v1/admin/content/versions/${contentType}/${contentId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `/api/v1/admin/content/versions/${contentType}/${contentId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -130,25 +139,37 @@ const ContentVersioning: React.FC = () => {
 
       const versionsData = await response.json();
       setVersions(versionsData);
-      setShowVersions(true);
     } catch (err) {
-      alert(`Failed to fetch versions: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      alert(
+        `Failed to fetch versions: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     }
   };
 
-  const handleRestoreVersion = async (contentType: string, contentId: string, version: number) => {
-    if (!confirm(`Are you sure you want to restore version ${version}? This will replace the current content.`)) {
+  const handleRestoreVersion = async (
+    contentType: string,
+    contentId: string,
+    version: number
+  ) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to restore version ${version}? This will replace the current content.`
+      )
+    ) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/v1/admin/content/versions/${contentType}/${contentId}/restore/${version}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `/api/v1/admin/content/versions/${contentType}/${contentId}/restore/${version}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -162,7 +183,9 @@ const ContentVersioning: React.FC = () => {
       // Refresh content overview
       window.location.reload();
     } catch (err) {
-      alert(`Failed to restore version: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      alert(
+        `Failed to restore version: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     }
   };
 
@@ -172,19 +195,27 @@ const ContentVersioning: React.FC = () => {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'language': return '🌐';
-      case 'lesson': return '📚';
-      case 'snippet': return '📄';
-      default: return '📄';
+      case 'language':
+        return '🌐';
+      case 'lesson':
+        return '📚';
+      case 'snippet':
+        return '📄';
+      default:
+        return '📄';
     }
   };
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'language': return 'bg-blue-100 text-blue-800';
-      case 'lesson': return 'bg-green-100 text-green-800';
-      case 'snippet': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'language':
+        return 'bg-blue-100 text-blue-800';
+      case 'lesson':
+        return 'bg-green-100 text-green-800';
+      case 'snippet':
+        return 'bg-purple-100 text-purple-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
@@ -255,7 +286,7 @@ const ContentVersioning: React.FC = () => {
                 </h3>
 
                 <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {contentItems.map((item) => (
+                  {contentItems.map(item => (
                     <div
                       key={item.id}
                       className={`p-3 border rounded-lg cursor-pointer transition-colors ${
@@ -270,7 +301,9 @@ const ContentVersioning: React.FC = () => {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
-                          <span className="text-lg">{getTypeIcon(item.type)}</span>
+                          <span className="text-lg">
+                            {getTypeIcon(item.type)}
+                          </span>
                           <div>
                             <p className="text-sm font-medium text-gray-900 truncate">
                               {item.title}
@@ -280,7 +313,9 @@ const ContentVersioning: React.FC = () => {
                             </p>
                           </div>
                         </div>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(item.type)}`}>
+                        <span
+                          className={`px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(item.type)}`}
+                        >
                           {item.type}
                         </span>
                       </div>
@@ -300,7 +335,9 @@ const ContentVersioning: React.FC = () => {
                   <div className="px-4 py-5 sm:p-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
-                        <span className="text-lg">{getTypeIcon(selectedItem.type)}</span>
+                        <span className="text-lg">
+                          {getTypeIcon(selectedItem.type)}
+                        </span>
                         <div>
                           <h3 className="text-lg font-medium text-gray-900">
                             {selectedItem.title}
@@ -311,7 +348,11 @@ const ContentVersioning: React.FC = () => {
                         </div>
                       </div>
                       <button
-                        onClick={() => navigate(`/admin/${selectedItem.type}s/${selectedItem.id}/edit`)}
+                        onClick={() =>
+                          navigate(
+                            `/admin/${selectedItem.type}s/${selectedItem.id}/edit`
+                          )
+                        }
                         className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
                       >
                         Edit Current
@@ -333,24 +374,40 @@ const ContentVersioning: React.FC = () => {
                       </p>
                     ) : (
                       <div className="space-y-4">
-                        {versions.map((version) => (
-                          <div key={version.id} className="border border-gray-200 rounded-lg p-4">
+                        {versions.map(version => (
+                          <div
+                            key={version.id}
+                            className="border border-gray-200 rounded-lg p-4"
+                          >
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center space-x-3">
-                                <span className={`w-3 h-3 rounded-full ${version.is_active ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                                <span
+                                  className={`w-3 h-3 rounded-full ${version.is_active ? 'bg-green-500' : 'bg-gray-400'}`}
+                                ></span>
                                 <div>
                                   <p className="text-sm font-medium text-gray-900">
                                     Version {version.version}
-                                    {version.is_active && <span className="ml-2 text-xs text-green-600">(Active)</span>}
+                                    {version.is_active && (
+                                      <span className="ml-2 text-xs text-green-600">
+                                        (Active)
+                                      </span>
+                                    )}
                                   </p>
                                   <p className="text-xs text-gray-500">
-                                    {formatDate(version.created_at)} • {version.created_by}
+                                    {formatDate(version.created_at)} •{' '}
+                                    {version.created_by}
                                   </p>
                                 </div>
                               </div>
                               {!version.is_active && (
                                 <button
-                                  onClick={() => handleRestoreVersion(selectedItem.type, selectedItem.id, version.version)}
+                                  onClick={() =>
+                                    handleRestoreVersion(
+                                      selectedItem.type,
+                                      selectedItem.id,
+                                      version.version
+                                    )
+                                  }
                                   className="px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700"
                                 >
                                   Restore
@@ -361,7 +418,8 @@ const ContentVersioning: React.FC = () => {
                             {version.change_notes && (
                               <div className="mb-3">
                                 <p className="text-sm text-gray-600">
-                                  <strong>Changes:</strong> {version.change_notes}
+                                  <strong>Changes:</strong>{' '}
+                                  {version.change_notes}
                                 </p>
                               </div>
                             )}
@@ -371,7 +429,9 @@ const ContentVersioning: React.FC = () => {
                                 View Content
                               </summary>
                               <div className="mt-3 p-3 bg-gray-50 rounded text-xs font-mono max-h-48 overflow-y-auto">
-                                <pre>{JSON.stringify(version.content, null, 2)}</pre>
+                                <pre>
+                                  {JSON.stringify(version.content, null, 2)}
+                                </pre>
                               </div>
                             </details>
                           </div>

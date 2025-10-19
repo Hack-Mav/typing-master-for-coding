@@ -50,7 +50,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
       onAnonymousMode?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start anonymous session');
+      setError(
+        err instanceof Error ? err.message : 'Failed to start anonymous session'
+      );
     } finally {
       setLoading(false);
     }
@@ -59,9 +61,9 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   return (
     <div className="auth-form">
       <h2>Login</h2>
-      
+
       {error && <div className="error-message">{error}</div>}
-      
+
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="email">Email</label>
@@ -69,7 +71,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             id="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={e => setEmail(e.target.value)}
             required
             disabled={loading}
             autoComplete="email"
@@ -82,7 +84,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             id="password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             required
             disabled={loading}
             autoComplete="current-password"

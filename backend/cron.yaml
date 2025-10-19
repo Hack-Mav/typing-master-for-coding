@@ -1,0 +1,49 @@
+# Cron jobs for scheduled tasks
+cron:
+  # Clean up expired sessions
+  - description: "Clean up expired sessions"
+    url: /api/internal/cleanup/sessions
+    schedule: every 6 hours
+    timezone: America/New_York
+    target: default
+    retry_parameters:
+      min_backoff_seconds: 2.5
+      max_doublings: 5
+
+  # Update leaderboards
+  - description: "Update leaderboards"
+    url: /api/internal/leaderboard/update
+    schedule: every 15 minutes
+    timezone: America/New_York
+    target: default
+
+  # Generate daily reports
+  - description: "Generate daily analytics reports"
+    url: /api/internal/analytics/daily-report
+    schedule: every day 02:00
+    timezone: America/New_York
+    target: default
+
+  # Backup critical data
+  - description: "Backup critical data to Cloud Storage"
+    url: /api/internal/backup/critical
+    schedule: every day 03:00
+    timezone: America/New_York
+    target: default
+    retry_parameters:
+      min_backoff_seconds: 5
+      max_doublings: 3
+
+  # Clear old cache entries
+  - description: "Clear expired cache entries"
+    url: /api/internal/cache/cleanup
+    schedule: every 1 hours
+    timezone: America/New_York
+    target: default
+
+  # Update content checksums
+  - description: "Verify and update content checksums"
+    url: /api/internal/content/verify-checksums
+    schedule: every day 04:00
+    timezone: America/New_York
+    target: default

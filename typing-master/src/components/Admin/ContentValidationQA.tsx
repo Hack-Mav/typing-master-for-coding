@@ -2,12 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../services/AuthContext';
 
-interface ValidationResult {
-  valid: boolean;
-  validation_errors: string[];
-  validation_id: string;
-}
-
 interface ContentValidation {
   content_type: string;
   content_id: string;
@@ -20,9 +14,7 @@ const ContentValidationQA: React.FC = () => {
   const [validations, setValidations] = useState<ContentValidation[]>([]);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState<string | null>(null);
-  const [showValidationForm, setShowValidationForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedContent, setSelectedContent] = useState<{ type: string; id: string } | null>(null);
   const { token, user } = useAuth();
   const navigate = useNavigate();
 
@@ -42,7 +34,9 @@ const ContentValidationQA: React.FC = () => {
         // In production, you'd fetch from /api/v1/admin/validations
         setValidations([]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch validations');
+        setError(
+          err instanceof Error ? err.message : 'Failed to fetch validations'
+        );
       } finally {
         setLoading(false);
       }
@@ -53,14 +47,17 @@ const ContentValidationQA: React.FC = () => {
     }
   }, [token, user]);
 
-  const handleValidateContent = async (contentType: string, contentId: string) => {
+  const handleValidateContent = async (
+    contentType: string,
+    contentId: string
+  ) => {
     setValidating(`${contentType}_${contentId}`);
 
     try {
       const response = await fetch('/api/v1/admin/content/validate', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -82,7 +79,9 @@ const ContentValidationQA: React.FC = () => {
         alert(`Errors found:\n${result.validation_errors.join('\n')}`);
       }
     } catch (err) {
-      alert(`Validation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      alert(
+        `Validation failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     } finally {
       setValidating(null);
     }
@@ -164,14 +163,17 @@ const ContentValidationQA: React.FC = () => {
                     🌐 Languages
                   </h4>
                   <p className="text-sm text-gray-600 mb-3">
-                    Validate language definitions, parser configurations, and grammar rules.
+                    Validate language definitions, parser configurations, and
+                    grammar rules.
                   </p>
                   <button
                     onClick={() => handleValidateContent('language', 'all')}
                     disabled={validating === 'language_all'}
                     className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {validating === 'language_all' ? 'Validating...' : 'Validate All Languages'}
+                    {validating === 'language_all'
+                      ? 'Validating...'
+                      : 'Validate All Languages'}
                   </button>
                 </div>
 
@@ -181,14 +183,17 @@ const ContentValidationQA: React.FC = () => {
                     📚 Lessons
                   </h4>
                   <p className="text-sm text-gray-600 mb-3">
-                    Check lesson structure, token coverage, prerequisites, and learning objectives.
+                    Check lesson structure, token coverage, prerequisites, and
+                    learning objectives.
                   </p>
                   <button
                     onClick={() => handleValidateContent('lesson', 'all')}
                     disabled={validating === 'lesson_all'}
                     className="w-full px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50"
                   >
-                    {validating === 'lesson_all' ? 'Validating...' : 'Validate All Lessons'}
+                    {validating === 'lesson_all'
+                      ? 'Validating...'
+                      : 'Validate All Lessons'}
                   </button>
                 </div>
 
@@ -198,14 +203,17 @@ const ContentValidationQA: React.FC = () => {
                     📄 Snippets
                   </h4>
                   <p className="text-sm text-gray-600 mb-3">
-                    Validate code snippets, check YAML syntax, verify accessibility tags, and ensure proper formatting.
+                    Validate code snippets, check YAML syntax, verify
+                    accessibility tags, and ensure proper formatting.
                   </p>
                   <button
                     onClick={() => handleValidateContent('snippet', 'all')}
                     disabled={validating === 'snippet_all'}
                     className="w-full px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50"
                   >
-                    {validating === 'snippet_all' ? 'Validating...' : 'Validate All Snippets'}
+                    {validating === 'snippet_all'
+                      ? 'Validating...'
+                      : 'Validate All Snippets'}
                   </button>
                 </div>
               </div>
@@ -228,7 +236,10 @@ const ContentValidationQA: React.FC = () => {
                   <ul className="text-sm text-gray-600 space-y-2">
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
-                      <span>Parser ID must be valid and correspond to an existing Tree-sitter parser</span>
+                      <span>
+                        Parser ID must be valid and correspond to an existing
+                        Tree-sitter parser
+                      </span>
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
@@ -236,7 +247,9 @@ const ContentValidationQA: React.FC = () => {
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
-                      <span>Whitespace rules must define valid token boundaries</span>
+                      <span>
+                        Whitespace rules must define valid token boundaries
+                      </span>
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></span>
@@ -257,11 +270,15 @@ const ContentValidationQA: React.FC = () => {
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></span>
-                      <span>Language ID must reference an existing language</span>
+                      <span>
+                        Language ID must reference an existing language
+                      </span>
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></span>
-                      <span>Token coverage must include at least basic syntax tokens</span>
+                      <span>
+                        Token coverage must include at least basic syntax tokens
+                      </span>
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></span>
@@ -269,7 +286,10 @@ const ContentValidationQA: React.FC = () => {
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-green-500 rounded-full mt-2 flex-shrink-0"></span>
-                      <span>Prerequisites must reference existing lessons if specified</span>
+                      <span>
+                        Prerequisites must reference existing lessons if
+                        specified
+                      </span>
                     </li>
                   </ul>
                 </div>
@@ -286,7 +306,9 @@ const ContentValidationQA: React.FC = () => {
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></span>
-                      <span>Source code must be valid for the specified language</span>
+                      <span>
+                        Source code must be valid for the specified language
+                      </span>
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></span>
@@ -294,11 +316,15 @@ const ContentValidationQA: React.FC = () => {
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></span>
-                      <span>Content length must be appropriate (10-1500 characters)</span>
+                      <span>
+                        Content length must be appropriate (10-1500 characters)
+                      </span>
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></span>
-                      <span>Accessibility tags must be automatically generated</span>
+                      <span>
+                        Accessibility tags must be automatically generated
+                      </span>
                     </li>
                     <li className="flex items-start space-x-2">
                       <span className="w-2 h-2 bg-purple-500 rounded-full mt-2 flex-shrink-0"></span>
@@ -318,7 +344,9 @@ const ContentValidationQA: React.FC = () => {
                       <li>• Code snippets should demonstrate best practices</li>
                       <li>• Lessons should have clear learning objectives</li>
                       <li>• Accessibility considerations must be included</li>
-                      <li>• Version control must be maintained for all changes</li>
+                      <li>
+                        • Version control must be maintained for all changes
+                      </li>
                       <li>• Regular validation checks should be performed</li>
                     </ul>
                   </div>
@@ -337,12 +365,16 @@ const ContentValidationQA: React.FC = () => {
 
             {validations.length === 0 ? (
               <p className="text-gray-500 text-center py-8">
-                No validation history available. Run some validations to see results here.
+                No validation history available. Run some validations to see
+                results here.
               </p>
             ) : (
               <div className="space-y-3">
                 {validations.map((validation, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                  <div
+                    key={index}
+                    className="border border-gray-200 rounded-lg p-4"
+                  >
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-gray-900">
@@ -352,22 +384,28 @@ const ContentValidationQA: React.FC = () => {
                           {formatDate(validation.validated_at)}
                         </p>
                       </div>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        validation.validation_status === 'valid'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
+                      <span
+                        className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          validation.validation_status === 'valid'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
                         {validation.validation_status}
                       </span>
                     </div>
 
                     {validation.validation_errors.length > 0 && (
                       <div className="mt-3">
-                        <p className="text-sm text-red-600 font-medium">Errors:</p>
+                        <p className="text-sm text-red-600 font-medium">
+                          Errors:
+                        </p>
                         <ul className="text-sm text-red-600 list-disc list-inside">
-                          {validation.validation_errors.map((error, errorIndex) => (
-                            <li key={errorIndex}>{error}</li>
-                          ))}
+                          {validation.validation_errors.map(
+                            (error, errorIndex) => (
+                              <li key={errorIndex}>{error}</li>
+                            )
+                          )}
                         </ul>
                       </div>
                     )}

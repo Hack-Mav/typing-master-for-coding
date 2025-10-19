@@ -65,9 +65,9 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
   return (
     <div className="auth-form">
       <h2>Create Account</h2>
-      
+
       {error && <div className="error-message">{error}</div>}
-      
+
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="handle">Username</label>
@@ -75,7 +75,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             id="handle"
             type="text"
             value={handle}
-            onChange={(e) => setHandle(e.target.value)}
+            onChange={e => setHandle(e.target.value)}
             required
             minLength={3}
             maxLength={30}
@@ -91,7 +91,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             id="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={e => setEmail(e.target.value)}
             required
             disabled={loading}
             autoComplete="email"
@@ -104,7 +104,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             id="password"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={e => setPassword(e.target.value)}
             required
             minLength={8}
             disabled={loading}
@@ -119,7 +119,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             id="confirmPassword"
             type="password"
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={e => setConfirmPassword(e.target.value)}
             required
             disabled={loading}
             autoComplete="new-password"
@@ -128,20 +128,21 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
         <div className="consent-section">
           <h3>Privacy & Consent</h3>
-          
+
           <div className="checkbox-group">
             <input
               id="dataProcessing"
               type="checkbox"
               checked={dataProcessingConsent}
-              onChange={(e) => setDataProcessingConsent(e.target.checked)}
+              onChange={e => setDataProcessingConsent(e.target.checked)}
               disabled={loading}
             />
             <label htmlFor="dataProcessing">
               <strong>I consent to data processing (Required)</strong>
               <small>
-                We will store your account information, practice sessions, and results
-                to provide the service. You can export or delete your data at any time.
+                We will store your account information, practice sessions, and
+                results to provide the service. You can export or delete your
+                data at any time.
               </small>
             </label>
           </div>
@@ -151,7 +152,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
               id="telemetry"
               type="checkbox"
               checked={telemetryConsent}
-              onChange={(e) => setTelemetryConsent(e.target.checked)}
+              onChange={e => setTelemetryConsent(e.target.checked)}
               disabled={loading}
             />
             <label htmlFor="telemetry">
@@ -185,8 +186,8 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
       <div className="privacy-notice">
         <p>
-          By creating an account, you agree to our Terms of Service and Privacy Policy.
-          Your data is protected according to GDPR regulations.
+          By creating an account, you agree to our Terms of Service and Privacy
+          Policy. Your data is protected according to GDPR regulations.
         </p>
       </div>
     </div>

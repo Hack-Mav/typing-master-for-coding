@@ -8,6 +8,7 @@ import (
 	"typing-master-backend/internal/cache"
 	"typing-master-backend/internal/config"
 	"typing-master-backend/internal/database"
+	"typing-master-backend/internal/handlers"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -45,6 +46,10 @@ func main() {
 	} else {
 		log.Println("Default assessments initialized successfully")
 	}
+
+	// Initialize scoring services
+	handlers.InitializeScoringServices(db.Client)
+	log.Println("Scoring services initialized successfully")
 
 	// Set Gin mode
 	if cfg.Environment == "production" {

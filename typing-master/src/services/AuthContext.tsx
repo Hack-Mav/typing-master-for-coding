@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from 'react';
 import { authService, User } from './AuthService';
 
 export interface AuthContextType {
@@ -19,7 +25,9 @@ interface AuthProviderProps {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setCurrentUser] = useState<User | null>(authService.getCurrentUser());
+  const [user, setCurrentUser] = useState<User | null>(
+    authService.getCurrentUser()
+  );
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -70,11 +78,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loading,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = (): AuthContextType => {

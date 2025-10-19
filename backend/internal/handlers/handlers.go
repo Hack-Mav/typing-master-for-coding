@@ -432,43 +432,335 @@ func DeleteSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 
 func CreateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "CreateSession endpoint not implemented yet"})
+		ctx := context.Background()
+		userID := c.GetString("user_id")
+		
+		var req struct {
+			Mode       string                 `json:"mode" binding:"required"`
+			LanguageID string                 `json:"language_id" binding:"required"`
+			LessonID   string                 `json:"lesson_id"`
+			SnippetID  string                 `json:"snippet_id"`
+			Settings   map[string]interface{} `json:"settings"`
+		}
+		
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		
+		// Create session
+		session := models.Session{
+			UserID:     userID,
+			Mode:       req.Mode,
+			LanguageID: req.LanguageID,
+			LessonID:   req.LessonID,
+			SnippetID:  req.SnippetID,
+			StartedAt:  time.Now(),
+			Settings:   req.Settings,
+			CreatedAt:  time.Now(),
+		}
+		
+		sessionID := fmt.Sprintf("session_%s_%d", userID, time.Now().UnixNano())
+		key := datastore.NameKey("Session", sessionID, nil)
+		
+		_, err := db.Put(ctx, key, &session)
+		if err != nil {
+			log.Printf("Failed to create session: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
+			return
+		}
+		
+		session.ID = sessionID
+		c.JSON(http.StatusCreated, session)
 	}
 }
 
 func UpdateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "UpdateSession endpoint not implemented yet"})
+		ctx := context.Background()
+		sessionID := c.Param("id")
+		
+		var updates struct {
+			DurationMs int64                  `json:"duration_ms"`
+			Settings   map[string]interface{} `json:"settings"`
+		}
+		
+		if err := c.ShouldBindJSON(&updates); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		
+		// Get existing session
+		key := datastore.NameKey("Session", sessionID, nil)
+		var session models.Session
+		err := db.Get(ctx, key, &session)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+			return
+		}
+		
+		// Update fields
+		if updates.DurationMs > 0 {
+			session.DurationMs = updates.DurationMs
+		}
+		if updates.Settings != nil {
+			session.Settings = updates.Settings
+		}
+		
+		// Save updated session
+		_, err = db.Put(ctx, key, &session)
+		if err != nil {
+			log.Printf("Failed to update session: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update session"})
+			return
+		}
+		
+		session.ID = sessionID
+		c.JSON(http.StatusOK, session)
 	}
 }
 
 func RecordEvents(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "RecordEvents endpoint not implemented yet"})
+		ctx := context.Background()
+		sessionID := c.Param("id")
+		
+		var events []models.SessionEvent
+		if err := c.ShouldBindJSON(&events); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		
+		// Verify session exists
+		sessionKey := datastore.NameKey("Session", sessionID, nil)
+		var session models.Session
+		err := db.Get(ctx, sessionKey, &session)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+			return
+		}
+		
+		// Store events in batch
+		keys := make([]*datastore.Key, len(events))
+		entities := make([]interface{}, len(events))
+		
+		for i, event := range events {
+			event.SessionID = sessionID
+			event.CreatedAt = time.Now()
+			eventID := fmt.Sprintf("%s_event_%d", sessionID, time.Now().UnixNano()+int64(i))
+			keys[i] = datastore.NameKey("SessionEvent", eventID, nil)
+			entities[i] = &event
+		}
+		
+		_, err = db.PutMulti(ctx, keys, entities)
+		if err != nil {
+			log.Printf("Failed to record events: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record events"})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"message": "Events recorded successfully", "count": len(events)})
 	}
 }
 
 func FinalizeSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "FinalizeSession endpoint not implemented yet"})
+		ctx := context.Background()
+		sessionID := c.Param("id")
+		
+		// Get session
+		sessionKey := datastore.NameKey("Session", sessionID, nil)
+		var session models.Session
+		err := db.Get(ctx, sessionKey, &session)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+			return
+		}
+		
+		// Mark session as ended
+		endTime := time.Now()
+		session.EndedAt = &endTime
+		if session.DurationMs == 0 {
+			session.DurationMs = endTime.Sub(session.StartedAt).Milliseconds()
+		}
+		
+		// Save updated session
+		_, err = db.Put(ctx, sessionKey, &session)
+		if err != nil {
+			log.Printf("Failed to finalize session: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finalize session"})
+			return
+		}
+		
+		// Process scoring if service is initialized
+		if scoringService != nil {
+			go func() {
+				// Process asynchronously to avoid blocking response
+				metrics, err := scoringService.ProcessSession(context.Background(), sessionID)
+				if err != nil {
+					log.Printf("Failed to process session metrics: %v", err)
+					return
+				}
+				
+				// Update leaderboards
+				err = scoringService.UpdateLeaderboard(context.Background(), sessionID)
+				if err != nil {
+					log.Printf("Failed to update leaderboards: %v", err)
+				}
+				
+				log.Printf("Session %s processed: Score=%d, CPM=%.2f, TWPM=%.2f", 
+					sessionID, metrics.CompositeScore, metrics.CPM, metrics.TWPM)
+			}()
+		}
+		
+		session.ID = sessionID
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Session finalized successfully",
+			"session": session,
+		})
 	}
 }
 
 func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "GetResults endpoint not implemented yet"})
+		ctx := context.Background()
+		userID := c.GetString("user_id")
+		
+		// Query parameters
+		limit := 50
+		if limitStr := c.Query("limit"); limitStr != "" {
+			if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+				limit = l
+			}
+		}
+		
+		languageID := c.Query("language_id")
+		mode := c.Query("mode")
+		
+		// Get user's sessions first to filter results
+		sessionQuery := datastore.NewQuery("Session").FilterField("UserID", "=", userID)
+		if languageID != "" {
+			sessionQuery = sessionQuery.FilterField("LanguageID", "=", languageID)
+		}
+		if mode != "" {
+			sessionQuery = sessionQuery.FilterField("Mode", "=", mode)
+		}
+		sessionQuery = sessionQuery.Order("-CreatedAt").Limit(limit)
+		
+		var sessions []models.Session
+		sessionKeys, err := db.GetAll(ctx, sessionQuery, &sessions)
+		if err != nil {
+			log.Printf("Failed to fetch sessions: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch results"})
+			return
+		}
+		
+		// Get results for these sessions
+		results := make([]models.Result, 0)
+		for i := range sessions {
+			sessionID := sessionKeys[i].Name
+			resultKey := datastore.NameKey("Result", sessionID, nil)
+			var result models.Result
+			err := db.Get(ctx, resultKey, &result)
+			if err == nil {
+				result.SessionID = sessionID
+				results = append(results, result)
+			}
+		}
+		
+		c.JSON(http.StatusOK, results)
 	}
 }
 
 func GetResult(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "GetResult endpoint not implemented yet"})
+		ctx := context.Background()
+		sessionID := c.Param("session_id")
+		
+		// Get result
+		key := datastore.NameKey("Result", sessionID, nil)
+		var result models.Result
+		err := db.Get(ctx, key, &result)
+		if err != nil {
+			if err == datastore.ErrNoSuchEntity {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Result not found"})
+				return
+			}
+			log.Printf("Failed to fetch result: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch result"})
+			return
+		}
+		
+		result.SessionID = sessionID
+		
+		// Also get session details
+		sessionKey := datastore.NameKey("Session", sessionID, nil)
+		var session models.Session
+		err = db.Get(ctx, sessionKey, &session)
+		if err == nil {
+			session.ID = sessionID
+		}
+		
+		c.JSON(http.StatusOK, gin.H{
+			"result":  result,
+			"session": session,
+		})
 	}
 }
 
 func GetLeaderboards(cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "GetLeaderboards endpoint not implemented yet"})
+		// Use the leaderboard service if initialized
+		if leaderboardService == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Leaderboard service not initialized"})
+			return
+		}
+		
+		languageID := c.Query("language_id")
+		if languageID == "" {
+			languageID = "python"
+		}
+		
+		mode := c.Query("mode")
+		if mode == "" {
+			mode = "timed"
+		}
+		
+		scope := c.Query("scope")
+		if scope == "" {
+			scope = "global"
+		}
+		
+		timeWindow := c.Query("time_window")
+		if timeWindow == "" {
+			timeWindow = "weekly"
+		}
+		
+		limitStr := c.Query("limit")
+		limit := 50
+		if limitStr != "" {
+			if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 1000 {
+				limit = l
+			}
+		}
+		
+		req := &scoring.LeaderboardRequest{
+			LanguageID: languageID,
+			Mode:       mode,
+			Scope:      scope,
+			TimeWindow: timeWindow,
+			Limit:      limit,
+		}
+		
+		ctx := context.Background()
+		response, err := leaderboardService.GetLeaderboard(ctx, req)
+		if err != nil {
+			log.Printf("Failed to get leaderboard: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leaderboard"})
+			return
+		}
+		
+		c.JSON(http.StatusOK, response)
 	}
 }
 

@@ -83,6 +83,24 @@ func (dc *DatastoreClient) Put(ctx context.Context, key *datastore.Key, src inte
 	return dc.Client.Put(ctx, key, src)
 }
 
+func (dc *DatastoreClient) PutMulti(ctx context.Context, keys []*datastore.Key, src interface{}) ([]*datastore.Key, error) {
+	if dc.IsMock {
+		// For mock, call Put for each item
+		resultKeys := make([]*datastore.Key, len(keys))
+		for i, key := range keys {
+			// Extract individual item from slice
+			// This is a simplified implementation for mock
+			resultKey, err := dc.Mock.Put(ctx, key, src)
+			if err != nil {
+				return nil, err
+			}
+			resultKeys[i] = resultKey
+		}
+		return resultKeys, nil
+	}
+	return dc.Client.PutMulti(ctx, keys, src)
+}
+
 func (dc *DatastoreClient) Get(ctx context.Context, key *datastore.Key, dst interface{}) error {
 	if dc.IsMock {
 		return dc.Mock.Get(ctx, key, dst)

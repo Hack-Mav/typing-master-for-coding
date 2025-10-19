@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/datastore"
+	"google.golang.org/api/iterator"
 )
 
 // Service handles scoring computation and metrics processing
@@ -522,22 +523,125 @@ func (s *Service) analyzeTypingPatterns(events []*ScoringEvent) map[string]inter
 
 // Database operations
 func (s *Service) getSessionEvents(ctx context.Context, sessionID string) ([]*ScoringEvent, error) {
-	// TODO: Query SessionEvent entities from Datastore
-	return []*ScoringEvent{}, nil
+	// Query SessionEvent entities from Datastore
+	query := datastore.NewQuery("SessionEvent").
+		FilterField("SessionID", "=", sessionID).
+		Order("TimestampMs")
+	
+	var events []*ScoringEvent
+	iter := s.dsClient.Run(ctx, query)
+	
+	for {
+		var sessionEvent struct {
+			SessionID      string
+			TimestampMs    int64
+			KeyPressed     string
+			Action         string
+			CursorPosition int
+			ErrorFlag      bool
+			ExpectedToken  string
+			Metadata       map[string]interface{}
+		}
+		
+		_, err := iter.Next(&sessionEvent)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate events: %w", err)
+		}
+		
+		// Convert to ScoringEvent
+		event := &ScoringEvent{
+			SessionID:     sessionEvent.SessionID,
+			EventType:     "keystroke",
+			Timestamp:     sessionEvent.TimestampMs,
+			KeyPressed:    sessionEvent.KeyPressed,
+			Action:        sessionEvent.Action,
+			CursorPos:     sessionEvent.CursorPosition,
+			ErrorFlag:     sessionEvent.ErrorFlag,
+			ExpectedToken: sessionEvent.ExpectedToken,
+			Metadata:      sessionEvent.Metadata,
+		}
+		events = append(events, event)
+	}
+	
+	return events, nil
 }
 
 func (s *Service) storeMetrics(ctx context.Context, metrics *SessionMetrics) error {
-	// TODO: Store ScoringMetrics in Datastore
+	// Store ScoringMetrics in Datastore
+	key := datastore.NameKey("ScoringMetrics", metrics.SessionID, nil)
+	
+	_, err := s.dsClient.Put(ctx, key, metrics)
+	if err != nil {
+		return fmt.Errorf("failed to store metrics: %w", err)
+	}
+	
+	// Also store as Result for backward compatibility
+	result := &struct {
+		SessionID      string
+		CPM            float64
+		TWPM           float64
+		RawAccuracy    float64
+		TokenAccuracy  float64
+		SyntaxAccuracy float64
+		BackspaceRate  float64
+		CompositeScore int
+		Breakdown      map[string]interface{}
+		CreatedAt      time.Time
+	}{
+		SessionID:      metrics.SessionID,
+		CPM:            metrics.CPM,
+		TWPM:           metrics.TWPM,
+		RawAccuracy:    metrics.RawAccuracy,
+		TokenAccuracy:  metrics.TokenAccuracy,
+		SyntaxAccuracy: metrics.SyntaxAccuracy,
+		BackspaceRate:  metrics.BackspaceRate,
+		CompositeScore: metrics.CompositeScore,
+		Breakdown: map[string]interface{}{
+			"error_clusters":       metrics.ErrorClusters,
+			"performance_insights": metrics.PerformanceInsights,
+			"typing_patterns":      metrics.TypingPatterns,
+		},
+		CreatedAt: metrics.CalculatedAt,
+	}
+	
+	resultKey := datastore.NameKey("Result", metrics.SessionID, nil)
+	_, err = s.dsClient.Put(ctx, resultKey, result)
+	if err != nil {
+		return fmt.Errorf("failed to store result: %w", err)
+	}
+	
 	return nil
 }
 
 func (s *Service) getStoredMetrics(ctx context.Context, sessionID string) (*SessionMetrics, error) {
-	// TODO: Retrieve ScoringMetrics from Datastore
-	return nil, nil
+	// Retrieve ScoringMetrics from Datastore
+	key := datastore.NameKey("ScoringMetrics", sessionID, nil)
+	
+	var metrics SessionMetrics
+	err := s.dsClient.Get(ctx, key, &metrics)
+	if err != nil {
+		if err == datastore.ErrNoSuchEntity {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get metrics: %w", err)
+	}
+	
+	return &metrics, nil
 }
 
 func (s *Service) storeAntiCheatReport(ctx context.Context, report *AntiCheatReport) error {
-	// TODO: Store AntiCheatReport in Datastore
+	// Store AntiCheatReport in Datastore
+	reportID := fmt.Sprintf("%s_%d", report.SessionID, time.Now().Unix())
+	key := datastore.NameKey("AntiCheatReport", reportID, nil)
+	
+	_, err := s.dsClient.Put(ctx, key, report)
+	if err != nil {
+		return fmt.Errorf("failed to store anti-cheat report: %w", err)
+	}
+	
 	return nil
 }
 
@@ -631,13 +735,144 @@ func (s *Service) isSessionComplete(events []*ScoringEvent) bool {
 // Leaderboard operations
 
 func (s *Service) queryLeaderboard(ctx context.Context, languageID, mode, scope, timeWindow string, limit int) ([]LeaderboardEntry, error) {
-	// TODO: Implement leaderboard query logic
-	return []LeaderboardEntry{}, nil
+	// Calculate time window boundaries
+	windowStart, windowEnd := s.calculateTimeWindow(timeWindow)
+	
+	// Query leaderboard entities
+	query := datastore.NewQuery("Leaderboard").
+		FilterField("LanguageID", "=", languageID).
+		FilterField("Mode", "=", mode).
+		FilterField("Scope", "=", scope).
+		FilterField("TimeWindow", "=", timeWindow).
+		FilterField("RecordedAt", ">=", windowStart).
+		FilterField("RecordedAt", "<=", windowEnd).
+		Order("-Score").
+		Limit(limit)
+	
+	var leaderboardEntities []struct {
+		UserID             string
+		Score              int
+		CPM                float64
+		TWPM               float64
+		Accuracy           float64
+		Badge              string
+		IsVerified         bool
+		VerificationMethod string
+		RecordedAt         time.Time
+	}
+	
+	_, err := s.dsClient.GetAll(ctx, query, &leaderboardEntities)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query leaderboard: %w", err)
+	}
+	
+	// Convert to LeaderboardEntry
+	entries := make([]LeaderboardEntry, len(leaderboardEntities))
+	for i, entity := range leaderboardEntities {
+		entries[i] = LeaderboardEntry{
+			UserID:             entity.UserID,
+			Username:           fmt.Sprintf("user_%s", entity.UserID[:8]),
+			Score:              entity.Score,
+			Rank:               i + 1,
+			CPM:                entity.CPM,
+			TWPM:               entity.TWPM,
+			Accuracy:           entity.Accuracy,
+			Badge:              entity.Badge,
+			IsVerified:         entity.IsVerified,
+			VerificationMethod: entity.VerificationMethod,
+			LastActive:         entity.RecordedAt,
+		}
+	}
+	
+	return entries, nil
 }
 
 func (s *Service) updateLeaderboardEntry(ctx context.Context, metrics *SessionMetrics, scope, timeWindow string) error {
-	// TODO: Implement leaderboard entry update logic
+	// Calculate time window boundaries
+	windowStart, windowEnd := s.calculateTimeWindow(timeWindow)
+	
+	// Create leaderboard entry
+	entryID := fmt.Sprintf("%s_%s_%s_%s_%d", 
+		metrics.UserID, metrics.LanguageID, metrics.Mode, timeWindow, time.Now().Unix())
+	
+	entry := struct {
+		UserID             string
+		SessionID          string
+		LanguageID         string
+		Mode               string
+		Scope              string
+		TimeWindow         string
+		Rank               int
+		Score              int
+		CPM                float64
+		TWPM               float64
+		Accuracy           float64
+		MetricsSnapshot    map[string]interface{}
+		Badge              string
+		IsVerified         bool
+		VerificationMethod string
+		RecordedAt         time.Time
+		WindowStart        time.Time
+		WindowEnd          time.Time
+	}{
+		UserID:      metrics.UserID,
+		SessionID:   metrics.SessionID,
+		LanguageID:  metrics.LanguageID,
+		Mode:        metrics.Mode,
+		Scope:       scope,
+		TimeWindow:  timeWindow,
+		Rank:        0, // Will be calculated later
+		Score:       metrics.CompositeScore,
+		CPM:         metrics.CPM,
+		TWPM:        metrics.TWPM,
+		Accuracy:    metrics.RawAccuracy,
+		MetricsSnapshot: map[string]interface{}{
+			"kps":                metrics.KPS,
+			"token_accuracy":     metrics.TokenAccuracy,
+			"syntax_accuracy":    metrics.SyntaxAccuracy,
+			"consistency_score":  metrics.ConsistencyScore,
+			"efficiency_score":   metrics.EfficiencyScore,
+		},
+		Badge:              "",
+		IsVerified:         metrics.ConfidenceScore >= s.config.MinConfidenceScore,
+		VerificationMethod: "auto",
+		RecordedAt:         time.Now(),
+		WindowStart:        windowStart,
+		WindowEnd:          windowEnd,
+	}
+	
+	key := datastore.NameKey("Leaderboard", entryID, nil)
+	_, err := s.dsClient.Put(ctx, key, &entry)
+	if err != nil {
+		return fmt.Errorf("failed to update leaderboard entry: %w", err)
+	}
+	
+	// Invalidate cache
+	cacheKey := fmt.Sprintf("leaderboard:%s:%s:%s:%s", metrics.LanguageID, metrics.Mode, scope, timeWindow)
+	s.cache.Delete(cacheKey)
+	
 	return nil
+}
+
+// calculateTimeWindow calculates start and end times for a given time window
+func (s *Service) calculateTimeWindow(timeWindow string) (time.Time, time.Time) {
+	now := time.Now()
+	var windowStart time.Time
+	
+	switch timeWindow {
+	case "daily":
+		windowStart = now.AddDate(0, 0, -1)
+	case "weekly":
+		windowStart = now.AddDate(0, 0, -7)
+	case "monthly":
+		windowStart = now.AddDate(0, -1, 0)
+	case "all_time":
+		windowStart = time.Time{} // Beginning of time
+	default:
+		windowStart = now.AddDate(0, 0, -7) // Default to weekly
+	}
+	
+	return windowStart, now
 }
 
 func (s *Service) getDefaultConfig() *ScoringConfig {

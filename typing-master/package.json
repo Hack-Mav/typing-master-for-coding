@@ -35,13 +35,17 @@
     "build": "npx craco build && npx workbox generateSW workbox-config.js",
     "test": "npx craco test --watchAll=false",
     "test:watch": "npx craco test",
+    "test:property": "npx craco test --testPathPattern=property.test",
     "eject": "react-scripts eject",
     "lint": "eslint src --ext .ts,.tsx --max-warnings 0",
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write src/**/*.{ts,tsx,css,md}",
     "format:check": "prettier --check src/**/*.{ts,tsx,css,md}",
     "type-check": "tsc --noEmit",
-    "sw:generate": "workbox generateSW workbox-config.js"
+    "sw:generate": "workbox generateSW workbox-config.js",
+    "analyze": "source-map-explorer 'build/static/js/*.js'",
+    "e2e": "cd ../e2e && npm test",
+    "e2e:headed": "cd ../e2e && npm run test:headed"
   },
   "eslintConfig": {
     "extends": [
@@ -70,10 +74,12 @@
     "autoprefixer": "^10.4.21",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "fast-check": "^3.15.0",
     "jest-environment-jsdom": "^30.2.0",
     "path-browserify": "^1.0.1",
     "postcss": "^8.5.6",
     "prettier": "^3.6.2",
+    "source-map-explorer": "^2.5.3",
     "tailwindcss": "^3.4.0",
     "util": "^0.12.5",
     "workbox-cli": "^7.3.0"

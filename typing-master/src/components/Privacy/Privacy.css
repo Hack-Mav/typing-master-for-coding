@@ -125,7 +125,7 @@
   color: var(--text-primary, #ffffff);
 }
 
-.setting-header input[type="checkbox"] {
+.setting-header input[type='checkbox'] {
   width: 2.5rem;
   height: 1.5rem;
   cursor: pointer;

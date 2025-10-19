@@ -18,7 +18,8 @@ interface SnippetValidation {
 
 const YAMLValidator: React.FC = () => {
   const [yamlContent, setYamlContent] = useState('');
-  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [validationResult, setValidationResult] =
+    useState<ValidationResult | null>(null);
   const [validating, setValidating] = useState(false);
   const [snippetData, setSnippetData] = useState<SnippetValidation>({
     language_id: 'yaml',
@@ -53,7 +54,7 @@ const YAMLValidator: React.FC = () => {
       const response = await fetch('/api/v1/admin/content/validate', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -71,7 +72,9 @@ const YAMLValidator: React.FC = () => {
     } catch (err) {
       setValidationResult({
         valid: false,
-        validation_errors: [err instanceof Error ? err.message : 'Validation failed'],
+        validation_errors: [
+          err instanceof Error ? err.message : 'Validation failed',
+        ],
         validation_id: '',
       });
     } finally {
@@ -89,7 +92,7 @@ const YAMLValidator: React.FC = () => {
       const response = await fetch('/api/v1/admin/snippets', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(snippetData),
@@ -99,11 +102,13 @@ const YAMLValidator: React.FC = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result = await response.json();
+      await response.json();
       alert('Snippet created successfully!');
       navigate('/admin/snippets');
     } catch (err) {
-      alert(`Failed to create snippet: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      alert(
+        `Failed to create snippet: ${err instanceof Error ? err.message : 'Unknown error'}`
+      );
     }
   };
 
@@ -187,9 +192,12 @@ preferences:
               <div className="mb-4">
                 <textarea
                   value={yamlContent}
-                  onChange={(e) => {
+                  onChange={e => {
                     setYamlContent(e.target.value);
-                    setSnippetData(prev => ({ ...prev, source_code: e.target.value }));
+                    setSnippetData(prev => ({
+                      ...prev,
+                      source_code: e.target.value,
+                    }));
                   }}
                   className="w-full h-96 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
                   placeholder="Enter your YAML content here..."
@@ -224,31 +232,58 @@ preferences:
                 </h3>
 
                 {validationResult ? (
-                  <div className={`p-4 rounded-md ${validationResult.valid ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                  <div
+                    className={`p-4 rounded-md ${validationResult.valid ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}
+                  >
                     <div className="flex items-center mb-2">
-                      <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${validationResult.valid ? 'bg-green-500' : 'bg-red-500'}`}>
-                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div
+                        className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center ${validationResult.valid ? 'bg-green-500' : 'bg-red-500'}`}
+                      >
+                        <svg
+                          className="w-3 h-3 text-white"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
                           {validationResult.valid ? (
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M5 13l4 4L19 7"
+                            />
                           ) : (
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
                           )}
                         </svg>
                       </div>
-                      <span className={`ml-2 text-sm font-medium ${validationResult.valid ? 'text-green-800' : 'text-red-800'}`}>
+                      <span
+                        className={`ml-2 text-sm font-medium ${validationResult.valid ? 'text-green-800' : 'text-red-800'}`}
+                      >
                         {validationResult.valid ? 'Valid YAML' : 'Invalid YAML'}
                       </span>
                     </div>
 
                     {validationResult.validation_errors.length > 0 && (
                       <div className="mt-2">
-                        <p className={`text-sm ${validationResult.valid ? 'text-green-700' : 'text-red-700'}`}>
-                          {validationResult.valid ? 'No errors found' : 'Errors found:'}
+                        <p
+                          className={`text-sm ${validationResult.valid ? 'text-green-700' : 'text-red-700'}`}
+                        >
+                          {validationResult.valid
+                            ? 'No errors found'
+                            : 'Errors found:'}
                         </p>
                         <ul className="mt-1 text-sm text-red-700 list-disc list-inside">
-                          {validationResult.validation_errors.map((error, index) => (
-                            <li key={index}>{error}</li>
-                          ))}
+                          {validationResult.validation_errors.map(
+                            (error, index) => (
+                              <li key={index}>{error}</li>
+                            )
+                          )}
                         </ul>
                       </div>
                     )}
@@ -270,27 +305,43 @@ preferences:
 
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="snippet_title" className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="snippet_title"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Title
                     </label>
                     <input
                       type="text"
                       id="snippet_title"
                       value={snippetData.title}
-                      onChange={(e) => setSnippetData(prev => ({ ...prev, title: e.target.value }))}
+                      onChange={e =>
+                        setSnippetData(prev => ({
+                          ...prev,
+                          title: e.target.value,
+                        }))
+                      }
                       className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Snippet title"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="snippet_language" className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="snippet_language"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Language
                     </label>
                     <select
                       id="snippet_language"
                       value={snippetData.language_id}
-                      onChange={(e) => setSnippetData(prev => ({ ...prev, language_id: e.target.value }))}
+                      onChange={e =>
+                        setSnippetData(prev => ({
+                          ...prev,
+                          language_id: e.target.value,
+                        }))
+                      }
                       className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="yaml">YAML</option>
@@ -300,13 +351,21 @@ preferences:
                   </div>
 
                   <div>
-                    <label htmlFor="snippet_difficulty" className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="snippet_difficulty"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Difficulty
                     </label>
                     <select
                       id="snippet_difficulty"
                       value={snippetData.difficulty}
-                      onChange={(e) => setSnippetData(prev => ({ ...prev, difficulty: parseInt(e.target.value) }))}
+                      onChange={e =>
+                        setSnippetData(prev => ({
+                          ...prev,
+                          difficulty: parseInt(e.target.value),
+                        }))
+                      }
                       className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value={1}>1 - Beginner</option>
@@ -318,17 +377,25 @@ preferences:
                   </div>
 
                   <div>
-                    <label htmlFor="snippet_tags" className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="snippet_tags"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Tags (comma-separated)
                     </label>
                     <input
                       type="text"
                       id="snippet_tags"
                       value={snippetData.tags.join(', ')}
-                      onChange={(e) => setSnippetData(prev => ({
-                        ...prev,
-                        tags: e.target.value.split(',').map(s => s.trim()).filter(s => s)
-                      }))}
+                      onChange={e =>
+                        setSnippetData(prev => ({
+                          ...prev,
+                          tags: e.target.value
+                            .split(',')
+                            .map(s => s.trim())
+                            .filter(s => s),
+                        }))
+                      }
                       className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                       placeholder="yaml, configuration, example"
                     />
@@ -336,7 +403,11 @@ preferences:
 
                   <button
                     onClick={handleCreateSnippet}
-                    disabled={!snippetData.title || !snippetData.source_code || !validationResult?.valid}
+                    disabled={
+                      !snippetData.title ||
+                      !snippetData.source_code ||
+                      !validationResult?.valid
+                    }
                     className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
                   >
                     Create Snippet
@@ -355,41 +426,65 @@ preferences:
                 <div className="space-y-3 text-sm">
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
-                      <span className="text-xs font-medium text-blue-800">✓</span>
+                      <span className="text-xs font-medium text-blue-800">
+                        ✓
+                      </span>
                     </div>
                     <div>
-                      <p className="text-gray-900 font-medium">YAML Structure</p>
-                      <p className="text-gray-500">Valid YAML syntax with proper indentation</p>
+                      <p className="text-gray-900 font-medium">
+                        YAML Structure
+                      </p>
+                      <p className="text-gray-500">
+                        Valid YAML syntax with proper indentation
+                      </p>
                     </div>
                   </div>
 
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
-                      <span className="text-xs font-medium text-blue-800">✓</span>
+                      <span className="text-xs font-medium text-blue-800">
+                        ✓
+                      </span>
                     </div>
                     <div>
-                      <p className="text-gray-900 font-medium">Required Fields</p>
-                      <p className="text-gray-500">Title and source code must be provided</p>
+                      <p className="text-gray-900 font-medium">
+                        Required Fields
+                      </p>
+                      <p className="text-gray-500">
+                        Title and source code must be provided
+                      </p>
                     </div>
                   </div>
 
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
-                      <span className="text-xs font-medium text-blue-800">✓</span>
+                      <span className="text-xs font-medium text-blue-800">
+                        ✓
+                      </span>
                     </div>
                     <div>
-                      <p className="text-gray-900 font-medium">Content Length</p>
-                      <p className="text-gray-500">Between 10 and 1500 characters</p>
+                      <p className="text-gray-900 font-medium">
+                        Content Length
+                      </p>
+                      <p className="text-gray-500">
+                        Between 10 and 1500 characters
+                      </p>
                     </div>
                   </div>
 
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
-                      <span className="text-xs font-medium text-blue-800">✓</span>
+                      <span className="text-xs font-medium text-blue-800">
+                        ✓
+                      </span>
                     </div>
                     <div>
-                      <p className="text-gray-900 font-medium">Accessibility Tags</p>
-                      <p className="text-gray-500">Automatically generated based on content complexity</p>
+                      <p className="text-gray-900 font-medium">
+                        Accessibility Tags
+                      </p>
+                      <p className="text-gray-500">
+                        Automatically generated based on content complexity
+                      </p>
                     </div>
                   </div>
                 </div>

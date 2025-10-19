@@ -58,7 +58,7 @@ const LessonBuilder: React.FC = () => {
       try {
         const response = await fetch('/api/v1/languages', {
           headers: {
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
         });
@@ -70,7 +70,9 @@ const LessonBuilder: React.FC = () => {
         const data = await response.json();
         setLanguages(data);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch languages');
+        setError(
+          err instanceof Error ? err.message : 'Failed to fetch languages'
+        );
       }
     };
 
@@ -86,7 +88,7 @@ const LessonBuilder: React.FC = () => {
         try {
           const response = await fetch(`/api/v1/lessons/${id}`, {
             headers: {
-              'Authorization': `Bearer ${token}`,
+              Authorization: `Bearer ${token}`,
               'Content-Type': 'application/json',
             },
           });
@@ -99,7 +101,9 @@ const LessonBuilder: React.FC = () => {
           setLesson(data);
           setTokenCoverage(generateTokenCoverage(data.language_id));
         } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to fetch lesson');
+          setError(
+            err instanceof Error ? err.message : 'Failed to fetch lesson'
+          );
         } finally {
           setLoading(false);
         }
@@ -131,31 +135,136 @@ const LessonBuilder: React.FC = () => {
     // For now, using a sample set of tokens for different languages
     const tokenSets: { [key: string]: TokenCoverage[] } = {
       python: [
-        { token: 'function', covered: false, difficulty: 1, description: 'Function definitions' },
-        { token: 'class', covered: false, difficulty: 2, description: 'Class definitions' },
-        { token: 'if', covered: false, difficulty: 1, description: 'Conditional statements' },
-        { token: 'for', covered: false, difficulty: 1, description: 'For loops' },
-        { token: 'while', covered: false, difficulty: 1, description: 'While loops' },
-        { token: 'import', covered: false, difficulty: 1, description: 'Import statements' },
-        { token: 'list', covered: false, difficulty: 2, description: 'List comprehensions' },
-        { token: 'dict', covered: false, difficulty: 2, description: 'Dictionary operations' },
+        {
+          token: 'function',
+          covered: false,
+          difficulty: 1,
+          description: 'Function definitions',
+        },
+        {
+          token: 'class',
+          covered: false,
+          difficulty: 2,
+          description: 'Class definitions',
+        },
+        {
+          token: 'if',
+          covered: false,
+          difficulty: 1,
+          description: 'Conditional statements',
+        },
+        {
+          token: 'for',
+          covered: false,
+          difficulty: 1,
+          description: 'For loops',
+        },
+        {
+          token: 'while',
+          covered: false,
+          difficulty: 1,
+          description: 'While loops',
+        },
+        {
+          token: 'import',
+          covered: false,
+          difficulty: 1,
+          description: 'Import statements',
+        },
+        {
+          token: 'list',
+          covered: false,
+          difficulty: 2,
+          description: 'List comprehensions',
+        },
+        {
+          token: 'dict',
+          covered: false,
+          difficulty: 2,
+          description: 'Dictionary operations',
+        },
       ],
       javascript: [
-        { token: 'function', covered: false, difficulty: 1, description: 'Function declarations' },
-        { token: 'const', covered: false, difficulty: 1, description: 'Constant declarations' },
-        { token: 'let', covered: false, difficulty: 1, description: 'Variable declarations' },
-        { token: 'if', covered: false, difficulty: 1, description: 'Conditional statements' },
-        { token: 'for', covered: false, difficulty: 1, description: 'For loops' },
-        { token: 'arrow', covered: false, difficulty: 2, description: 'Arrow functions' },
-        { token: 'async', covered: false, difficulty: 3, description: 'Async/await' },
-        { token: 'class', covered: false, difficulty: 2, description: 'Class definitions' },
+        {
+          token: 'function',
+          covered: false,
+          difficulty: 1,
+          description: 'Function declarations',
+        },
+        {
+          token: 'const',
+          covered: false,
+          difficulty: 1,
+          description: 'Constant declarations',
+        },
+        {
+          token: 'let',
+          covered: false,
+          difficulty: 1,
+          description: 'Variable declarations',
+        },
+        {
+          token: 'if',
+          covered: false,
+          difficulty: 1,
+          description: 'Conditional statements',
+        },
+        {
+          token: 'for',
+          covered: false,
+          difficulty: 1,
+          description: 'For loops',
+        },
+        {
+          token: 'arrow',
+          covered: false,
+          difficulty: 2,
+          description: 'Arrow functions',
+        },
+        {
+          token: 'async',
+          covered: false,
+          difficulty: 3,
+          description: 'Async/await',
+        },
+        {
+          token: 'class',
+          covered: false,
+          difficulty: 2,
+          description: 'Class definitions',
+        },
       ],
       yaml: [
-        { token: 'key', covered: false, difficulty: 1, description: 'YAML keys' },
-        { token: 'value', covered: false, difficulty: 1, description: 'YAML values' },
-        { token: 'list', covered: false, difficulty: 1, description: 'YAML lists' },
-        { token: 'object', covered: false, difficulty: 2, description: 'YAML objects' },
-        { token: 'anchor', covered: false, difficulty: 3, description: 'YAML anchors' },
+        {
+          token: 'key',
+          covered: false,
+          difficulty: 1,
+          description: 'YAML keys',
+        },
+        {
+          token: 'value',
+          covered: false,
+          difficulty: 1,
+          description: 'YAML values',
+        },
+        {
+          token: 'list',
+          covered: false,
+          difficulty: 1,
+          description: 'YAML lists',
+        },
+        {
+          token: 'object',
+          covered: false,
+          difficulty: 2,
+          description: 'YAML objects',
+        },
+        {
+          token: 'anchor',
+          covered: false,
+          difficulty: 3,
+          description: 'YAML anchors',
+        },
       ],
     };
 
@@ -186,13 +295,15 @@ const LessonBuilder: React.FC = () => {
 
     setSaving(true);
     try {
-      const url = lesson.id ? `/api/v1/admin/lessons/${lesson.id}` : '/api/v1/admin/lessons';
+      const url = lesson.id
+        ? `/api/v1/admin/lessons/${lesson.id}`
+        : '/api/v1/admin/lessons';
       const method = lesson.id ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(lesson),
@@ -288,7 +399,8 @@ const LessonBuilder: React.FC = () => {
 
   const coveredTokens = tokenCoverage.filter(t => t.covered).length;
   const totalTokens = tokenCoverage.length;
-  const coveragePercentage = totalTokens > 0 ? (coveredTokens / totalTokens) * 100 : 0;
+  const coveragePercentage =
+    totalTokens > 0 ? (coveredTokens / totalTokens) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -333,31 +445,39 @@ const LessonBuilder: React.FC = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="title"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Title
                     </label>
                     <input
                       type="text"
                       id="title"
                       value={lesson.title}
-                      onChange={(e) => handleInputChange('title', e.target.value)}
+                      onChange={e => handleInputChange('title', e.target.value)}
                       className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Lesson title"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="language" className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="language"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Language
                     </label>
                     <select
                       id="language"
                       value={lesson.language_id}
-                      onChange={(e) => handleInputChange('language_id', e.target.value)}
+                      onChange={e =>
+                        handleInputChange('language_id', e.target.value)
+                      }
                       className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Select a language</option>
-                      {languages.map((lang) => (
+                      {languages.map(lang => (
                         <option key={lang.id} value={lang.id}>
                           {lang.name}
                         </option>
@@ -366,13 +486,21 @@ const LessonBuilder: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="difficulty" className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="difficulty"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Difficulty (1-5)
                     </label>
                     <select
                       id="difficulty"
                       value={lesson.difficulty}
-                      onChange={(e) => handleInputChange('difficulty', parseInt(e.target.value))}
+                      onChange={e =>
+                        handleInputChange(
+                          'difficulty',
+                          parseInt(e.target.value)
+                        )
+                      }
                       className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value={1}>1 - Beginner</option>
@@ -384,14 +512,22 @@ const LessonBuilder: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="estimated_minutes" className="block text-sm font-medium text-gray-700">
+                    <label
+                      htmlFor="estimated_minutes"
+                      className="block text-sm font-medium text-gray-700"
+                    >
                       Estimated Time (minutes)
                     </label>
                     <input
                       type="number"
                       id="estimated_minutes"
                       value={lesson.estimated_minutes}
-                      onChange={(e) => handleInputChange('estimated_minutes', parseInt(e.target.value))}
+                      onChange={e =>
+                        handleInputChange(
+                          'estimated_minutes',
+                          parseInt(e.target.value)
+                        )
+                      }
                       className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                       min="5"
                       max="300"
@@ -423,7 +559,7 @@ const LessonBuilder: React.FC = () => {
                       <input
                         type="text"
                         value={objective}
-                        onChange={(e) => updateObjective(index, e.target.value)}
+                        onChange={e => updateObjective(index, e.target.value)}
                         className="flex-1 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                         placeholder={`Objective ${index + 1}`}
                       />
@@ -452,7 +588,15 @@ const LessonBuilder: React.FC = () => {
                 <input
                   type="text"
                   value={lesson.prerequisites.join(', ')}
-                  onChange={(e) => handleInputChange('prerequisites', e.target.value.split(',').map(s => s.trim()).filter(s => s))}
+                  onChange={e =>
+                    handleInputChange(
+                      'prerequisites',
+                      e.target.value
+                        .split(',')
+                        .map(s => s.trim())
+                        .filter(s => s)
+                    )
+                  }
                   className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter prerequisite lesson IDs separated by commas"
                 />
@@ -472,7 +616,9 @@ const LessonBuilder: React.FC = () => {
                 <div className="mb-6">
                   <div className="flex justify-between text-sm text-gray-600 mb-1">
                     <span>Progress</span>
-                    <span>{coveredTokens}/{totalTokens} tokens</span>
+                    <span>
+                      {coveredTokens}/{totalTokens} tokens
+                    </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
@@ -500,11 +646,15 @@ const LessonBuilder: React.FC = () => {
                           <span className="text-sm font-medium text-gray-900">
                             {token.token}
                           </span>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            token.difficulty <= 2 ? 'bg-green-100 text-green-800' :
-                            token.difficulty <= 3 ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              token.difficulty <= 2
+                                ? 'bg-green-100 text-green-800'
+                                : token.difficulty <= 3
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                            }`}
+                          >
                             Level {token.difficulty}
                           </span>
                         </div>

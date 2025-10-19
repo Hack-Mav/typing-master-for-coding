@@ -61,7 +61,7 @@ class LocalStorageService {
    */
   saveSession(session: LocalSession): void {
     const sessions = this.getSessions();
-    
+
     // Check if session already exists
     const existingIndex = sessions.findIndex(s => s.id === session.id);
     if (existingIndex >= 0) {
@@ -72,8 +72,9 @@ class LocalStorageService {
 
     // Limit number of stored sessions
     if (sessions.length > this.MAX_SESSIONS) {
-      sessions.sort((a, b) => 
-        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+      sessions.sort(
+        (a, b) =>
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
       );
       sessions.splice(this.MAX_SESSIONS);
     }
@@ -109,9 +110,11 @@ class LocalStorageService {
    */
   saveResult(result: LocalResult): void {
     const results = this.getResults();
-    
+
     // Check if result already exists
-    const existingIndex = results.findIndex(r => r.sessionId === result.sessionId);
+    const existingIndex = results.findIndex(
+      r => r.sessionId === result.sessionId
+    );
     if (existingIndex >= 0) {
       results[existingIndex] = result;
     } else {
@@ -120,8 +123,9 @@ class LocalStorageService {
 
     // Limit number of stored results
     if (results.length > this.MAX_RESULTS) {
-      results.sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      results.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       results.splice(this.MAX_RESULTS);
     }
@@ -158,7 +162,7 @@ class LocalStorageService {
   saveProgress(progress: LocalProgress): void {
     const allProgress = this.getProgress();
     const key = `${progress.languageId}_${progress.lessonId}`;
-    
+
     const existingIndex = allProgress.findIndex(
       p => `${p.languageId}_${p.lessonId}` === key
     );
@@ -182,11 +186,16 @@ class LocalStorageService {
   /**
    * Get progress for a specific lesson
    */
-  getLessonProgress(languageId: string, lessonId: string): LocalProgress | null {
+  getLessonProgress(
+    languageId: string,
+    lessonId: string
+  ): LocalProgress | null {
     const allProgress = this.getProgress();
-    return allProgress.find(
-      p => p.languageId === languageId && p.lessonId === lessonId
-    ) || null;
+    return (
+      allProgress.find(
+        p => p.languageId === languageId && p.lessonId === lessonId
+      ) || null
+    );
   }
 
   /**
@@ -248,7 +257,7 @@ class LocalStorageService {
   importData(jsonData: string): void {
     try {
       const data = JSON.parse(jsonData);
-      
+
       if (data.sessions) {
         this.setItem(this.SESSIONS_KEY, data.sessions);
       }
@@ -278,9 +287,9 @@ class LocalStorageService {
     const sessions = this.getSessions();
     const results = this.getResults();
     const progress = this.getProgress();
-    
+
     // Estimate size in bytes
-    const totalSize = 
+    const totalSize =
       JSON.stringify(sessions).length +
       JSON.stringify(results).length +
       JSON.stringify(progress).length;
@@ -328,7 +337,7 @@ class LocalStorageService {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (error) {
       console.error(`Failed to set item ${key}:`, error);
-      
+
       // If quota exceeded, try to free up space
       if (this.isStorageQuotaExceeded()) {
         this.cleanupOldData();
@@ -349,8 +358,9 @@ class LocalStorageService {
     // Remove oldest sessions
     const sessions = this.getSessions();
     if (sessions.length > this.MAX_SESSIONS / 2) {
-      sessions.sort((a, b) => 
-        new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
+      sessions.sort(
+        (a, b) =>
+          new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()
       );
       this.setItem(this.SESSIONS_KEY, sessions.slice(0, this.MAX_SESSIONS / 2));
     }
@@ -358,8 +368,9 @@ class LocalStorageService {
     // Remove oldest results
     const results = this.getResults();
     if (results.length > this.MAX_RESULTS / 2) {
-      results.sort((a, b) => 
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      results.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       this.setItem(this.RESULTS_KEY, results.slice(0, this.MAX_RESULTS / 2));
     }

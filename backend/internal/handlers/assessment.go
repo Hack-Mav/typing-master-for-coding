@@ -323,7 +323,7 @@ func FinalizeAssessment(db *database.DatastoreClient, cache *cache.InMemoryCache
 func GetAssessmentSnippet(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
-		blueprintID := c.Param("blueprintId")
+		blueprintID := c.Param("id")
 		snippetID := c.Param("snippetId")
 		
 		cacheKey := fmt.Sprintf("assessment_snippet_%s_%s", blueprintID, snippetID)

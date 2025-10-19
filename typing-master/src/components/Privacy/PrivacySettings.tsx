@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { privacyService, ConsentStatus, PrivacySettings as PrivacySettingsType } from '../../services/PrivacyService';
+import {
+  privacyService,
+  ConsentStatus,
+  PrivacySettings as PrivacySettingsType,
+} from '../../services/PrivacyService';
 import { authService } from '../../services/AuthService';
 import './Privacy.css';
 
@@ -7,8 +11,10 @@ interface PrivacySettingsProps {
   onClose?: () => void;
 }
 
-export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => {
-  const [consent, setConsent] = useState<ConsentStatus | null>(null);
+export const PrivacySettings: React.FC<PrivacySettingsProps> = ({
+  onClose,
+}) => {
+  const [, setConsent] = useState<ConsentStatus | null>(null);
   const [privacyMode, setPrivacyMode] = useState(false);
   const [telemetryConsent, setTelemetryConsent] = useState(false);
   const [dataProcessingConsent, setDataProcessingConsent] = useState(false);
@@ -50,11 +56,13 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => 
 
       await privacyService.updatePrivacySettings(settings);
       setSuccess('Privacy settings updated successfully');
-      
+
       // Reload consent status
       await loadConsentStatus();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update settings');
+      setError(
+        err instanceof Error ? err.message : 'Failed to update settings'
+      );
     } finally {
       setSaving(false);
     }
@@ -79,7 +87,7 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => 
     try {
       await privacyService.deleteUserData(true);
       setSuccess('All data deleted successfully. You will be logged out.');
-      
+
       // Logout after a short delay
       setTimeout(() => {
         window.location.href = '/';
@@ -117,19 +125,19 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => 
         <div className="anonymous-notice">
           <h3>Anonymous Mode</h3>
           <p>
-            You are using the app in anonymous mode. All your data is stored locally
-            on your device and is never sent to our servers.
+            You are using the app in anonymous mode. All your data is stored
+            locally on your device and is never sent to our servers.
           </p>
           <p>
-            To access cloud sync, leaderboards, and cross-device features, please
-            create an account.
+            To access cloud sync, leaderboards, and cross-device features,
+            please create an account.
           </p>
         </div>
       ) : (
         <>
           <section className="privacy-section">
             <h3>Privacy Controls</h3>
-            
+
             <div className="setting-item">
               <div className="setting-header">
                 <label htmlFor="privacyMode">
@@ -139,13 +147,14 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => 
                   id="privacyMode"
                   type="checkbox"
                   checked={privacyMode}
-                  onChange={(e) => setPrivacyMode(e.target.checked)}
+                  onChange={e => setPrivacyMode(e.target.checked)}
                   disabled={saving}
                 />
               </div>
               <p className="setting-description">
-                When enabled, your sessions are stored locally only and not synced
-                to the server. Leaderboards and social features will be disabled.
+                When enabled, your sessions are stored locally only and not
+                synced to the server. Leaderboards and social features will be
+                disabled.
               </p>
             </div>
 
@@ -158,14 +167,14 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => 
                   id="telemetryConsent"
                   type="checkbox"
                   checked={telemetryConsent}
-                  onChange={(e) => setTelemetryConsent(e.target.checked)}
+                  onChange={e => setTelemetryConsent(e.target.checked)}
                   disabled={saving}
                 />
               </div>
               <p className="setting-description">
-                Help us improve the app by sending anonymized usage data. This includes
-                practice modes used, session durations, and performance metrics (no
-                personal information).
+                Help us improve the app by sending anonymized usage data. This
+                includes practice modes used, session durations, and performance
+                metrics (no personal information).
               </p>
             </div>
 
@@ -178,13 +187,13 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => 
                   id="dataProcessingConsent"
                   type="checkbox"
                   checked={dataProcessingConsent}
-                  onChange={(e) => setDataProcessingConsent(e.target.checked)}
+                  onChange={e => setDataProcessingConsent(e.target.checked)}
                   disabled={saving}
                 />
               </div>
               <p className="setting-description">
-                Required for cloud sync, leaderboards, and personalized features.
-                We process your practice data to provide the service.
+                Required for cloud sync, leaderboards, and personalized
+                features. We process your practice data to provide the service.
               </p>
             </div>
 
@@ -199,13 +208,13 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => 
 
           <section className="privacy-section">
             <h3>GDPR Data Rights</h3>
-            
+
             <div className="gdpr-actions">
               <div className="gdpr-item">
                 <h4>Export Your Data</h4>
                 <p>
-                  Download all your data in a portable format. Includes your profile,
-                  sessions, results, and progress.
+                  Download all your data in a portable format. Includes your
+                  profile, sessions, results, and progress.
                 </p>
                 <div className="button-group">
                   <button
@@ -226,10 +235,10 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => 
               <div className="gdpr-item danger-zone">
                 <h4>Delete Your Data</h4>
                 <p>
-                  Permanently delete all your data from our servers. This action cannot
-                  be undone. You will be logged out immediately.
+                  Permanently delete all your data from our servers. This action
+                  cannot be undone. You will be logged out immediately.
                 </p>
-                
+
                 {!showDeleteConfirm ? (
                   <button
                     className="btn-danger"
@@ -240,14 +249,12 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => 
                 ) : (
                   <div className="delete-confirm">
                     <p className="warning-text">
-                      <strong>Are you sure?</strong> This will permanently delete all
-                      your data including your account, sessions, and progress.
+                      <strong>Are you sure?</strong> This will permanently
+                      delete all your data including your account, sessions, and
+                      progress.
                     </p>
                     <div className="button-group">
-                      <button
-                        className="btn-danger"
-                        onClick={handleDeleteData}
-                      >
+                      <button className="btn-danger" onClick={handleDeleteData}>
                         Yes, Delete Everything
                       </button>
                       <button
@@ -267,19 +274,21 @@ export const PrivacySettings: React.FC<PrivacySettingsProps> = ({ onClose }) => 
             <h3>Data We Collect</h3>
             <ul className="data-list">
               <li>
-                <strong>Account Information:</strong> Email, username, preferences
+                <strong>Account Information:</strong> Email, username,
+                preferences
               </li>
               <li>
-                <strong>Practice Data:</strong> Sessions, typing metrics, progress
+                <strong>Practice Data:</strong> Sessions, typing metrics,
+                progress
               </li>
               <li>
-                <strong>Usage Analytics:</strong> Feature usage, session durations
-                (only if telemetry is enabled)
+                <strong>Usage Analytics:</strong> Feature usage, session
+                durations (only if telemetry is enabled)
               </li>
             </ul>
             <p className="data-notice">
-              We never sell your data. All data is encrypted in transit and at rest.
-              For more information, see our Privacy Policy.
+              We never sell your data. All data is encrypted in transit and at
+              rest. For more information, see our Privacy Policy.
             </p>
           </section>
         </>

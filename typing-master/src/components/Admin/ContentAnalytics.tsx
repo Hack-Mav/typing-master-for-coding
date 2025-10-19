@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../services/AuthContext';
 
-interface ContentAnalytics {
+interface ContentAnalyticsData {
   content_type: string;
   content_id: string;
   views: number;
@@ -19,7 +19,12 @@ interface UsageMetrics {
   total_users: number;
   avg_session_duration: number;
   popular_languages: { language: string; count: number }[];
-  popular_content: { content_id: string; content_type: string; title: string; views: number }[];
+  popular_content: {
+    content_id: string;
+    content_type: string;
+    title: string;
+    views: number;
+  }[];
   engagement_metrics: {
     daily_active_users: number;
     weekly_active_users: number;
@@ -29,7 +34,7 @@ interface UsageMetrics {
 }
 
 const ContentAnalytics: React.FC = () => {
-  const [analytics, setAnalytics] = useState<ContentAnalytics[]>([]);
+  const [analytics, setAnalytics] = useState<ContentAnalyticsData[]>([]);
   const [usageMetrics, setUsageMetrics] = useState<UsageMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('7d');
@@ -50,7 +55,7 @@ const ContentAnalytics: React.FC = () => {
     const fetchAnalytics = async () => {
       try {
         // Simulate analytics data since we don't have real endpoints yet
-        const mockAnalytics: ContentAnalytics[] = [
+        const mockAnalytics: ContentAnalyticsData[] = [
           {
             content_type: 'lesson',
             content_id: 'python_basics_1',
@@ -59,7 +64,9 @@ const ContentAnalytics: React.FC = () => {
             avg_time: 25,
             success_rate: 0.85,
             difficulty_feedback: 2.3,
-            last_accessed: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            last_accessed: new Date(
+              Date.now() - 2 * 24 * 60 * 60 * 1000
+            ).toISOString(),
             usage_trend: 'increasing',
           },
           {
@@ -70,7 +77,9 @@ const ContentAnalytics: React.FC = () => {
             avg_time: 8,
             success_rate: 0.92,
             difficulty_feedback: 1.8,
-            last_accessed: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+            last_accessed: new Date(
+              Date.now() - 1 * 24 * 60 * 60 * 1000
+            ).toISOString(),
             usage_trend: 'stable',
           },
           {
@@ -81,7 +90,9 @@ const ContentAnalytics: React.FC = () => {
             avg_time: 35,
             success_rate: 0.78,
             difficulty_feedback: 3.1,
-            last_accessed: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+            last_accessed: new Date(
+              Date.now() - 3 * 24 * 60 * 60 * 1000
+            ).toISOString(),
             usage_trend: 'decreasing',
           },
         ];
@@ -96,9 +107,24 @@ const ContentAnalytics: React.FC = () => {
             { language: 'yaml', count: 2890 },
           ],
           popular_content: [
-            { content_id: 'python_basics_1', content_type: 'lesson', title: 'Python Basics', views: 1250 },
-            { content_id: 'js_variables', content_type: 'lesson', title: 'JavaScript Variables', views: 980 },
-            { content_id: 'yaml_config_example', content_type: 'snippet', title: 'YAML Configuration', views: 450 },
+            {
+              content_id: 'python_basics_1',
+              content_type: 'lesson',
+              title: 'Python Basics',
+              views: 1250,
+            },
+            {
+              content_id: 'js_variables',
+              content_type: 'lesson',
+              title: 'JavaScript Variables',
+              views: 980,
+            },
+            {
+              content_id: 'yaml_config_example',
+              content_type: 'snippet',
+              title: 'YAML Configuration',
+              views: 450,
+            },
           ],
           engagement_metrics: {
             daily_active_users: 180,
@@ -111,7 +137,9 @@ const ContentAnalytics: React.FC = () => {
         setAnalytics(mockAnalytics);
         setUsageMetrics(mockUsageMetrics);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch analytics');
+        setError(
+          err instanceof Error ? err.message : 'Failed to fetch analytics'
+        );
       } finally {
         setLoading(false);
       }
@@ -132,19 +160,27 @@ const ContentAnalytics: React.FC = () => {
 
   const getTrendIcon = (trend: string) => {
     switch (trend) {
-      case 'increasing': return <span className="text-green-600">↗</span>;
-      case 'decreasing': return <span className="text-red-600">↘</span>;
-      case 'stable': return <span className="text-gray-600">→</span>;
-      default: return <span className="text-gray-600">→</span>;
+      case 'increasing':
+        return <span className="text-green-600">↗</span>;
+      case 'decreasing':
+        return <span className="text-red-600">↘</span>;
+      case 'stable':
+        return <span className="text-gray-600">→</span>;
+      default:
+        return <span className="text-gray-600">→</span>;
     }
   };
 
   const getTrendColor = (trend: string) => {
     switch (trend) {
-      case 'increasing': return 'text-green-600';
-      case 'decreasing': return 'text-red-600';
-      case 'stable': return 'text-gray-600';
-      default: return 'text-gray-600';
+      case 'increasing':
+        return 'text-green-600';
+      case 'decreasing':
+        return 'text-red-600';
+      case 'stable':
+        return 'text-gray-600';
+      default:
+        return 'text-gray-600';
     }
   };
 
@@ -195,7 +231,7 @@ const ContentAnalytics: React.FC = () => {
             <div className="flex items-center space-x-4">
               <select
                 value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
+                onChange={e => setTimeRange(e.target.value)}
                 className="text-sm border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="24h">Last 24 hours</option>
@@ -217,8 +253,18 @@ const ContentAnalytics: React.FC = () => {
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                      <svg
+                        className="w-5 h-5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+                        />
                       </svg>
                     </div>
                   </div>
@@ -241,8 +287,18 @@ const ContentAnalytics: React.FC = () => {
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 bg-green-500 rounded-md flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      <svg
+                        className="w-5 h-5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                        />
                       </svg>
                     </div>
                   </div>
@@ -265,8 +321,18 @@ const ContentAnalytics: React.FC = () => {
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 bg-purple-500 rounded-md flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <svg
+                        className="w-5 h-5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
                       </svg>
                     </div>
                   </div>
@@ -289,8 +355,18 @@ const ContentAnalytics: React.FC = () => {
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 bg-orange-500 rounded-md flex items-center justify-center">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      <svg
+                        className="w-5 h-5 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                        />
                       </svg>
                     </div>
                   </div>
@@ -300,7 +376,10 @@ const ContentAnalytics: React.FC = () => {
                         Retention Rate
                       </dt>
                       <dd className="text-lg font-medium text-gray-900">
-                        {(usageMetrics.engagement_metrics.retention_rate * 100).toFixed(1)}%
+                        {(
+                          usageMetrics.engagement_metrics.retention_rate * 100
+                        ).toFixed(1)}
+                        %
                       </dd>
                     </dl>
                   </div>
@@ -320,7 +399,10 @@ const ContentAnalytics: React.FC = () => {
 
               <div className="space-y-3">
                 {usageMetrics?.popular_languages.map((lang, index) => (
-                  <div key={lang.language} className="flex items-center justify-between">
+                  <div
+                    key={lang.language}
+                    className="flex items-center justify-between"
+                  >
                     <div className="flex items-center space-x-3">
                       <span className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-800 rounded-full flex items-center justify-center text-sm font-medium">
                         {index + 1}
@@ -347,7 +429,10 @@ const ContentAnalytics: React.FC = () => {
 
               <div className="space-y-3">
                 {usageMetrics?.popular_content.map((content, index) => (
-                  <div key={content.content_id} className="flex items-center justify-between">
+                  <div
+                    key={content.content_id}
+                    className="flex items-center justify-between"
+                  >
                     <div className="flex items-center space-x-3">
                       <span className="flex-shrink-0 w-8 h-8 bg-green-100 text-green-800 rounded-full flex items-center justify-center text-sm font-medium">
                         {index + 1}
@@ -406,7 +491,7 @@ const ContentAnalytics: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {analytics.map((item) => (
+                  {analytics.map(item => (
                     <tr key={`${item.content_type}_${item.content_id}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
@@ -423,10 +508,15 @@ const ContentAnalytics: React.FC = () => {
                         {formatNumber(item.completions)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`text-sm font-medium ${
-                          item.success_rate >= 0.8 ? 'text-green-600' :
-                          item.success_rate >= 0.6 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
+                        <span
+                          className={`text-sm font-medium ${
+                            item.success_rate >= 0.8
+                              ? 'text-green-600'
+                              : item.success_rate >= 0.6
+                                ? 'text-yellow-600'
+                                : 'text-red-600'
+                          }`}
+                        >
                           {(item.success_rate * 100).toFixed(1)}%
                         </span>
                       </td>
@@ -434,7 +524,9 @@ const ContentAnalytics: React.FC = () => {
                         {item.avg_time}min
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className={`text-sm font-medium ${getTrendColor(item.usage_trend)}`}>
+                        <div
+                          className={`text-sm font-medium ${getTrendColor(item.usage_trend)}`}
+                        >
                           {getTrendIcon(item.usage_trend)} {item.usage_trend}
                         </div>
                       </td>
@@ -460,28 +552,43 @@ const ContentAnalytics: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
-                    {formatNumber(usageMetrics.engagement_metrics.daily_active_users)}
+                    {formatNumber(
+                      usageMetrics.engagement_metrics.daily_active_users
+                    )}
                   </div>
-                  <div className="text-sm text-gray-500">Daily Active Users</div>
+                  <div className="text-sm text-gray-500">
+                    Daily Active Users
+                  </div>
                 </div>
 
                 <div className="text-center">
                   <div className="text-2xl font-bold text-green-600">
-                    {formatNumber(usageMetrics.engagement_metrics.weekly_active_users)}
+                    {formatNumber(
+                      usageMetrics.engagement_metrics.weekly_active_users
+                    )}
                   </div>
-                  <div className="text-sm text-gray-500">Weekly Active Users</div>
+                  <div className="text-sm text-gray-500">
+                    Weekly Active Users
+                  </div>
                 </div>
 
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-600">
-                    {formatNumber(usageMetrics.engagement_metrics.monthly_active_users)}
+                    {formatNumber(
+                      usageMetrics.engagement_metrics.monthly_active_users
+                    )}
                   </div>
-                  <div className="text-sm text-gray-500">Monthly Active Users</div>
+                  <div className="text-sm text-gray-500">
+                    Monthly Active Users
+                  </div>
                 </div>
 
                 <div className="text-center">
                   <div className="text-2xl font-bold text-orange-600">
-                    {(usageMetrics.engagement_metrics.retention_rate * 100).toFixed(1)}%
+                    {(
+                      usageMetrics.engagement_metrics.retention_rate * 100
+                    ).toFixed(1)}
+                    %
                   </div>
                   <div className="text-sm text-gray-500">Retention Rate</div>
                 </div>
@@ -504,7 +611,8 @@ const ContentAnalytics: React.FC = () => {
                     📈 Content to Promote
                   </h4>
                   <p className="text-sm text-yellow-700">
-                    "python_basics_1" has high engagement but could benefit from more promotion to increase completion rates.
+                    "python_basics_1" has high engagement but could benefit from
+                    more promotion to increase completion rates.
                   </p>
                 </div>
 
@@ -513,7 +621,9 @@ const ContentAnalytics: React.FC = () => {
                     ⚠️ Content to Review
                   </h4>
                   <p className="text-sm text-red-700">
-                    "javascript_functions" shows decreasing usage trend and lower success rate. Consider updating content or difficulty assessment.
+                    "javascript_functions" shows decreasing usage trend and
+                    lower success rate. Consider updating content or difficulty
+                    assessment.
                   </p>
                 </div>
               </div>
@@ -524,7 +634,8 @@ const ContentAnalytics: React.FC = () => {
                     🎯 Improvement Opportunities
                   </h4>
                   <p className="text-sm text-blue-700">
-                    YAML content has stable but relatively low engagement. Consider creating more interactive YAML lessons.
+                    YAML content has stable but relatively low engagement.
+                    Consider creating more interactive YAML lessons.
                   </p>
                 </div>
 
@@ -533,7 +644,8 @@ const ContentAnalytics: React.FC = () => {
                     ✅ High Performers
                   </h4>
                   <p className="text-sm text-green-700">
-                    Python and JavaScript content consistently perform well. Consider expanding these language offerings.
+                    Python and JavaScript content consistently perform well.
+                    Consider expanding these language offerings.
                   </p>
                 </div>
               </div>

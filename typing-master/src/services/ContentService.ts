@@ -26,14 +26,18 @@ export class ContentService {
   /**
    * Get lessons for a specific language
    */
-  public async getLessonsForLanguage(language: Language): Promise<LessonData[]> {
+  public async getLessonsForLanguage(
+    language: Language
+  ): Promise<LessonData[]> {
     return await indexedDBManager.getLessonsByLanguage(language);
   }
 
   /**
    * Get snippets for a specific language
    */
-  public async getSnippetsForLanguage(language: Language): Promise<SnippetData[]> {
+  public async getSnippetsForLanguage(
+    language: Language
+  ): Promise<SnippetData[]> {
     return await indexedDBManager.getSnippetsByLanguage(language);
   }
 
@@ -43,7 +47,7 @@ export class ContentService {
   private async loadDefaultContent(): Promise<void> {
     // Load C++ content
     await this.loadCppContent();
-    
+
     // Load Rust content
     await this.loadRustContent();
   }
@@ -64,7 +68,7 @@ export class ContentService {
 int main() {
     std::cout << "Hello, World!" << std::endl;
     return 0;
-}`
+}`,
       },
       {
         id: 'cpp-intro-2',
@@ -86,7 +90,7 @@ int main() {
     std::cout << "Student: " << isStudent << std::endl;
     
     return 0;
-}`
+}`,
       },
       {
         id: 'cpp-core-1',
@@ -108,7 +112,7 @@ int main() {
         std::cout << "Factorial of " << i << " is " << factorial(i) << std::endl;
     }
     return 0;
-}`
+}`,
       },
       {
         id: 'cpp-core-2',
@@ -150,7 +154,7 @@ int main() {
     std::cout << "New age: " << person.getAge() << std::endl;
     
     return 0;
-}`
+}`,
       },
       {
         id: 'cpp-advanced-1',
@@ -191,8 +195,8 @@ int main() {
     }
     
     return 0;
-}`
-      }
+}`,
+      },
     ];
 
     const cppSnippets: Omit<SnippetData, 'cachedAt'>[] = [
@@ -208,7 +212,7 @@ int* ptr = arr;
 for (int i = 0; i < 5; ++i) {
     std::cout << "Value: " << *ptr << ", Address: " << ptr << std::endl;
     ++ptr;
-}`
+}`,
       },
       {
         id: 'cpp-snippet-2',
@@ -226,7 +230,7 @@ auto multiply = [](int x) {
 
 std::cout << "Sum: " << add(5, 3) << std::endl;
 auto multiplyBy5 = multiply(5);
-std::cout << "5 * 7 = " << multiplyBy5(7) << std::endl;`
+std::cout << "5 * 7 = " << multiplyBy5(7) << std::endl;`,
       },
       {
         id: 'cpp-snippet-3',
@@ -254,8 +258,8 @@ std::unique_ptr<Resource> createResource(int id) {
     return std::make_unique<Resource>(id);
 }
 
-auto resource = createResource(42);`
-      }
+auto resource = createResource(42);`,
+      },
     ];
 
     // Save lessons and snippets to IndexedDB
@@ -281,7 +285,7 @@ auto resource = createResource(42);`
         version: 1,
         content: `fn main() {
     println!("Hello, World!");
-}`
+}`,
       },
       {
         id: 'rust-intro-2',
@@ -300,7 +304,7 @@ auto resource = createResource(42);`
     
     const MAX_POINTS: u32 = 100_000;
     println!("Maximum points: {}", MAX_POINTS);
-}`
+}`,
       },
       {
         id: 'rust-core-1',
@@ -322,7 +326,7 @@ auto resource = createResource(42);`
 
 fn calculate_length(s: &String) -> usize {
     s.len()
-}`
+}`,
       },
       {
         id: 'rust-core-2',
@@ -357,7 +361,7 @@ fn main() {
     println!("rect1 is {:?}", rect1);
     println!("The area of rect1 is {} square pixels.", rect1.area());
     println!("Can rect1 hold rect2? {}", rect1.can_hold(&rect2));
-}`
+}`,
       },
       {
         id: 'rust-advanced-1',
@@ -403,8 +407,8 @@ fn main() {
     if let Some(value) = some_number {
         println!("Got a number: {}", value);
     }
-}`
-      }
+}`,
+      },
     ];
 
     const rustSnippets: Omit<SnippetData, 'cachedAt'>[] = [
@@ -427,7 +431,7 @@ let sum: i32 = numbers
     .sum();
 
 println!("Doubled: {:?}", doubled);
-println!("Sum of evens: {}", sum);`
+println!("Sum of evens: {}", sum);`,
       },
       {
         id: 'rust-snippet-2',
@@ -454,7 +458,7 @@ fn read_file() -> Result<String, std::io::Error> {
             other_error => Err(error),
         },
     }
-}`
+}`,
       },
       {
         id: 'rust-snippet-3',
@@ -487,8 +491,8 @@ impl<'a> ImportantExcerpt<'a> {
 
 let string1 = String::from("abcd");
 let string2 = "xyz";
-let result = longest(string1.as_str(), string2);`
-      }
+let result = longest(string1.as_str(), string2);`,
+      },
     ];
 
     // Save lessons and snippets to IndexedDB

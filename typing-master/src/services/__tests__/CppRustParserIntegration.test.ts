@@ -30,7 +30,7 @@ int main() {
       const tokens = await parserManager.tokenize(cppCode, 'cpp');
       expect(tokens).toBeDefined();
       expect(tokens.length).toBeGreaterThan(0);
-      
+
       // Check for specific C++ tokens
       const tokenValues = tokens.map(t => t.value);
       expect(tokenValues).toContain('#include');
@@ -79,7 +79,7 @@ int main() {
       const lessons = await contentService.getLessonsForLanguage('cpp');
       expect(lessons).toBeDefined();
       expect(lessons.length).toBeGreaterThan(0);
-      
+
       const introLesson = lessons.find(l => l.id === 'cpp-intro-1');
       expect(introLesson).toBeDefined();
       expect(introLesson?.title).toContain('Hello World');
@@ -89,7 +89,7 @@ int main() {
       const snippets = await contentService.getSnippetsForLanguage('cpp');
       expect(snippets).toBeDefined();
       expect(snippets.length).toBeGreaterThan(0);
-      
+
       const pointerSnippet = snippets.find(s => s.tags.includes('pointers'));
       expect(pointerSnippet).toBeDefined();
     });
@@ -109,7 +109,7 @@ int main() {
       const tokens = await parserManager.tokenize(rustCode, 'rust');
       expect(tokens).toBeDefined();
       expect(tokens.length).toBeGreaterThan(0);
-      
+
       // Check for specific Rust tokens
       const tokenValues = tokens.map(t => t.value);
       expect(tokenValues).toContain('fn');
@@ -155,7 +155,7 @@ int main() {
       const lessons = await contentService.getLessonsForLanguage('rust');
       expect(lessons).toBeDefined();
       expect(lessons.length).toBeGreaterThan(0);
-      
+
       const introLesson = lessons.find(l => l.id === 'rust-intro-1');
       expect(introLesson).toBeDefined();
       expect(introLesson?.title).toContain('Hello World');
@@ -165,7 +165,7 @@ int main() {
       const snippets = await contentService.getSnippetsForLanguage('rust');
       expect(snippets).toBeDefined();
       expect(snippets.length).toBeGreaterThan(0);
-      
+
       const iteratorSnippet = snippets.find(s => s.tags.includes('iterators'));
       expect(iteratorSnippet).toBeDefined();
     });

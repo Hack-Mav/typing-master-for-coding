@@ -1,0 +1,72 @@
+# Cloud Build configuration for CI/CD
+steps:
+  # Step 1: Run tests
+  - name: 'golang:1.21'
+    id: 'test'
+    entrypoint: 'sh'
+    args:
+      - '-c'
+      - |
+        go test -v -race -coverprofile=coverage.out ./...
+        go tool cover -func=coverage.out
+
+  # Step 2: Build the application
+  - name: 'golang:1.21'
+    id: 'build'
+    env:
+      - 'CGO_ENABLED=0'
+      - 'GOOS=linux'
+      - 'GOARCH=amd64'
+    args:
+      - 'go'
+      - 'build'
+      - '-o'
+      - 'typing-master-backend'
+      - '-ldflags'
+      - '-s -w -X main.Version=${SHORT_SHA} -X main.BuildTime=${BUILD_ID}'
+      - './main.go'
+
+  # Step 3: Deploy to App Engine
+  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'deploy'
+    args:
+      - 'app'
+      - 'deploy'
+      - 'app.prod.yaml'
+      - '--version=${SHORT_SHA}'
+      - '--promote'
+      - '--stop-previous-version'
+      - '--quiet'
+
+  # Step 4: Run smoke tests
+  - name: 'gcr.io/cloud-builders/curl'
+    id: 'smoke-test'
+    args:
+      - '-f'
+      - 'https://typing-master.app/health'
+
+# Timeout for entire build
+timeout: '1200s'
+
+# Build options
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+  
+# Artifacts to store
+artifacts:
+  objects:
+    location: 'gs://typing-master-prod-artifacts/${BUILD_ID}'
+    paths:
+      - 'coverage.out'
+      - 'typing-master-backend'
+
+# Substitutions
+substitutions:
+  _DEPLOY_REGION: 'us-central1'
+
+# Tags for organization
+tags:
+  - 'typing-master'
+  - 'backend'
+  - 'production'

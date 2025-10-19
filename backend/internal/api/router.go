@@ -97,16 +97,30 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 
 			// Leaderboard routes
 			protected.GET("/leaderboards", handlers.GetLeaderboards(cacheClient))
+			protected.GET("/leaderboards/rank/:user_id", handlers.GetUserRank)
+			protected.GET("/leaderboards/trends", handlers.GetLeaderboardTrends)
+
+			// Scoring and metrics routes
+			protected.POST("/scoring/process", handlers.ProcessSessionMetrics)
+			protected.GET("/scoring/anticheat/:session_id", handlers.AnalyzeAntiCheat)
+
+			// Tournament routes
+			protected.POST("/tournaments", handlers.CreateTournament)
+			protected.GET("/tournaments/:tournament_id", handlers.GetTournament)
+			protected.POST("/tournaments/:tournament_id/register", handlers.RegisterForTournament)
+			protected.GET("/tournaments/:tournament_id/leaderboard", handlers.GetTournamentLeaderboard)
+			protected.POST("/tournaments/:tournament_id/submit", handlers.SubmitTournamentResult)
+			protected.GET("/tournaments/user/:user_id", handlers.GetUserTournaments)
 
 			// Assessment routes
 			protected.GET("/assessments/blueprints", handlers.GetAssessmentBlueprints(db, cacheClient))
-			protected.GET("/assessments/blueprints/:id", handlers.GetAssessmentBlueprint(db, cacheClient))
 			protected.POST("/assessments/blueprints", handlers.CreateAssessmentBlueprint(db, cacheClient))
+			protected.GET("/assessments/blueprints/:id/snippets/:snippetId", handlers.GetAssessmentSnippet(db, cacheClient))
+			protected.GET("/assessments/blueprints/:id", handlers.GetAssessmentBlueprint(db, cacheClient))
 			protected.POST("/assessments/sessions", handlers.CreateAssessmentSession(db, cacheClient))
 			protected.GET("/assessments/sessions/:id", handlers.GetAssessmentSession(db, cacheClient))
 			protected.POST("/assessments/sessions/:id/snippets", handlers.RecordSnippetResult(db, cacheClient))
 			protected.POST("/assessments/sessions/:id/finalize", handlers.FinalizeAssessment(db, cacheClient))
-			protected.GET("/assessments/blueprints/:blueprintId/snippets/:snippetId", handlers.GetAssessmentSnippet(db, cacheClient))
 			protected.GET("/assessments/analytics", handlers.GetAssessmentAnalytics(db, cacheClient))
 			protected.GET("/assessments/badges", handlers.GetUserBadges(db, cacheClient))
 			protected.POST("/assessments/schedule", handlers.ScheduleAssessment(db, cacheClient))
@@ -147,6 +161,10 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 			admin.PUT("/ab-tests/:id", handlers.UpdateABTest(db))
 			admin.DELETE("/ab-tests/:id", handlers.DeleteABTest(db))
 			admin.GET("/ab-tests/:id/results", handlers.GetABTestResults(db))
+
+			// Tournament management
+			admin.POST("/tournaments/:tournament_id/start", handlers.StartTournament)
+			admin.POST("/tournaments/:tournament_id/end", handlers.EndTournament)
 		}
 
 		// Public routes (no auth required)
