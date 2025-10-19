@@ -7,6 +7,7 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"google.golang.org/api/option"
+	"typing-master-backend/internal/models"
 )
 
 type DatastoreClient struct {
@@ -109,4 +110,46 @@ func (dc *DatastoreClient) Delete(ctx context.Context, key *datastore.Key) error
 		return dc.Mock.Delete(ctx, key)
 	}
 	return dc.Client.Delete(ctx, key)
+}
+
+func (dc *DatastoreClient) DeleteMulti(ctx context.Context, keys []*datastore.Key) error {
+	if dc.IsMock {
+		return dc.Mock.DeleteMulti(ctx, keys)
+	}
+	return dc.Client.DeleteMulti(ctx, keys)
+}
+
+func (dc *DatastoreClient) Count(ctx context.Context, q *datastore.Query) (int, error) {
+	if dc.IsMock {
+		return dc.Mock.Count(ctx, q)
+	}
+	return dc.Client.Count(ctx, q)
+}
+
+// Clear removes all data from the datastore (for testing)
+func (dc *DatastoreClient) Clear() {
+	if dc.IsMock && dc.Mock != nil {
+		dc.Mock.Clear()
+	}
+}
+
+// PutLessonProgress stores lesson progress data (for testing)
+func (dc *DatastoreClient) PutLessonProgress(id string, progress *models.LessonProgress) {
+	if dc.IsMock && dc.Mock != nil {
+		dc.Mock.PutLessonProgress(id, progress)
+	}
+}
+
+// PutLesson stores lesson data (for testing)
+func (dc *DatastoreClient) PutLesson(id string, lesson *models.Lesson) {
+	if dc.IsMock && dc.Mock != nil {
+		dc.Mock.PutLesson(id, lesson)
+	}
+}
+
+// PutPlaylist stores playlist data (for testing)
+func (dc *DatastoreClient) PutPlaylist(id string, playlist *models.Playlist) {
+	if dc.IsMock && dc.Mock != nil {
+		dc.Mock.PutPlaylist(id, playlist)
+	}
 }

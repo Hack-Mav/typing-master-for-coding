@@ -8,15 +8,21 @@ import (
 
 // User entity for Datastore
 type User struct {
-	ID             string                 `datastore:"-" json:"id"`
-	Handle         string                 `datastore:"handle" json:"handle"`
-	Email          string                 `datastore:"email" json:"email"`
-	Locale         string                 `datastore:"locale" json:"locale"`
-	KeyboardLayout string                 `datastore:"keyboard_layout" json:"keyboard_layout"`
-	PrivacyMode    bool                   `datastore:"privacy_mode" json:"privacy_mode"`
-	Settings       map[string]interface{} `datastore:"settings" json:"settings"`
-	CreatedAt      time.Time              `datastore:"created_at" json:"created_at"`
-	UpdatedAt      time.Time              `datastore:"updated_at" json:"updated_at"`
+	ID                  string                 `datastore:"-" json:"id"`
+	Handle              string                 `datastore:"handle" json:"handle"`
+	Email               string                 `datastore:"email" json:"email"`
+	PasswordHash        string                 `datastore:"password_hash" json:"-"` // Never expose in JSON
+	Role                string                 `datastore:"role" json:"role"` // "user", "admin", "moderator"
+	IsAnonymous         bool                   `datastore:"is_anonymous" json:"is_anonymous"`
+	Locale              string                 `datastore:"locale" json:"locale"`
+	KeyboardLayout      string                 `datastore:"keyboard_layout" json:"keyboard_layout"`
+	PrivacyMode         bool                   `datastore:"privacy_mode" json:"privacy_mode"`
+	TelemetryConsent    bool                   `datastore:"telemetry_consent" json:"telemetry_consent"`
+	DataProcessingConsent bool                 `datastore:"data_processing_consent" json:"data_processing_consent"`
+	Settings            map[string]interface{} `datastore:"settings" json:"settings"`
+	CreatedAt           time.Time              `datastore:"created_at" json:"created_at"`
+	UpdatedAt           time.Time              `datastore:"updated_at" json:"updated_at"`
+	LastLoginAt         *time.Time             `datastore:"last_login_at" json:"last_login_at,omitempty"`
 }
 
 // LoadKey implements the PropertyLoadSaver interface
@@ -42,10 +48,11 @@ func (u *User) Load(ps []datastore.Property) error {
 type Language struct {
 	ID              string                 `datastore:"-" json:"id"`
 	Name            string                 `datastore:"name" json:"name"`
-	Version         string                 `datastore:"version" json:"version"`
+	Version         int                    `datastore:"version" json:"version"`
 	ParserID        string                 `datastore:"parser_id" json:"parser_id"`
 	GrammarConfig   map[string]interface{} `datastore:"grammar_config" json:"grammar_config"`
 	WhitespaceRules map[string]interface{} `datastore:"whitespace_rules" json:"whitespace_rules"`
+	CreatedBy       string                 `datastore:"created_by" json:"created_by"`
 	CreatedAt       time.Time              `datastore:"created_at" json:"created_at"`
 }
 
@@ -74,6 +81,7 @@ type Lesson struct {
 	TokensCovered    []string  `datastore:"tokens_covered" json:"tokens_covered"`
 	SnippetIDs       []string  `datastore:"snippet_ids" json:"snippet_ids"`
 	Version          int       `datastore:"version" json:"version"`
+	CreatedBy        string    `datastore:"created_by" json:"created_by"`
 	CreatedAt        time.Time `datastore:"created_at" json:"created_at"`
 }
 
@@ -104,6 +112,8 @@ type Snippet struct {
 	EstimatedTime     int                    `datastore:"estimated_time" json:"estimated_time"`
 	Checksum          string                 `datastore:"checksum" json:"checksum"`
 	AccessibilityTags map[string]interface{} `datastore:"accessibility_tags" json:"accessibility_tags"`
+	CreatedBy         string                 `datastore:"created_by" json:"created_by"`
+	Version           int                    `datastore:"version" json:"version"`
 	CreatedAt         time.Time              `datastore:"created_at" json:"created_at"`
 }
 
@@ -368,6 +378,321 @@ func (da *DifficultyAssessment) Save() ([]datastore.Property, error) {
 	return datastore.SaveStruct(da)
 }
 
-func (da *DifficultyAssessment) Load(ps []datastore.Property) error {
-	return datastore.LoadStruct(da, ps)
+// ScoringMetrics entity for Datastore (extends Result with more detailed metrics)
+type ScoringMetrics struct {
+	ID              string                 `datastore:"-" json:"id"`
+	SessionID       string                 `datastore:"session_id" json:"session_id"`
+	UserID          string                 `datastore:"user_id" json:"user_id"`
+	LanguageID      string                 `datastore:"language_id" json:"language_id"`
+	Mode            string                 `datastore:"mode" json:"mode"`
+	
+	// Speed metrics
+	CPM             float64                `datastore:"cpm" json:"cpm"`
+	TWPM            float64                `datastore:"twpm" json:"twpm"`
+	KPS             float64                `datastore:"kps" json:"kps"`
+	
+	// Accuracy metrics
+	RawAccuracy     float64                `datastore:"raw_accuracy" json:"raw_accuracy"`
+	TokenAccuracy   float64                `datastore:"token_accuracy" json:"token_accuracy"`
+	SyntaxAccuracy  float64                `datastore:"syntax_accuracy" json:"syntax_accuracy"`
+	WhitespaceAccuracy float64             `datastore:"whitespace_accuracy" json:"whitespace_accuracy"`
+	
+	// Efficiency metrics
+	BackspaceRate   float64                `datastore:"backspace_rate" json:"backspace_rate"`
+	CorrectionRate  float64                `datastore:"correction_rate" json:"correction_rate"`
+	IdleTimePercent float64                `datastore:"idle_time_percent" json:"idle_time_percent"`
+	
+	// Composite scores
+	CompositeScore  int                    `datastore:"composite_score" json:"composite_score"`
+	ConsistencyScore float64               `datastore:"consistency_score" json:"consistency_score"`
+	EfficiencyScore float64                `datastore:"efficiency_score" json:"efficiency_score"`
+	
+	// Detailed breakdown
+	ErrorClusters   map[string]interface{} `datastore:"error_clusters" json:"error_clusters"`
+	PerformanceInsights map[string]interface{} `datastore:"performance_insights" json:"performance_insights"`
+	TypingPatterns  map[string]interface{} `datastore:"typing_patterns" json:"typing_patterns"`
+	
+	// Anti-cheat flags
+	SuspiciousActivity bool                 `datastore:"suspicious_activity" json:"suspicious_activity"`
+	CheatFlags      []string               `datastore:"cheat_flags" json:"cheat_flags"`
+	ConfidenceScore float64                `datastore:"confidence_score" json:"confidence_score"`
+	
+	// Timestamps
+	CalculatedAt    time.Time              `datastore:"calculated_at" json:"calculated_at"`
+	CreatedAt       time.Time              `datastore:"created_at" json:"created_at"`
+}
+
+func (sm *ScoringMetrics) LoadKey(k *datastore.Key) error {
+	sm.ID = k.Name
+	if sm.ID == "" && k.ID != 0 {
+		sm.ID = k.Encode()
+	}
+	return nil
+}
+
+func (sm *ScoringMetrics) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(sm)
+}
+
+// Leaderboard entity for Datastore
+type Leaderboard struct {
+	ID              string                 `datastore:"-" json:"id"`
+	UserID          string                 `datastore:"user_id" json:"user_id"`
+	SessionID       string                 `datastore:"session_id" json:"session_id"`
+	LanguageID      string                 `datastore:"language_id" json:"language_id"`
+	Mode            string                 `datastore:"mode" json:"mode"`
+	Scope           string                 `datastore:"scope" json:"scope"` // "global", "friends", "organization"
+	TimeWindow      string                 `datastore:"time_window" json:"time_window"` // "daily", "weekly", "monthly", "all_time"
+	
+	// Rankings
+	Rank            int                    `datastore:"rank" json:"rank"`
+	Score           int                    `datastore:"score" json:"score"`
+	CPM             float64                `datastore:"cpm" json:"cpm"`
+	TWPM            float64                `datastore:"twpm" json:"twpm"`
+	Accuracy        float64                `datastore:"accuracy" json:"accuracy"`
+	
+	// Metadata
+	MetricsSnapshot map[string]interface{} `datastore:"metrics_snapshot" json:"metrics_snapshot"`
+	Badge           string                 `datastore:"badge" json:"badge"`
+	IsVerified      bool                   `datastore:"is_verified" json:"is_verified"`
+	VerificationMethod string               `datastore:"verification_method" json:"verification_method"`
+	
+	// Timestamps
+	RecordedAt      time.Time              `datastore:"recorded_at" json:"recorded_at"`
+	WindowStart     time.Time              `datastore:"window_start" json:"window_start"`
+	WindowEnd       time.Time              `datastore:"window_end" json:"window_end"`
+}
+
+func (l *Leaderboard) LoadKey(k *datastore.Key) error {
+	l.ID = k.Name
+	if l.ID == "" && k.ID != 0 {
+		l.ID = k.Encode()
+	}
+	return nil
+}
+
+func (l *Leaderboard) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(l)
+}
+
+// AntiCheatReport entity for Datastore
+type AntiCheatReport struct {
+	ID                  string                 `datastore:"-" json:"id"`
+	SessionID           string                 `datastore:"session_id" json:"session_id"`
+	UserID              string                 `datastore:"user_id" json:"user_id"`
+	
+	// Detection results
+	PasteDetected       bool                   `datastore:"paste_detected" json:"paste_detected"`
+	UnrealisticKPS      bool                   `datastore:"unrealistic_kps" json:"unrealistic_kps"`
+	AutoTypePattern     bool                   `datastore:"auto_type_pattern" json:"auto_type_pattern"`
+	WindowFocusLost     bool                   `datastore:"window_focus_lost" json:"window_focus_lost"`
+	AnomalousTiming     bool                   `datastore:"anomalous_timing" json:"anomalous_timing"`
+	
+	// Analysis data
+	KPSVariance         float64                `datastore:"kps_variance" json:"kps_variance"`
+	BurstConsistency    float64                `datastore:"burst_consistency" json:"burst_consistency"`
+	ErrorPatternScore   float64                `datastore:"error_pattern_score" json:"error_pattern_score"`
+	StatisticalAnomaly  float64                `datastore:"statistical_anomaly" json:"statistical_anomaly"`
+	
+	// Evidence
+	SuspiciousEvents    []string               `datastore:"suspicious_events" json:"suspicious_events"`
+	EvidenceDetails     map[string]interface{} `datastore:"evidence_details" json:"evidence_details"`
+	ConfidenceScore     float64                `datastore:"confidence_score" json:"confidence_score"`
+	RiskLevel           string                 `datastore:"risk_level" json:"risk_level"` // "low", "medium", "high", "critical"
+	
+	// Actions taken
+	FlaggedForReview    bool                   `datastore:"flagged_for_review" json:"flagged_for_review"`
+	ScoreInvalidated    bool                   `datastore:"score_invalidated" json:"score_invalidated"`
+	LeaderboardExcluded bool                   `datastore:"leaderboard_excluded" json:"leaderboard_excluded"`
+	
+	// Timestamps
+	DetectedAt          time.Time              `datastore:"detected_at" json:"detected_at"`
+	ReviewedAt          *time.Time             `datastore:"reviewed_at" json:"reviewed_at"`
+	ReviewedBy          string                 `datastore:"reviewed_by" json:"reviewed_by"`
+}
+
+func (acr *AntiCheatReport) LoadKey(k *datastore.Key) error {
+	acr.ID = k.Name
+	if acr.ID == "" && k.ID != 0 {
+		acr.ID = k.Encode()
+	}
+	return nil
+}
+
+func (acr *AntiCheatReport) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(acr)
+}
+
+// Tournament entity for Datastore
+type Tournament struct {
+	ID                  string                 `datastore:"-" json:"id"`
+	Title               string                 `datastore:"title" json:"title"`
+	Description         string                 `datastore:"description" json:"description"`
+	LanguageID          string                 `datastore:"language_id" json:"language_id"`
+	Mode                string                 `datastore:"mode" json:"mode"`
+	
+	// Tournament settings
+	VerificationRequired bool                   `datastore:"verification_required" json:"verification_required"`
+	VerificationMethod  string                 `datastore:"verification_method" json:"verification_method"` // "webcam", "hid", "both"
+	AntiCheatLevel      string                 `datastore:"anti_cheat_level" json:"anti_cheat_level"` // "standard", "enhanced", "maximum"
+	
+	// Schedule
+	RegistrationStart   time.Time              `datastore:"registration_start" json:"registration_start"`
+	RegistrationEnd     time.Time              `datastore:"registration_end" json:"registration_end"`
+	StartTime           time.Time              `datastore:"start_time" json:"start_time"`
+	EndTime             time.Time              `datastore:"end_time" json:"end_time"`
+	DurationMinutes     int                    `datastore:"duration_minutes" json:"duration_minutes"`
+	
+	// Participation
+	MaxParticipants     int                    `datastore:"max_participants" json:"max_participants"`
+	CurrentParticipants int                    `datastore:"current_participants" json:"current_participants"`
+	ParticipantIDs      []string               `datastore:"participant_ids" json:"participant_ids"`
+	
+	// Prizes and rewards
+	PrizePool           float64                `datastore:"prize_pool" json:"prize_pool"`
+	PrizeDistribution   map[string]float64     `datastore:"prize_distribution" json:"prize_distribution"`
+	BadgeReward         string                 `datastore:"badge_reward" json:"badge_reward"`
+	
+	// Status
+	Status              string                 `datastore:"status" json:"status"` // "upcoming", "registration", "active", "completed", "cancelled"
+	
+	// Results
+	FinalRankings       []string               `datastore:"final_rankings" json:"final_rankings"`
+	Winners             []string               `datastore:"winners" json:"winners"`
+	
+	// Metadata
+	CreatedBy           string                 `datastore:"created_by" json:"created_by"`
+	CreatedAt           time.Time              `datastore:"created_at" json:"created_at"`
+	UpdatedAt           time.Time              `datastore:"updated_at" json:"updated_at"`
+}
+
+func (t *Tournament) LoadKey(k *datastore.Key) error {
+	t.ID = k.Name
+	if t.ID == "" && k.ID != 0 {
+		t.ID = k.Encode()
+	}
+	return nil
+}
+
+func (t *Tournament) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(t)
+}
+
+func (t *Tournament) Load(ps []datastore.Property) error {
+	return datastore.LoadStruct(t, ps)
+}
+
+// TournamentParticipant entity for Datastore
+type TournamentParticipant struct {
+	ID                string                 `datastore:"-" json:"id"`
+	TournamentID      string                 `datastore:"tournament_id" json:"tournament_id"`
+	UserID            string                 `datastore:"user_id" json:"user_id"`
+	
+	// Registration info
+	RegisteredAt      time.Time              `datastore:"registered_at" json:"registered_at"`
+	VerificationStatus string                `datastore:"verification_status" json:"verification_status"` // "pending", "verified", "failed"
+	VerificationData  map[string]interface{} `datastore:"verification_data" json:"verification_data"`
+	
+	// Tournament results
+	SessionID         string                 `datastore:"session_id" json:"session_id"`
+	Score             int                    `datastore:"score" json:"score"`
+	Rank              int                    `datastore:"rank" json:"rank"`
+	CompletedAt       *time.Time             `datastore:"completed_at" json:"completed_at"`
+	
+	// Status
+	Status            string                 `datastore:"status" json:"status"` // "registered", "active", "completed", "disqualified"
+	DisqualificationReason string              `datastore:"disqualification_reason" json:"disqualification_reason"`
+	
+	CreatedAt         time.Time              `datastore:"created_at" json:"created_at"`
+	UpdatedAt         time.Time              `datastore:"updated_at" json:"updated_at"`
+}
+
+func (tp *TournamentParticipant) LoadKey(k *datastore.Key) error {
+	tp.ID = k.Name
+	if tp.ID == "" && k.ID != 0 {
+		tp.ID = k.Encode()
+	}
+	return nil
+}
+
+func (tp *TournamentParticipant) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(tp)
+}
+
+// ScoringConfig entity for Datastore
+// Stores configurable scoring weights and parameters
+type ScoringConfig struct {
+	ID                  string                 `datastore:"-" json:"id"`
+	Version             string                 `datastore:"version" json:"version"`
+	
+	// Weight configurations
+	TWPMWeight          float64                `datastore:"twpm_weight" json:"twpm_weight"`
+	RawAccuracyWeight   float64                `datastore:"raw_accuracy_weight" json:"raw_accuracy_weight"`
+	SyntaxAccuracyWeight float64               `datastore:"syntax_accuracy_weight" json:"syntax_accuracy_weight"`
+	BackspacePenalty    float64                `datastore:"backspace_penalty" json:"backspace_penalty"`
+	IdleTimePenalty     float64                `datastore:"idle_time_penalty" json:"idle_time_penalty"`
+	ConsistencyBonus    float64                `datastore:"consistency_bonus" json:"consistency_bonus"`
+	
+	// Anti-cheat thresholds
+	MaxKPS              float64                `datastore:"max_kps" json:"max_kps"`
+	MinBurstConsistency float64                `datastore:"min_burst_consistency" json:"min_burst_consistency"`
+	MaxErrorRate        float64                `datastore:"max_error_rate" json:"max_error_rate"`
+	MinConfidenceScore  float64                `datastore:"min_confidence_score" json:"min_confidence_score"`
+	
+	// Language-specific adjustments
+	LanguageMultipliers map[string]float64     `datastore:"language_multipliers" json:"language_multipliers"`
+	ModeMultipliers     map[string]float64     `datastore:"mode_multipliers" json:"mode_multipliers"`
+	
+	// Metadata
+	IsActive            bool                   `datastore:"is_active" json:"is_active"`
+	CreatedBy           string                 `datastore:"created_by" json:"created_by"`
+	CreatedAt           time.Time              `datastore:"created_at" json:"created_at"`
+	UpdatedAt           time.Time              `datastore:"updated_at" json:"updated_at"`
+}
+
+func (sc *ScoringConfig) LoadKey(k *datastore.Key) error {
+	sc.ID = k.Name
+	if sc.ID == "" && k.ID != 0 {
+		sc.ID = k.Encode()
+	}
+	return nil
+}
+
+func (sc *ScoringConfig) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(sc)
+}
+
+// ABTest entity for Datastore
+// Manages A/B tests for scoring weights and UI variants
+type ABTest struct {
+	ID             string                 `datastore:"-" json:"id"`
+	Name           string                 `datastore:"name" json:"name"`
+	Description    string                 `datastore:"description" json:"description"`
+	TestType       string                 `datastore:"test_type" json:"test_type"` // "scoring_weights", "ui_variant"
+	Variants       []map[string]interface{} `datastore:"variants" json:"variants"`
+	Status         string                 `datastore:"status" json:"status"` // "active", "paused", "completed"
+	StartDate      time.Time              `datastore:"start_date" json:"start_date"`
+	EndDate        time.Time              `datastore:"end_date" json:"end_date"`
+	UserPercentage float64                `datastore:"user_percentage" json:"user_percentage"` // Percentage of users to include
+	ParticipantIDs []string               `datastore:"participant_ids" json:"participant_ids"`
+	Results        map[string]interface{} `datastore:"results" json:"results"`
+	CreatedBy      string                 `datastore:"created_by" json:"created_by"`
+	CreatedAt      time.Time              `datastore:"created_at" json:"created_at"`
+	UpdatedAt      time.Time              `datastore:"updated_at" json:"updated_at"`
+}
+
+func (abt *ABTest) LoadKey(k *datastore.Key) error {
+	abt.ID = k.Name
+	if abt.ID == "" && k.ID != 0 {
+		abt.ID = k.Encode()
+	}
+	return nil
+}
+
+func (abt *ABTest) Save() ([]datastore.Property, error) {
+	return datastore.SaveStruct(abt)
+}
+
+func (abt *ABTest) Load(ps []datastore.Property) error {
+	return datastore.LoadStruct(abt, ps)
 }

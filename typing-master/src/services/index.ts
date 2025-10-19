@@ -11,6 +11,35 @@ export { SessionManager, sessionManager } from './SessionManager';
 // Metrics exports
 export { MetricsCalculator, metricsCalculator } from './MetricsCalculator';
 
+// Authentication and user management exports
+export { authService } from './AuthService';
+export type {
+  User,
+  TokenPair,
+  AuthResponse,
+  RegisterRequest,
+  LoginRequest,
+  AnonymousSessionRequest,
+} from './AuthService';
+
+// Privacy and GDPR compliance exports
+export { privacyService } from './PrivacyService';
+export type {
+  ConsentStatus,
+  PrivacySettings,
+  DataExportOptions,
+  TelemetryEvent,
+} from './PrivacyService';
+
+// Local storage for anonymous mode exports
+export { localStorageService } from './LocalStorageService';
+export type {
+  LocalSession,
+  LocalResult,
+  LocalProgress,
+  LocalSettings,
+} from './LocalStorageService';
+
 // Type exports
 export type {
   Language,

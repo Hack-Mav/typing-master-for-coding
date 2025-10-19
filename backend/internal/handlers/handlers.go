@@ -5,13 +5,16 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"typing-master-backend/internal/cache"
 	"typing-master-backend/internal/database"
 	"typing-master-backend/internal/models"
+	"typing-master-backend/internal/scoring"
 
 	"github.com/gin-gonic/gin"
 	"cloud.google.com/go/datastore"
@@ -32,36 +35,8 @@ func generateChecksum(code string) string {
 	return fmt.Sprintf("%x", hash)
 }
 
-// Placeholder handlers - will be implemented in subsequent tasks
-func Register(db *database.DatastoreClient) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "Register endpoint not implemented yet"})
-	}
-}
-
-func Login(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "Login endpoint not implemented yet"})
-	}
-}
-
-func RefreshToken(jwtSecret string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "RefreshToken endpoint not implemented yet"})
-	}
-}
-
-func GetProfile(db *database.DatastoreClient) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "GetProfile endpoint not implemented yet"})
-	}
-}
-
-func UpdateProfile(db *database.DatastoreClient) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusNotImplemented, gin.H{"message": "UpdateProfile endpoint not implemented yet"})
-	}
-}
+// Authentication and user management handlers are now in auth.go
+// Privacy and GDPR compliance handlers are now in privacy.go
 
 func GetLanguages(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -1155,9 +1130,389 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+// Scoring and leaderboard handlers
+
+// Global scoring service instance (would be injected via dependency injection)
+var scoringService *scoring.Service
+var leaderboardService *scoring.LeaderboardService
+var antiCheatService *scoring.AntiCheatService
+var tournamentService *scoring.TournamentService
+
+// InitializeScoringServices initializes the scoring services (called during app startup)
+func InitializeScoringServices(dsClient *datastore.Client) {
+	scoringService = scoring.NewService(dsClient)
+	leaderboardService = scoring.NewLeaderboardService(dsClient)
+	antiCheatService = scoring.NewAntiCheatService(dsClient)
+	tournamentService = scoring.NewTournamentService(dsClient, antiCheatService, leaderboardService)
+}
+
+// ProcessSessionMetrics processes and stores session metrics
+func ProcessSessionMetrics(c *gin.Context) {
+	var req scoring.SessionMetrics
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
 	}
-	return b
+
+	ctx := context.Background()
+
+	// Process session metrics
+	metrics, err := scoringService.ProcessSession(ctx, req.SessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process session metrics"})
+		return
+	}
+
+	// Update leaderboards
+	err = scoringService.UpdateLeaderboard(ctx, req.SessionID)
+	if err != nil {
+		log.Printf("Failed to update leaderboards: %v", err)
+		// Don't fail the request for leaderboard update issues
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Session metrics processed successfully",
+		"metrics": metrics,
+	})
+}
+
+// GetLeaderboard retrieves leaderboard rankings
+func GetLeaderboard(c *gin.Context) {
+	languageID := c.Query("language_id")
+	if languageID == "" {
+		languageID = "python" // Default to Python
+	}
+
+	mode := c.Query("mode")
+	if mode == "" {
+		mode = "timed" // Default to timed mode
+	}
+
+	scope := c.Query("scope")
+	if scope == "" {
+		scope = "global" // Default to global
+	}
+
+	timeWindow := c.Query("time_window")
+	if timeWindow == "" {
+		timeWindow = "weekly" // Default to weekly
+	}
+
+	limitStr := c.Query("limit")
+	limit := 50 // Default limit
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 1000 {
+			limit = l
+		}
+	}
+
+	req := &scoring.LeaderboardRequest{
+		LanguageID: languageID,
+		Mode:       mode,
+		Scope:      scope,
+		TimeWindow: timeWindow,
+		Limit:      limit,
+	}
+
+	ctx := context.Background()
+	response, err := leaderboardService.GetLeaderboard(ctx, req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leaderboard"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// GetUserRank retrieves a user's rank in the leaderboard
+func GetUserRank(c *gin.Context) {
+	userID := c.Param("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+
+	languageID := c.Query("language_id")
+	if languageID == "" {
+		languageID = "python"
+	}
+
+	mode := c.Query("mode")
+	if mode == "" {
+		mode = "timed"
+	}
+
+	scope := c.Query("scope")
+	if scope == "" {
+		scope = "global"
+	}
+
+	timeWindow := c.Query("time_window")
+	if timeWindow == "" {
+		timeWindow = "weekly"
+	}
+
+	ctx := context.Background()
+	rank, err := leaderboardService.GetUserRank(ctx, userID, languageID, mode, scope, timeWindow)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user rank"})
+		return
+	}
+
+	c.JSON(http.StatusOK, rank)
+}
+
+// GetLeaderboardTrends retrieves leaderboard trends and analytics
+func GetLeaderboardTrends(c *gin.Context) {
+	languageID := c.Query("language_id")
+	if languageID == "" {
+		languageID = "python"
+	}
+
+	mode := c.Query("mode")
+	if mode == "" {
+		mode = "timed"
+	}
+
+	scope := c.Query("scope")
+	if scope == "" {
+		scope = "global"
+	}
+
+	timeWindow := c.Query("time_window")
+	if timeWindow == "" {
+		timeWindow = "weekly"
+	}
+
+	period := c.Query("period")
+	if period == "" {
+		period = "30d"
+	}
+
+	metric := c.Query("metric")
+	if metric == "" {
+		metric = "score"
+	}
+
+	req := &scoring.LeaderboardTrendsRequest{
+		LanguageID: languageID,
+		Mode:       mode,
+		Scope:      scope,
+		TimeWindow: timeWindow,
+		Period:     period,
+		Metric:     metric,
+	}
+
+	ctx := context.Background()
+	response, err := leaderboardService.GetLeaderboardTrends(ctx, req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leaderboard trends"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// AnalyzeAntiCheat performs anti-cheat analysis on a session
+func AnalyzeAntiCheat(c *gin.Context) {
+	sessionID := c.Param("session_id")
+	if sessionID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Session ID is required"})
+		return
+	}
+
+	ctx := context.Background()
+	report, err := antiCheatService.AnalyzeSession(ctx, sessionID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to analyze session for anti-cheat"})
+		return
+	}
+
+	c.JSON(http.StatusOK, report)
+}
+
+// Tournament handlers
+
+// CreateTournament creates a new tournament
+func CreateTournament(c *gin.Context) {
+	var req scoring.CreateTournamentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	// Get user ID from JWT token (would be implemented in auth middleware)
+	userID := c.GetString("user_id")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	req.CreatedBy = userID
+
+	ctx := context.Background()
+	tournament, err := tournamentService.CreateTournament(ctx, &req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create tournament"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, tournament)
+}
+
+// GetTournament retrieves tournament information
+func GetTournament(c *gin.Context) {
+	tournamentID := c.Param("tournament_id")
+	if tournamentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tournament ID is required"})
+		return
+	}
+
+	ctx := context.Background()
+	tournament, err := tournamentService.GetTournament(ctx, tournamentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, tournament)
+}
+
+// RegisterForTournament registers a user for a tournament
+func RegisterForTournament(c *gin.Context) {
+	tournamentID := c.Param("tournament_id")
+	if tournamentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tournament ID is required"})
+		return
+	}
+
+	userID := c.GetString("user_id")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	ctx := context.Background()
+	participant, err := tournamentService.RegisterParticipant(ctx, tournamentID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, participant)
+}
+
+// GetTournamentLeaderboard retrieves tournament leaderboard
+func GetTournamentLeaderboard(c *gin.Context) {
+	tournamentID := c.Param("tournament_id")
+	if tournamentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tournament ID is required"})
+		return
+	}
+
+	ctx := context.Background()
+	leaderboard, err := tournamentService.GetTournamentLeaderboard(ctx, tournamentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve tournament leaderboard"})
+		return
+	}
+
+	c.JSON(http.StatusOK, leaderboard)
+}
+
+// SubmitTournamentResult submits a tournament result
+func SubmitTournamentResult(c *gin.Context) {
+	tournamentID := c.Param("tournament_id")
+	if tournamentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tournament ID is required"})
+		return
+	}
+
+	userID := c.GetString("user_id")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	var req struct {
+		SessionID string `json:"session_id" binding:"required"`
+		Score     int    `json:"score" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	ctx := context.Background()
+	err := tournamentService.SubmitTournamentResult(ctx, tournamentID, userID, req.SessionID, req.Score)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Tournament result submitted successfully"})
+}
+
+// GetUserTournaments retrieves tournaments for a user
+func GetUserTournaments(c *gin.Context) {
+	userID := c.Param("user_id")
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User ID is required"})
+		return
+	}
+
+	status := c.Query("status") // Optional status filter
+
+	ctx := context.Background()
+	tournaments, err := tournamentService.GetUserTournaments(ctx, userID, status)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user tournaments"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"tournaments": tournaments,
+		"count":       len(tournaments),
+	})
+}
+
+// Tournament control endpoints (admin only)
+
+// StartTournament starts a tournament
+func StartTournament(c *gin.Context) {
+	tournamentID := c.Param("tournament_id")
+	if tournamentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tournament ID is required"})
+		return
+	}
+
+	// TODO: Add admin authorization check
+	ctx := context.Background()
+	err := tournamentService.StartTournament(ctx, tournamentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Tournament started successfully"})
+}
+
+// EndTournament ends a tournament
+func EndTournament(c *gin.Context) {
+	tournamentID := c.Param("tournament_id")
+	if tournamentID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Tournament ID is required"})
+		return
+	}
+
+	// TODO: Add admin authorization check
+	ctx := context.Background()
+	err := tournamentService.EndTournament(ctx, tournamentID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Tournament ended successfully"})
 }

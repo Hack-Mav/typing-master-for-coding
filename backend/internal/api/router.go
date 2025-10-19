@@ -30,6 +30,7 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 			auth.POST("/register", handlers.Register(db))
 			auth.POST("/login", handlers.Login(db, cfg.JWTSecret))
 			auth.POST("/refresh", handlers.RefreshToken(cfg.JWTSecret))
+			auth.POST("/anonymous", handlers.CreateAnonymousSession(cfg.JWTSecret))
 		}
 
 		// Protected routes
@@ -39,6 +40,12 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 			// User routes
 			protected.GET("/profile", handlers.GetProfile(db))
 			protected.PUT("/profile", handlers.UpdateProfile(db))
+
+			// Privacy and GDPR routes
+			protected.GET("/privacy/consent", handlers.GetConsentStatus(db))
+			protected.PUT("/privacy/settings", handlers.UpdatePrivacySettings(db))
+			protected.GET("/privacy/export", handlers.ExportUserData(db))
+			protected.POST("/privacy/delete", handlers.DeleteUserData(db))
 
 			// Content routes
 			protected.GET("/languages", handlers.GetLanguages(db, cacheClient))
@@ -90,6 +97,43 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 
 			// Leaderboard routes
 			protected.GET("/leaderboards", handlers.GetLeaderboards(cacheClient))
+		}
+
+		// Admin routes (requires admin privileges)
+		admin := v1.Group("/admin")
+		admin.Use(middleware.AuthMiddleware(cfg.JWTSecret))
+		admin.Use(middleware.AdminAuthMiddleware())
+		{
+			// Dashboard
+			admin.GET("/dashboard", handlers.GetAdminDashboard(db))
+
+			// Content management
+			admin.GET("/languages", handlers.GetAdminLanguages(db))
+			admin.POST("/languages", handlers.CreateAdminLanguage(db))
+			admin.PUT("/languages/:id", handlers.UpdateAdminLanguage(db))
+			admin.DELETE("/languages/:id", handlers.DeleteAdminLanguage(db))
+
+			admin.GET("/lessons", handlers.GetAdminLessons(db))
+			admin.POST("/lessons", handlers.CreateAdminLesson(db))
+			admin.PUT("/lessons/:id", handlers.UpdateAdminLesson(db))
+			admin.DELETE("/lessons/:id", handlers.DeleteAdminLesson(db))
+
+			admin.GET("/snippets", handlers.GetAdminSnippets(db))
+			admin.POST("/snippets", handlers.CreateAdminSnippet(db))
+			admin.PUT("/snippets/:id", handlers.UpdateAdminSnippet(db))
+			admin.DELETE("/snippets/:id", handlers.DeleteAdminSnippet(db))
+
+			// Content versioning
+			admin.GET("/content/versions/:contentType/:contentId", handlers.GetAdminContentVersions(db))
+			admin.POST("/content/versions/:contentType/:contentId/restore/:version", handlers.RestoreAdminContentVersion(db))
+			admin.POST("/content/validate", handlers.ValidateAdminContent(db))
+
+			// A/B Testing
+			admin.GET("/ab-tests", handlers.GetABTests(db))
+			admin.POST("/ab-tests", handlers.CreateABTest(db))
+			admin.PUT("/ab-tests/:id", handlers.UpdateABTest(db))
+			admin.DELETE("/ab-tests/:id", handlers.DeleteABTest(db))
+			admin.GET("/ab-tests/:id/results", handlers.GetABTestResults(db))
 		}
 
 		// Public routes (no auth required)
