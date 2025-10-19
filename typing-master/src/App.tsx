@@ -1,11 +1,24 @@
 import React, { useState, Component, ErrorInfo, ReactNode } from 'react';
 import ZenMode from './components/ZenMode';
 import TimedDrillMode from './components/TimedDrillMode';
+import SyntaxTutorialMode from './components/SyntaxTutorialMode';
+import AccuracyMode from './components/AccuracyMode';
+import CustomSnippetsMode from './components/CustomSnippetsMode';
+import { AssessmentMode } from './components/AssessmentMode';
 import { SessionResult } from './types/session';
+import { AssessmentResult } from './types/assessment';
 import AccessibilityProvider from './components/AccessibilitySettings';
+import { Language } from './types/parser';
 import './App.css';
 
-type AppMode = 'menu' | 'zen' | 'timed-drill';
+type AppMode =
+  | 'menu'
+  | 'zen'
+  | 'timed-drill'
+  | 'syntax-tutorial'
+  | 'accuracy'
+  | 'custom-snippets'
+  | 'assessment';
 
 interface AppState {
   currentMode: AppMode;
@@ -105,7 +118,7 @@ function AppContent() {
     setState(prev => ({ ...prev, timedDrillDuration: duration }));
   };
 
-  const handleSessionComplete = (result: SessionResult) => {
+  const handleSessionComplete = (result: SessionResult | AssessmentResult) => {
     console.log('Session completed:', result);
     // Return to menu after completion
     setState(prev => ({ ...prev, currentMode: 'menu' }));
@@ -127,15 +140,16 @@ function AppContent() {
         <h2>Choose Your Practice Mode</h2>
 
         <div className="mode-cards">
-          <div className="mode-card" onClick={() => handleModeSelect('zen')}>
-            <h3>Zen Mode</h3>
-            <p>
-              Distraction-free coding practice with real-time syntax validation
-            </p>
+          <div
+            className="mode-card"
+            onClick={() => handleModeSelect('syntax-tutorial')}
+          >
+            <h3>Syntax Tutorials</h3>
+            <p>Structured lessons from basics to advanced patterns</p>
             <div className="mode-features">
-              <span>• Minimal UI</span>
-              <span>• Syntax highlighting</span>
-              <span>• No time pressure</span>
+              <span>• Progressive learning</span>
+              <span>• Language-specific</span>
+              <span>• Guided practice</span>
             </div>
           </div>
 
@@ -151,23 +165,70 @@ function AppContent() {
               <span>• Performance tracking</span>
             </div>
           </div>
+
+          <div
+            className="mode-card"
+            onClick={() => handleModeSelect('accuracy')}
+          >
+            <h3>Accuracy Mode</h3>
+            <p>Focus on error-free typing with precision scoring</p>
+            <div className="mode-features">
+              <span>• Error penalties</span>
+              <span>• Syntax matching</span>
+              <span>• Precision focus</span>
+            </div>
+          </div>
+
+          <div className="mode-card" onClick={() => handleModeSelect('zen')}>
+            <h3>Zen Mode</h3>
+            <p>Distraction-free coding practice without metrics</p>
+            <div className="mode-features">
+              <span>• Minimal UI</span>
+              <span>• No pressure</span>
+              <span>• Optional summary</span>
+            </div>
+          </div>
+
+          <div
+            className="mode-card"
+            onClick={() => handleModeSelect('custom-snippets')}
+          >
+            <h3>Custom Snippets</h3>
+            <p>Practice with your own code snippets</p>
+            <div className="mode-features">
+              <span>• Upload code</span>
+              <span>• Personal practice</span>
+              <span>• Any language</span>
+            </div>
+          </div>
+
+          <div
+            className="mode-card"
+            onClick={() => handleModeSelect('assessment')}
+          >
+            <h3>Assessment</h3>
+            <p>Structured evaluation of your typing skills</p>
+            <div className="mode-features">
+              <span>• Skill testing</span>
+              <span>• Pass/fail criteria</span>
+              <span>• Certification</span>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="language-selection">
         <h3>Select Programming Language</h3>
         <div className="language-buttons">
-          {['javascript', 'python', 'typescript', 'java', 'cpp', 'rust'].map(
-            lang => (
-              <button
-                key={lang}
-                className={`language-btn ${state.selectedLanguage === lang ? 'active' : ''}`}
-                onClick={() => handleLanguageSelect(lang)}
-              >
-                {lang.toUpperCase()}
-              </button>
-            )
-          )}
+          {['javascript', 'python', 'cpp', 'rust', 'yaml'].map(lang => (
+            <button
+              key={lang}
+              className={`language-btn ${state.selectedLanguage === lang ? 'active' : ''}`}
+              onClick={() => handleLanguageSelect(lang)}
+            >
+              {lang.toUpperCase()}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -175,19 +236,19 @@ function AppContent() {
         <div className="duration-selection">
           <h3>Select Duration</h3>
           <div className="duration-buttons">
-            {[30000, 60000, 180000, 300000].map(duration => (
+            {[60000, 180000, 300000, 600000].map(duration => (
               <button
                 key={duration}
                 className={`duration-btn ${state.timedDrillDuration === duration ? 'active' : ''}`}
                 onClick={() => handleDurationSelect(duration)}
               >
-                {duration === 30000
-                  ? '30s'
-                  : duration === 60000
-                    ? '1m'
-                    : duration === 180000
-                      ? '3m'
-                      : '5m'}
+                {duration === 60000
+                  ? '1m'
+                  : duration === 180000
+                    ? '3m'
+                    : duration === 300000
+                      ? '5m'
+                      : '10m'}
               </button>
             ))}
           </div>
@@ -198,11 +259,11 @@ function AppContent() {
 
   // Render current mode
   switch (state.currentMode) {
-    case 'zen':
+    case 'syntax-tutorial':
       return (
         <ErrorBoundary>
-          <ZenMode
-            languageId={state.selectedLanguage}
+          <SyntaxTutorialMode
+            languageId={state.selectedLanguage as Language}
             onComplete={handleSessionComplete}
             onExit={handleExit}
           />
@@ -215,6 +276,50 @@ function AppContent() {
           <TimedDrillMode
             languageId={state.selectedLanguage}
             duration={state.timedDrillDuration}
+            onComplete={handleSessionComplete}
+            onExit={handleExit}
+          />
+        </ErrorBoundary>
+      );
+
+    case 'accuracy':
+      return (
+        <ErrorBoundary>
+          <AccuracyMode
+            languageId={state.selectedLanguage}
+            onComplete={handleSessionComplete}
+            onExit={handleExit}
+          />
+        </ErrorBoundary>
+      );
+
+    case 'zen':
+      return (
+        <ErrorBoundary>
+          <ZenMode
+            languageId={state.selectedLanguage}
+            onComplete={handleSessionComplete}
+            onExit={handleExit}
+          />
+        </ErrorBoundary>
+      );
+
+    case 'custom-snippets':
+      return (
+        <ErrorBoundary>
+          <CustomSnippetsMode
+            languageId={state.selectedLanguage as Language}
+            onComplete={handleSessionComplete}
+            onExit={handleExit}
+          />
+        </ErrorBoundary>
+      );
+
+    case 'assessment':
+      return (
+        <ErrorBoundary>
+          <AssessmentMode
+            language={state.selectedLanguage as Language}
             onComplete={handleSessionComplete}
             onExit={handleExit}
           />

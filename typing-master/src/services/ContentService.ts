@@ -42,6 +42,33 @@ export class ContentService {
   }
 
   /**
+   * Get lessons by category (e.g., tutorial-intro, tutorial-core-syntax)
+   */
+  public async getLessonsByCategory(
+    language: Language,
+    category: string
+  ): Promise<LessonData[]> {
+    const allLessons = await this.getLessonsForLanguage(language);
+
+    // Filter lessons by category prefix in their ID
+    // e.g., 'cpp-intro-1' matches category 'tutorial-intro'
+    const categoryMap: Record<string, string> = {
+      'tutorial-intro': '-intro-',
+      'tutorial-core-syntax': '-core-',
+      'tutorial-idioms': '-idioms-',
+      'tutorial-advanced': '-advanced-',
+      'tutorial-mixed-review': '-mixed-',
+    };
+
+    const searchPattern = categoryMap[category];
+    if (!searchPattern) {
+      return allLessons;
+    }
+
+    return allLessons.filter(lesson => lesson.id.includes(searchPattern));
+  }
+
+  /**
    * Load default content for all languages
    */
   private async loadDefaultContent(): Promise<void> {
