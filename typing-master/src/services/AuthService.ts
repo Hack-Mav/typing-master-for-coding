@@ -46,8 +46,8 @@ export interface LoginRequest {
 }
 
 export interface AnonymousSessionRequest {
-  deviceId: string;
-  keyboardLayout?: string;
+  device_id: string;
+  keyboard_layout?: string;
   locale?: string;
 }
 

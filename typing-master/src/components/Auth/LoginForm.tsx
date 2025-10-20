@@ -43,8 +43,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       localStorage.setItem('device_id', deviceId);
 
       await authService.createAnonymousSession({
-        deviceId,
-        keyboardLayout: 'QWERTY',
+        device_id: deviceId,
+        keyboard_layout: 'QWERTY',
         locale: navigator.language,
       });
 

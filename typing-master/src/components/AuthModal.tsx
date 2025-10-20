@@ -42,19 +42,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden"
+        className="bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg shadow-xl w-full max-w-md h-auto max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-end p-4">
           <button
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            className="text-slate-400 hover:text-slate-200 text-2xl leading-none transition-colors"
             onClick={onClose}
           >
             ×
           </button>
         </div>
 
-        <div className="px-8 pb-8">
+        <div className="px-8 pb-8 flex-grow overflow-y-auto">
           {mode === 'login' ? (
             <LoginForm
               onSuccess={handleLoginSuccess}
