@@ -38,6 +38,31 @@ export type {
   TelemetryEvent,
 } from './PrivacyService';
 
+// Leaderboard and tournament exports
+export { leaderboardService } from './LeaderboardService';
+export type {
+  LeaderboardEntry,
+  Tournament,
+  TournamentParticipant,
+  TournamentResult,
+} from './LeaderboardService';
+
+// Admin panel exports
+export { adminService } from './AdminService';
+export type {
+  AdminDashboard,
+  ABTest,
+} from './AdminService';
+
+// Lesson progression exports
+export { progressionService } from './ProgressionService';
+export type {
+  LessonProgress,
+  UserProgressSummary,
+  LessonPrerequisite,
+  LessonProgressionFlow,
+} from './ProgressionService';
+
 // Local storage for anonymous mode exports
 export { localStorageService } from './LocalStorageService';
 export type {

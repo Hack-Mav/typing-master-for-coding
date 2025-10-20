@@ -27,7 +27,7 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 		// Authentication routes
 		auth := v1.Group("/auth")
 		{
-			auth.POST("/register", handlers.Register(db))
+			auth.POST("/register", handlers.Register(db, cfg.JWTSecret))
 			auth.POST("/login", handlers.Login(db, cfg.JWTSecret))
 			auth.POST("/refresh", handlers.RefreshToken(cfg.JWTSecret))
 			auth.POST("/anonymous", handlers.CreateAnonymousSession(cfg.JWTSecret))

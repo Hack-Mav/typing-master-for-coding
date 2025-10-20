@@ -13,6 +13,7 @@ import { KeystrokeEvent } from '../types/typing';
 import { SessionMetrics } from '../types/metrics';
 import { indexedDBManager } from '../utils/indexedDB';
 import { metricsCalculator } from './MetricsCalculator';
+import { authService } from './AuthService';
 
 export class SessionManager {
   private activeSessions: Map<string, TypingSession> = new Map();
@@ -27,8 +28,11 @@ export class SessionManager {
   private batchSize = 50; // Events per batch
   private batchTimeout = 5000; // 5 seconds
   private syncRetryDelay = 30000; // 30 seconds
+  private apiBaseUrl: string;
 
   constructor() {
+    this.apiBaseUrl =
+      process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
     this.initializeOfflineHandling();
   }
 
@@ -75,6 +79,35 @@ export class SessionManager {
 
     this.activeSessions.set(sessionId, session);
     this.eventBatches.set(sessionId, []);
+
+    // Try to create session on backend if online and authenticated
+    if (navigator.onLine && authService.isAuthenticated()) {
+      try {
+        await this.createSessionOnBackend(session);
+        session.synced = true;
+      } catch (error) {
+        console.warn(
+          'Failed to create session on backend, will work offline:',
+          error
+        );
+        this.offlineQueue.pendingSessions.push(session);
+        await this.persistOfflineQueue();
+      }
+    } else if (navigator.onLine) {
+      // Anonymous session - still create on backend if possible
+      try {
+        await this.createSessionOnBackend(session);
+        session.synced = true;
+      } catch (error) {
+        console.warn('Failed to create anonymous session on backend:', error);
+        this.offlineQueue.pendingSessions.push(session);
+        await this.persistOfflineQueue();
+      }
+    } else {
+      // Offline mode
+      this.offlineQueue.pendingSessions.push(session);
+      await this.persistOfflineQueue();
+    }
 
     // Save to IndexedDB for persistence
     await this.persistSession(session);
@@ -181,6 +214,35 @@ export class SessionManager {
       },
     };
 
+    // Try to finalize session on backend if online and authenticated
+    if (navigator.onLine && authService.isAuthenticated()) {
+      try {
+        await this.finalizeSessionOnBackend(sessionId, result);
+        session.synced = true;
+      } catch (error) {
+        console.warn(
+          'Failed to finalize session on backend, will sync later:',
+          error
+        );
+        this.offlineQueue.pendingSessions.push(session);
+        await this.persistOfflineQueue();
+      }
+    } else if (navigator.onLine) {
+      // Anonymous session
+      try {
+        await this.finalizeSessionOnBackend(sessionId, result);
+        session.synced = true;
+      } catch (error) {
+        console.warn('Failed to finalize anonymous session on backend:', error);
+        this.offlineQueue.pendingSessions.push(session);
+        await this.persistOfflineQueue();
+      }
+    } else {
+      // Offline mode
+      this.offlineQueue.pendingSessions.push(session);
+      await this.persistOfflineQueue();
+    }
+
     // Mark session as completed and persist
     await this.persistSession(session);
     await this.persistSessionResult(result);
@@ -188,12 +250,6 @@ export class SessionManager {
     // Remove from active sessions
     this.activeSessions.delete(sessionId);
     this.eventBatches.delete(sessionId);
-
-    // Queue for sync if offline
-    if (session.isOffline || !navigator.onLine) {
-      this.offlineQueue.pendingSessions.push(session);
-      await this.persistOfflineQueue();
-    }
 
     this.emitEvent({
       type: 'SESSION_COMPLETED',
@@ -492,8 +548,28 @@ export class SessionManager {
 
   private async syncSession(session: TypingSession): Promise<boolean> {
     try {
-      // This would make an API call to sync the session
-      // For now, we'll just mark it as synced
+      // Update session on backend
+      const response = await fetch(
+        `${this.apiBaseUrl}/sessions/${session.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+          body: JSON.stringify({
+            state: session.state,
+            progress: session.progress,
+            endedAt: session.endedAt,
+            totalPauseTime: session.totalPauseTime,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to sync session: ${response.statusText}`);
+      }
+
       session.synced = true;
       await this.persistSession(session);
       return true;
@@ -505,13 +581,95 @@ export class SessionManager {
 
   private async syncEventBatch(batch: EventBatch): Promise<boolean> {
     try {
-      // This would make an API call to sync the event batch
-      // For now, we'll just mark it as synced
+      // Send events to backend
+      const response = await fetch(
+        `${this.apiBaseUrl}/sessions/${batch.sessionId}/events`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+          body: JSON.stringify({
+            events: batch.events,
+            batchId: batch.batchId,
+            timestamp: batch.timestamp,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to sync event batch: ${response.statusText}`);
+      }
+
       batch.synced = true;
       return true;
     } catch (error) {
       console.error('Failed to sync event batch:', error);
       return false;
+    }
+  }
+
+  private async createSessionOnBackend(session: TypingSession): Promise<void> {
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/sessions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...authService.getAuthHeader(),
+        },
+        body: JSON.stringify({
+          mode: session.config.mode,
+          language_id: session.config.languageId,
+          lesson_id: session.config.lessonId,
+          snippet_id: session.config.snippetId,
+          settings: session.config.settings,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to create session on backend: ${response.statusText}`
+        );
+      }
+
+      const backendSession = await response.json();
+      // Update session with backend data if needed
+      session.id = backendSession.id || session.id;
+    } catch (error) {
+      console.error('Error creating session on backend:', error);
+      throw error;
+    }
+  }
+
+  private async finalizeSessionOnBackend(
+    sessionId: string,
+    result: SessionResult
+  ): Promise<void> {
+    try {
+      const response = await fetch(
+        `${this.apiBaseUrl}/sessions/${sessionId}/finalize`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+          body: JSON.stringify({
+            result,
+            endedAt: Date.now(),
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to finalize session on backend: ${response.statusText}`
+        );
+      }
+    } catch (error) {
+      console.error('Error finalizing session on backend:', error);
+      throw error;
     }
   }
 
@@ -525,8 +683,8 @@ export class SessionManager {
   }
 
   private getCurrentUserId(): string | undefined {
-    // This would get the current user ID from auth context
-    return undefined; // Anonymous mode by default
+    const currentUser = authService.getCurrentUser();
+    return currentUser?.id;
   }
 
   private async loadTargetText(config: SessionConfig): Promise<string> {

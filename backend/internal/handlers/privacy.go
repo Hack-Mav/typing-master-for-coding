@@ -102,7 +102,7 @@ func ExportUserData(db *database.DatastoreClient) gin.HandlerFunc {
 
 		// Get user sessions
 		sessionsQuery := datastore.NewQuery("Session").Filter("user_id =", userID.(string))
-		var sessions []models.Session
+		var sessions []*models.Session
 		sessionKeys, err := db.GetAll(ctx, sessionsQuery, &sessions)
 		if err == nil {
 			for i, key := range sessionKeys {
@@ -112,11 +112,13 @@ func ExportUserData(db *database.DatastoreClient) gin.HandlerFunc {
 				}
 			}
 			userData["sessions"] = sessions
+		} else {
+			userData["sessions"] = []*models.Session{}
 		}
 
 		// Get user results
 		resultsQuery := datastore.NewQuery("Result").Filter("user_id =", userID.(string))
-		var results []models.Result
+		var results []*models.Result
 		resultKeys, err := db.GetAll(ctx, resultsQuery, &results)
 		if err == nil {
 			for i, key := range resultKeys {
@@ -126,14 +128,18 @@ func ExportUserData(db *database.DatastoreClient) gin.HandlerFunc {
 				}
 			}
 			userData["results"] = results
+		} else {
+			userData["results"] = []*models.Result{}
 		}
 
 		// Get lesson progress
 		progressQuery := datastore.NewQuery("LessonProgress").Filter("user_id =", userID.(string))
-		var progress []models.LessonProgress
+		var progress []*models.LessonProgress
 		_, err = db.GetAll(ctx, progressQuery, &progress)
 		if err == nil {
 			userData["lesson_progress"] = progress
+		} else {
+			userData["lesson_progress"] = []*models.LessonProgress{}
 		}
 
 		// Export based on format
@@ -302,7 +308,7 @@ func exportDataAsCSV(c *gin.Context, userData map[string]interface{}) {
 	}
 
 	// Write sessions data
-	if sessions, ok := userData["sessions"].([]models.Session); ok {
+	if sessions, ok := userData["sessions"].([]*models.Session); ok {
 		writer.Write([]string{"Sessions"})
 		writer.Write([]string{"ID", "Mode", "Language", "Started At", "Duration (ms)"})
 		for _, session := range sessions {
@@ -318,7 +324,7 @@ func exportDataAsCSV(c *gin.Context, userData map[string]interface{}) {
 	}
 
 	// Write results data
-	if results, ok := userData["results"].([]models.Result); ok {
+	if results, ok := userData["results"].([]*models.Result); ok {
 		writer.Write([]string{"Results"})
 		writer.Write([]string{"Session ID", "CPM", "tWPM", "Raw Accuracy", "Token Accuracy", "Composite Score"})
 		for _, result := range results {

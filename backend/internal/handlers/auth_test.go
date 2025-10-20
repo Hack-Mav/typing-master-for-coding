@@ -15,7 +15,7 @@ import (
 func TestRegister(t *testing.T) {
 	router, mockDB, _ := testutil.SetupTestRouter()
 	
-	router.POST("/api/v1/auth/register", Register(mockDB))
+	router.POST("/api/v1/auth/register", Register(mockDB, "test-secret-key-for-testing-only"))
 	
 	t.Run("Successful Registration", func(t *testing.T) {
 		mockDB.Clear()

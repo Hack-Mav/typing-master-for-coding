@@ -88,10 +88,106 @@ func (m *MockDatastore) initSampleData() {
 			CreatedBy:       "admin",
 			CreatedAt:       time.Now(),
 		},
+		{
+			ID:              "rust",
+			Name:            "Rust",
+			Version:         1,
+			ParserID:        "tree-sitter-rust",
+			GrammarConfig:   map[string]interface{}{"semicolons": true},
+			WhitespaceRules: map[string]interface{}{"indentation": "spaces"},
+			CreatedBy:       "admin",
+			CreatedAt:       time.Now(),
+		},
+		{
+			ID:              "yaml",
+			Name:            "YAML",
+			Version:         1,
+			ParserID:        "tree-sitter-yaml",
+			GrammarConfig:   map[string]interface{}{"indentation": "spaces"},
+			WhitespaceRules: map[string]interface{}{"indentation": "spaces"},
+			CreatedBy:       "admin",
+			CreatedAt:       time.Now(),
+		},
 	}
 	
 	for _, lang := range languages {
 		m.languages[lang.ID] = lang
+	}
+	
+	// Add sample lessons
+	lessons := []*models.Lesson{
+		{
+			ID:               "lesson1",
+			LanguageID:       "javascript",
+			Title:            "Intro to Functions",
+			Difficulty:       1,
+			Objectives:       []string{"Learn JavaScript functions"},
+			Prerequisites:    []string{},
+			EstimatedMinutes: 30,
+			TokensCovered:    []string{"function", "return"},
+			SnippetIDs:       []string{},
+			Version:          1,
+			CreatedBy:        "admin",
+			CreatedAt:        time.Now(),
+		},
+		{
+			ID:               "lesson2",
+			LanguageID:       "javascript",
+			Title:            "Advanced Patterns",
+			Difficulty:       2,
+			Objectives:       []string{"Learn advanced JavaScript patterns"},
+			Prerequisites:    []string{"lesson1"},
+			EstimatedMinutes: 45,
+			TokensCovered:    []string{"async", "await", "promise"},
+			SnippetIDs:       []string{},
+			Version:          1,
+			CreatedBy:        "admin",
+			CreatedAt:        time.Now(),
+		},
+	}
+	
+	for _, lesson := range lessons {
+		m.lessons[lesson.ID] = lesson
+	}
+	
+	// Add sample snippets
+	snippets := []*models.Snippet{
+		{
+			ID:           "snippet1",
+			LanguageID:   "javascript",
+			Title:        "Hello World",
+			SourceCode:   "console.log('Hello');",
+			Tags:         []string{"test"},
+			Difficulty:   1,
+			EstimatedTime: 5,
+			Checksum:     "abc123",
+			AccessibilityTags: map[string]interface{}{
+				"line_count": 10,
+			},
+			CreatedBy: "admin",
+			Version:   1,
+			CreatedAt: time.Now(),
+		},
+		{
+			ID:           "snippet2",
+			LanguageID:   "javascript",
+			Title:        "Function Example",
+			SourceCode:   "function test() {}",
+			Tags:         []string{"test"},
+			Difficulty:   1,
+			EstimatedTime: 5,
+			Checksum:     "def456",
+			AccessibilityTags: map[string]interface{}{
+				"line_count": 5,
+			},
+			CreatedBy: "admin",
+			Version:   1,
+			CreatedAt: time.Now(),
+		},
+	}
+	
+	for _, snippet := range snippets {
+		m.snippets[snippet.ID] = snippet
 	}
 }
 

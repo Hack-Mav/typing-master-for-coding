@@ -11,6 +11,7 @@ import (
 
 	"typing-master-backend/internal/database"
 	"typing-master-backend/internal/models"
+	"typing-master-backend/internal/utils"
 
 	"cloud.google.com/go/datastore"
 	"github.com/gin-gonic/gin"
@@ -368,7 +369,7 @@ func CreateAdminSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Generate checksum
-		snippet.Checksum = generateChecksum(snippet.SourceCode)
+		snippet.Checksum = utils.GenerateChecksum(snippet.SourceCode)
 		snippet.CreatedAt = time.Now()
 
 		// Get user ID from context (admin who created it)
@@ -431,7 +432,7 @@ func UpdateAdminSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 
 		// Regenerate checksum if source code changed
 		if existing.SourceCode != updates.SourceCode {
-			existing.Checksum = generateChecksum(updates.SourceCode)
+			existing.Checksum = utils.GenerateChecksum(updates.SourceCode)
 		}
 
 		userID, _ := c.Get("user_id")
@@ -597,7 +598,7 @@ func ValidateAdminContent(db *database.DatastoreClient) gin.HandlerFunc {
 			}
 
 			// Check checksum
-			expectedChecksum := generateChecksum(snippet.SourceCode)
+			expectedChecksum := utils.GenerateChecksum(snippet.SourceCode)
 			if snippet.Checksum != expectedChecksum {
 				validationErrors = append(validationErrors, "Checksum mismatch")
 				isValid = false
@@ -650,7 +651,7 @@ func ValidateAdminContent(db *database.DatastoreClient) gin.HandlerFunc {
 		validation := models.ContentValidation{
 			ContentType:      request.ContentType,
 			ContentID:        request.ContentID,
-			Checksum:         generateChecksum(fmt.Sprintf("%v", request)),
+			Checksum:         utils.GenerateChecksum(fmt.Sprintf("%v", request)),
 			ValidationStatus: map[bool]string{true: "valid", false: "invalid"}[isValid],
 			ValidationErrors: validationErrors,
 			ValidatedAt:      time.Now(),
@@ -682,7 +683,7 @@ func createContentVersion(db *database.DatastoreClient, contentType, contentID s
 		ContentID:   contentID,
 		Version:     version,
 		Content:     content.(map[string]interface{}),
-		Checksum:    generateChecksum(fmt.Sprintf("%v", content)),
+		Checksum:    utils.GenerateChecksum(fmt.Sprintf("%v", content)),
 		CreatedBy:   createdBy,
 		ChangeNotes: changeNotes,
 		IsActive:    true,

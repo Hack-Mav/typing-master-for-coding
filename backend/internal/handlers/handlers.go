@@ -2,19 +2,18 @@ package handlers
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"typing-master-backend/internal/cache"
 	"typing-master-backend/internal/database"
 	"typing-master-backend/internal/models"
 	"typing-master-backend/internal/scoring"
+	"typing-master-backend/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"cloud.google.com/go/datastore"
@@ -29,12 +28,6 @@ func HealthCheck(c *gin.Context) {
 	})
 }
 
-// Helper function to generate checksum for code snippets
-func generateChecksum(code string) string {
-	hash := sha256.Sum256([]byte(code))
-	return fmt.Sprintf("%x", hash)
-}
-
 // Authentication and user management handlers are now in auth.go
 // Privacy and GDPR compliance handlers are now in privacy.go
 
@@ -43,7 +36,7 @@ func GetLanguages(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.
 		ctx := context.Background()
 		query := datastore.NewQuery("Language")
 
-		var languages []models.Language
+		var languages []*models.Language
 		keys, err := db.GetAll(ctx, query, &languages)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch languages"})
@@ -84,7 +77,21 @@ func CreateLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 			return
 		}
 
-		language.CreatedAt = time.Now()
+		// Validate required fields
+		if language.ID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID is required"})
+			return
+		}
+		if language.Name == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Name is required"})
+			return
+		}
+		if language.ParserID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ParserID is required"})
+			return
+		}
+
+		language.CreatedAt = utils.GetCurrentUTCTime()
 		key := datastore.NameKey("Language", language.ID, nil)
 
 		ctx := context.Background()
@@ -103,7 +110,7 @@ func GetLessons(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.Ha
 		ctx := context.Background()
 		query := datastore.NewQuery("Lesson")
 
-		var lessons []models.Lesson
+		var lessons []*models.Lesson
 		keys, err := db.GetAll(ctx, query, &lessons)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch lessons"})
@@ -141,7 +148,7 @@ func GetSnippets(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.H
 		ctx := context.Background()
 		query := datastore.NewQuery("Snippet")
 
-		var snippets []models.Snippet
+		var snippets []*models.Snippet
 		keys, err := db.GetAll(ctx, query, &snippets)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch snippets"})
@@ -180,7 +187,7 @@ func GetPublicLessons(db *database.DatastoreClient, cache *cache.InMemoryCache) 
 		// For now, return all lessons - in production, filter by public flag
 		query := datastore.NewQuery("Lesson")
 
-		var lessons []models.Lesson
+		var lessons []*models.Lesson
 		keys, err := db.GetAll(ctx, query, &lessons)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch lessons"})
@@ -201,7 +208,7 @@ func GetPublicSnippets(db *database.DatastoreClient, cache *cache.InMemoryCache)
 		// For now, return all snippets - in production, filter by public flag
 		query := datastore.NewQuery("Snippet")
 
-		var snippets []models.Snippet
+		var snippets []*models.Snippet
 		keys, err := db.GetAll(ctx, query, &snippets)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch snippets"})
@@ -276,8 +283,8 @@ func CreateLesson(db *database.DatastoreClient) gin.HandlerFunc {
 			return
 		}
 
-		lesson.CreatedAt = time.Now()
-		key := datastore.NameKey("Lesson", fmt.Sprintf("%s_%d", lesson.LanguageID, time.Now().Unix()), nil)
+		lesson.CreatedAt = utils.GetCurrentUTCTime()
+		key := datastore.NameKey("Lesson", fmt.Sprintf("%s_%d", lesson.LanguageID, utils.GetCurrentTimestamp()), nil)
 
 		ctx := context.Background()
 		_, err := db.Put(ctx, key, &lesson)
@@ -356,10 +363,10 @@ func CreateSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Generate checksum for validation
-		snippet.Checksum = generateChecksum(snippet.SourceCode)
-		snippet.CreatedAt = time.Now()
+		snippet.Checksum = utils.GenerateChecksum(snippet.SourceCode)
+		snippet.CreatedAt = utils.GetCurrentUTCTime()
 
-		key := datastore.NameKey("Snippet", fmt.Sprintf("%s_%d", snippet.LanguageID, time.Now().Unix()), nil)
+		key := datastore.NameKey("Snippet", fmt.Sprintf("%s_%d", snippet.LanguageID, utils.GetCurrentTimestamp()), nil)
 
 		ctx := context.Background()
 		_, err := db.Put(ctx, key, &snippet)
@@ -401,7 +408,7 @@ func UpdateSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 		existing.AccessibilityTags = updates.AccessibilityTags
 
 		if existing.SourceCode != updates.SourceCode {
-			existing.Checksum = generateChecksum(updates.SourceCode)
+			existing.Checksum = utils.GenerateChecksum(updates.SourceCode)
 		}
 
 		_, err = db.Put(ctx, key, &existing)
@@ -647,7 +654,7 @@ func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 		sessionQuery = sessionQuery.Order("-CreatedAt").Limit(limit)
 		
-		var sessions []models.Session
+		var sessions []*models.Session
 		sessionKeys, err := db.GetAll(ctx, sessionQuery, &sessions)
 		if err != nil {
 			log.Printf("Failed to fetch sessions: %v", err)
@@ -793,7 +800,7 @@ func GetPlaylists(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.
 		ctx := context.Background()
 		query := datastore.NewQuery("Playlist")
 
-		var playlists []models.Playlist
+		var playlists []*models.Playlist
 		keys, err := db.GetAll(ctx, query, &playlists)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch playlists"})
@@ -895,7 +902,7 @@ func CreateContentVersion(db *database.DatastoreClient) gin.HandlerFunc {
 
 		// Generate checksum for the content
 		contentJSON, _ := json.Marshal(version.Content)
-		version.Checksum = generateChecksum(string(contentJSON))
+		version.Checksum = utils.GenerateChecksum(string(contentJSON))
 		version.CreatedAt = time.Now()
 
 		key := datastore.NameKey("ContentVersion", fmt.Sprintf("%s_%s_%d", version.ContentType, version.ContentID, version.Version), nil)
@@ -924,7 +931,7 @@ func GetContentVersions(db *database.DatastoreClient) gin.HandlerFunc {
 			FilterField("ContentID", "=", contentID).
 			Order("-Version")
 
-		var versions []models.ContentVersion
+		var versions []*models.ContentVersion
 		keys, err := db.GetAll(ctx, query, &versions)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch content versions"})
@@ -985,18 +992,18 @@ func ImportSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Normalize the source code (basic normalization)
-		normalizedCode := normalizeCode(importRequest.SourceCode)
+		normalizedCode := utils.NormalizeCode(importRequest.SourceCode)
 
 		// Auto-assess difficulty if not provided
 		difficulty := importRequest.Difficulty
 		if difficulty == 0 {
-			difficulty = assessCodeDifficulty(normalizedCode)
+			difficulty = utils.AssessCodeDifficulty(normalizedCode)
 		}
 
 		// Auto-generate tags if not provided
 		tags := importRequest.Tags
 		if len(tags) == 0 {
-			tags = generateTagsFromCode(normalizedCode)
+			tags = utils.GenerateTagsFromCode(normalizedCode)
 		}
 
 		snippet := models.Snippet{
@@ -1005,9 +1012,9 @@ func ImportSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 			SourceCode:        normalizedCode,
 			Tags:              tags,
 			Difficulty:        difficulty,
-			EstimatedTime:     estimateCodingTime(normalizedCode),
-			Checksum:          generateChecksum(normalizedCode),
-			AccessibilityTags: generateAccessibilityTags(normalizedCode),
+			EstimatedTime:     utils.EstimateCodingTime(normalizedCode),
+			Checksum:          utils.GenerateChecksum(normalizedCode),
+			AccessibilityTags: utils.GenerateAccessibilityTags(normalizedCode),
 			CreatedAt:         time.Now(),
 		}
 
@@ -1026,92 +1033,7 @@ func ImportSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 }
 
 // Helper functions for content processing
-
-func normalizeCode(code string) string {
-	// Basic normalization: trim whitespace, normalize line endings
-	lines := strings.Split(strings.TrimSpace(code), "\n")
-	var normalized []string
-	for _, line := range lines {
-		normalized = append(normalized, strings.TrimSpace(line))
-	}
-	return strings.Join(normalized, "\n")
-}
-
-func assessCodeDifficulty(code string) int {
-	lines := strings.Split(code, "\n")
-	lineCount := len(lines)
-
-	// Simple heuristic based on line count and complexity indicators
-	if lineCount <= 10 {
-		return 1 // Easy
-	} else if lineCount <= 30 {
-		return 2 // Medium
-	} else if lineCount <= 60 {
-		return 3 // Hard
-	} else {
-		return 4 // Expert
-	}
-}
-
-func generateTagsFromCode(code string) []string {
-	var tags []string
-
-	// Simple tag generation based on code patterns
-	if strings.Contains(code, "function") || strings.Contains(code, "def ") {
-		tags = append(tags, "function")
-	}
-	if strings.Contains(code, "class") {
-		tags = append(tags, "class")
-	}
-	if strings.Contains(code, "if ") || strings.Contains(code, "if(") {
-		tags = append(tags, "conditional")
-	}
-	if strings.Contains(code, "for ") || strings.Contains(code, "for(") {
-		tags = append(tags, "loop")
-	}
-	if strings.Contains(code, "import") || strings.Contains(code, "from ") {
-		tags = append(tags, "import")
-	}
-
-	// Default tag if no patterns found
-	if len(tags) == 0 {
-		tags = append(tags, "general")
-	}
-
-	return tags
-}
-
-func estimateCodingTime(code string) int {
-	lines := strings.Split(code, "\n")
-	lineCount := len(lines)
-
-	// Simple estimation: ~1 minute per 10 lines, minimum 1 minute
-	estimatedMinutes := lineCount / 10
-	if estimatedMinutes < 1 {
-		estimatedMinutes = 1
-	}
-
-	return estimatedMinutes
-}
-
-func generateAccessibilityTags(code string) map[string]interface{} {
-	accessibility := make(map[string]interface{})
-
-	// Basic accessibility assessment
-	lines := strings.Split(code, "\n")
-	lineCount := len(lines)
-
-	accessibility["line_count"] = lineCount
-	accessibility["estimated_time"] = estimateCodingTime(code)
-	accessibility["complexity_score"] = assessCodeDifficulty(code)
-
-	// Check for potential accessibility issues
-	if lineCount > 50 {
-		accessibility["long_content"] = true
-	}
-
-	return accessibility
-}
+// (These functions have been moved to internal/utils/content.go)
 
 // Lesson progression system handlers
 
@@ -1126,7 +1048,7 @@ func GetLessonProgress(db *database.DatastoreClient) gin.HandlerFunc {
 			FilterField("UserID", "=", userID).
 			FilterField("LessonID", "=", lessonID)
 
-		var progress []models.LessonProgress
+		var progress []*models.LessonProgress
 		keys, err := db.GetAll(ctx, query, &progress)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch lesson progress"})
@@ -1168,10 +1090,10 @@ func UpdateLessonProgress(db *database.DatastoreClient) gin.HandlerFunc {
 			FilterField("UserID", "=", userID).
 			FilterField("LessonID", "=", lessonID)
 
-		var existingProgress []models.LessonProgress
+		var existingProgress []*models.LessonProgress
 		keys, err := db.GetAll(ctx, query, &existingProgress)
 
-		var progress models.LessonProgress
+		var progress *models.LessonProgress
 		var key *datastore.Key
 
 		if len(existingProgress) > 0 {
@@ -1205,7 +1127,7 @@ func UpdateLessonProgress(db *database.DatastoreClient) gin.HandlerFunc {
 			}
 		} else {
 			// Create new progress
-			progress = models.LessonProgress{
+			newProgress := &models.LessonProgress{
 				UserID:          userID,
 				LessonID:        lessonID,
 				CurrentStage:    progressUpdate.CurrentStage,
@@ -1218,10 +1140,11 @@ func UpdateLessonProgress(db *database.DatastoreClient) gin.HandlerFunc {
 				CreatedAt:       time.Now(),
 				UpdatedAt:       time.Now(),
 			}
+			progress = newProgress
 			key = datastore.NameKey("LessonProgress", fmt.Sprintf("%s_%s_%d", userID, lessonID, time.Now().Unix()), nil)
 		}
 
-		_, err = db.Put(ctx, key, &progress)
+		_, err = db.Put(ctx, key, progress)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update lesson progress"})
 			return
@@ -1258,7 +1181,7 @@ func CheckLessonPrerequisites(db *database.DatastoreClient) gin.HandlerFunc {
 				FilterField("UserID", "=", userID).
 				FilterField("LessonID", "=", prereqID)
 
-			var prereqProgress []models.LessonProgress
+			var prereqProgress []*models.LessonProgress
 			_, err := db.GetAll(ctx, query, &prereqProgress)
 			if err != nil || len(prereqProgress) == 0 || !prereqProgress[0].IsCompleted {
 				unlocked = false
@@ -1346,7 +1269,7 @@ func GetUserProgressionSummary(db *database.DatastoreClient) gin.HandlerFunc {
 
 		// Get all lessons
 		lessonQuery := datastore.NewQuery("Lesson")
-		var lessons []models.Lesson
+		var lessons []*models.Lesson
 		lessonKeys, err := db.GetAll(ctx, lessonQuery, &lessons)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch lessons"})
@@ -1357,7 +1280,7 @@ func GetUserProgressionSummary(db *database.DatastoreClient) gin.HandlerFunc {
 		progressQuery := datastore.NewQuery("LessonProgress").
 			FilterField("UserID", "=", userID)
 
-		var progressList []models.LessonProgress
+		var progressList []*models.LessonProgress
 		_, err = db.GetAll(ctx, progressQuery, &progressList)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch progress"})
@@ -1365,7 +1288,7 @@ func GetUserProgressionSummary(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Create progress map for quick lookup
-		progressMap := make(map[string]models.LessonProgress)
+		progressMap := make(map[string]*models.LessonProgress)
 		for _, p := range progressList {
 			progressMap[p.LessonID] = p
 		}

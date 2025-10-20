@@ -1,4 +1,4 @@
-import React, { useState, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import ZenMode from './components/ZenMode';
 import TimedDrillMode from './components/TimedDrillMode';
 import SyntaxTutorialMode from './components/SyntaxTutorialMode';
@@ -9,6 +9,8 @@ import { SessionResult } from './types/session';
 import { AssessmentResult } from './types/assessment';
 import AccessibilityProvider from './components/AccessibilitySettings';
 import { Language } from './types/parser';
+import AuthModal from './components/AuthModal';
+import { AuthProvider, useAuth } from './services/AuthContext';
 import './App.css';
 
 type AppMode =
@@ -93,20 +95,35 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
 function App() {
   return (
-    <AccessibilityProvider>
-      <AppContent />
-    </AccessibilityProvider>
+    <AuthProvider>
+      <AccessibilityProvider>
+        <AppContentWithAuth />
+      </AccessibilityProvider>
+    </AuthProvider>
   );
 }
 
-function AppContent() {
+function AppContentWithAuth() {
+  const { isAuthenticated, isAnonymous, loading } = useAuth();
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const [state, setState] = useState<AppState>({
     currentMode: 'menu',
     selectedLanguage: 'javascript',
     timedDrillDuration: 60000, // 1 minute default
   });
 
+  // Show auth modal if not authenticated and not in loading state
+  useEffect(() => {
+    if (!loading && !isAuthenticated && !isAnonymous) {
+      setShowAuthModal(true);
+    }
+  }, [loading, isAuthenticated, isAnonymous]);
+
   const handleModeSelect = (mode: AppMode) => {
+    if (!isAuthenticated && !isAnonymous) {
+      setShowAuthModal(true);
+      return;
+    }
     setState(prev => ({ ...prev, currentMode: mode }));
   };
 
@@ -126,6 +143,12 @@ function AppContent() {
 
   const handleExit = () => {
     setState(prev => ({ ...prev, currentMode: 'menu' }));
+  };
+
+  const handleAuthenticated = () => {
+    setShowAuthModal(false);
+    // Refresh auth state
+    window.location.reload();
   };
 
   // Main menu component
@@ -258,9 +281,22 @@ function AppContent() {
   );
 
   // Render current mode
-  switch (state.currentMode) {
-    case 'syntax-tutorial':
-      return (
+  if (loading) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-spinner"></div>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {state.currentMode === 'menu' && (
+        <ErrorBoundary>{renderMenu()}</ErrorBoundary>
+      )}
+
+      {state.currentMode === 'syntax-tutorial' && (isAuthenticated || isAnonymous) && (
         <ErrorBoundary>
           <SyntaxTutorialMode
             languageId={state.selectedLanguage as Language}
@@ -268,10 +304,9 @@ function AppContent() {
             onExit={handleExit}
           />
         </ErrorBoundary>
-      );
+      )}
 
-    case 'timed-drill':
-      return (
+      {state.currentMode === 'timed-drill' && (isAuthenticated || isAnonymous) && (
         <ErrorBoundary>
           <TimedDrillMode
             languageId={state.selectedLanguage}
@@ -280,10 +315,9 @@ function AppContent() {
             onExit={handleExit}
           />
         </ErrorBoundary>
-      );
+      )}
 
-    case 'accuracy':
-      return (
+      {state.currentMode === 'accuracy' && (isAuthenticated || isAnonymous) && (
         <ErrorBoundary>
           <AccuracyMode
             languageId={state.selectedLanguage}
@@ -291,10 +325,9 @@ function AppContent() {
             onExit={handleExit}
           />
         </ErrorBoundary>
-      );
+      )}
 
-    case 'zen':
-      return (
+      {state.currentMode === 'zen' && (isAuthenticated || isAnonymous) && (
         <ErrorBoundary>
           <ZenMode
             languageId={state.selectedLanguage}
@@ -302,10 +335,9 @@ function AppContent() {
             onExit={handleExit}
           />
         </ErrorBoundary>
-      );
+      )}
 
-    case 'custom-snippets':
-      return (
+      {state.currentMode === 'custom-snippets' && (isAuthenticated || isAnonymous) && (
         <ErrorBoundary>
           <CustomSnippetsMode
             languageId={state.selectedLanguage as Language}
@@ -313,10 +345,9 @@ function AppContent() {
             onExit={handleExit}
           />
         </ErrorBoundary>
-      );
+      )}
 
-    case 'assessment':
-      return (
+      {state.currentMode === 'assessment' && (isAuthenticated || isAnonymous) && (
         <ErrorBoundary>
           <AssessmentMode
             language={state.selectedLanguage as Language}
@@ -324,10 +355,15 @@ function AppContent() {
             onExit={handleExit}
           />
         </ErrorBoundary>
-      );
+      )}
 
-    default:
-      return <ErrorBoundary>{renderMenu()}</ErrorBoundary>;
-  }
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onAuthenticated={handleAuthenticated}
+      />
+    </>
+  );
 }
+
 export default App;

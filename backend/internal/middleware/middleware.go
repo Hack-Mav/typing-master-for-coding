@@ -76,6 +76,7 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
+		// Use JWT v5 parsing method compatible with auth package
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -90,8 +91,13 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 		}
 
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			c.Set("user_id", claims["user_id"])
-			c.Set("user_handle", claims["handle"])
+			// Extract user_id from the token claims
+			if userID, exists := claims["user_id"]; exists {
+				c.Set("user_id", userID)
+			}
+			if handle, exists := claims["handle"]; exists {
+				c.Set("user_handle", handle)
+			}
 		}
 
 		c.Next()

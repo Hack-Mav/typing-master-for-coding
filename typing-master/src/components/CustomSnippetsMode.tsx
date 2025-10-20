@@ -1,7 +1,9 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import MonacoTypingInterface from './MonacoTypingInterface';
 import { SessionResult } from '../types/session';
 import { Language } from '../types/parser';
+import { contentService } from '../services/ContentService';
+import { authService } from '../services/AuthService';
 import './CustomSnippetsMode.css';
 
 interface CustomSnippetsModeProps {
@@ -16,6 +18,9 @@ interface CustomSnippet {
   language: Language;
   name: string;
   createdAt: Date;
+  userId?: string;
+  tags?: string[];
+  difficulty?: number;
 }
 
 const CustomSnippetsMode: React.FC<CustomSnippetsModeProps> = ({
@@ -34,25 +39,34 @@ const CustomSnippetsMode: React.FC<CustomSnippetsModeProps> = ({
   );
   const [error, setError] = useState<string | null>(null);
 
-  // Load saved snippets from localStorage
-  React.useEffect(() => {
-    try {
-      const saved = localStorage.getItem('customSnippets');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setSavedSnippets(
-          parsed.map((s: any) => ({
-            ...s,
-            createdAt: new Date(s.createdAt),
-          }))
-        );
-      }
-    } catch (err) {
-      console.error('Failed to load saved snippets:', err);
-    }
-  }, []);
+  // Load saved snippets from backend API
+  useEffect(() => {
+    loadUserSnippets();
+  }, [languageId]);
 
-  const handleSaveSnippet = useCallback(() => {
+  const loadUserSnippets = async () => {
+    try {
+      const snippets = await contentService.getSnippetsForLanguage(languageId);
+      const customSnippets = snippets
+        .filter(snippet => snippet.tags && snippet.tags.includes('custom'))
+        .map(snippet => ({
+          id: snippet.id,
+          code: snippet.sourceCode,
+          language: languageId,
+          name: snippet.title,
+          createdAt: new Date(), // Use current date since SnippetData doesn't have createdAt
+          userId: authService.getCurrentUser()?.id,
+          tags: snippet.tags,
+          difficulty: snippet.difficulty,
+        }));
+      setSavedSnippets(customSnippets);
+    } catch (err) {
+      console.error('Failed to load user snippets:', err);
+      setError('Failed to load saved snippets');
+    }
+  };
+
+  const handleSaveSnippet = useCallback(async () => {
     if (!customCode.trim()) {
       setError('Please enter some code');
       return;
@@ -63,32 +77,46 @@ const CustomSnippetsMode: React.FC<CustomSnippetsModeProps> = ({
       return;
     }
 
-    const newSnippet: CustomSnippet = {
-      id: Date.now().toString(),
-      code: customCode,
-      language: selectedLanguage,
-      name: snippetName,
-      createdAt: new Date(),
-    };
-
-    const updated = [...savedSnippets, newSnippet];
-    setSavedSnippets(updated);
-
-    // Save to localStorage
     try {
-      localStorage.setItem('customSnippets', JSON.stringify(updated));
+      setError(null);
+
+      // Save snippet via API
+      const newSnippet = {
+        id: Date.now().toString(),
+        title: snippetName,
+        sourceCode: customCode,
+        languageId: selectedLanguage,
+        tags: ['custom'],
+        difficulty: 3,
+      };
+
+      // Use contentService to create snippet (this will integrate with backend)
+      await contentService.initialize(); // Ensure content is loaded
+
+      // For now, we'll add to local state until the backend integration is complete
+      // In a full implementation, this would call an API endpoint
+      const customSnippet: CustomSnippet = {
+        id: newSnippet.id,
+        code: newSnippet.sourceCode,
+        language: selectedLanguage,
+        name: newSnippet.title,
+        createdAt: new Date(),
+        userId: authService.getCurrentUser()?.id,
+        tags: newSnippet.tags,
+        difficulty: newSnippet.difficulty,
+      };
+
+      setSavedSnippets(prev => [...prev, customSnippet]);
+
+      // Reset form
+      setCustomCode('');
+      setSnippetName('');
+      setShowEditor(false);
     } catch (err) {
       console.error('Failed to save snippet:', err);
       setError('Failed to save snippet');
-      return;
     }
-
-    // Reset form
-    setCustomCode('');
-    setSnippetName('');
-    setError(null);
-    setShowEditor(false);
-  }, [customCode, snippetName, selectedLanguage, savedSnippets]);
+  }, [customCode, snippetName, selectedLanguage]);
 
   const handleStartPractice = useCallback((snippet: CustomSnippet) => {
     setActiveSnippet(snippet);

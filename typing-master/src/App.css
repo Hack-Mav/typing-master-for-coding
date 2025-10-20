@@ -15,24 +15,16 @@ body {
 
 /* Main Menu Styles */
 .app-menu {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
+  @apply min-h-screen flex flex-col items-center justify-center p-8;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
 }
 
 .app-header {
-  text-align: center;
-  margin-bottom: 3rem;
+  @apply text-center mb-12;
 }
 
 .app-header h1 {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
+  @apply text-4xl font-bold mb-2;
   background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -40,14 +32,12 @@ body {
 }
 
 .app-header p {
-  font-size: 1.1rem;
-  opacity: 0.8;
-  max-width: 600px;
-  line-height: 1.6;
+  @apply text-lg text-gray-300 max-w-2xl leading-relaxed;
 }
 
 /* Mode Selection */
 .mode-selection {
+  @apply mb-12;
   width: 100%;
   max-width: 800px;
   margin-bottom: 3rem;
@@ -401,4 +391,17 @@ button:focus,
   .typing-progress {
     display: none;
   }
+}
+
+/* Loading Screen */
+.loading-screen {
+  @apply flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white;
+}
+
+.loading-spinner {
+  @apply w-12 h-12 border-4 border-gray-600 border-t-cyan-400 rounded-full animate-spin mb-4;
+}
+
+.loading-screen p {
+  @apply text-xl text-gray-300;
 }

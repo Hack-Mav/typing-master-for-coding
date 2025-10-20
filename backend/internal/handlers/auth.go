@@ -17,7 +17,7 @@ import (
 )
 
 // Register handles user registration
-func Register(db *database.DatastoreClient) gin.HandlerFunc {
+func Register(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req models.RegisterRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -88,7 +88,7 @@ func Register(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Generate JWT tokens
-		tokens, err := auth.GenerateTokenPair(userID, user.Handle, user.Email, false, c.GetString("jwt_secret"))
+		tokens, err := auth.GenerateTokenPair(userID, user.Handle, user.Email, false, jwtSecret)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 			return

@@ -1,13 +1,19 @@
 import { Language } from '../types/parser';
 import { LessonData, SnippetData, indexedDBManager } from '../utils/indexedDB';
+import { authService } from './AuthService';
+import { LanguageEntity, Lesson, Snippet } from '../types/content';
 
 /**
  * ContentService manages lesson and snippet content for all supported languages
  */
 export class ContentService {
   private static instance: ContentService;
+  private apiBaseUrl: string;
 
-  private constructor() {}
+  private constructor() {
+    this.apiBaseUrl =
+      process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
+  }
 
   public static getInstance(): ContentService {
     if (!ContentService.instance) {
@@ -17,10 +23,20 @@ export class ContentService {
   }
 
   /**
-   * Initialize content service with default lessons and snippets
+   * Initialize content service - load from API and cache locally
    */
   public async initialize(): Promise<void> {
-    await this.loadDefaultContent();
+    try {
+      // Try to load content from API
+      await this.syncContentFromAPI();
+    } catch (error) {
+      console.warn(
+        'Failed to load content from API, using cached content:',
+        error
+      );
+      // Fallback to cached content if API fails
+      await this.loadDefaultContent();
+    }
   }
 
   /**
@@ -69,7 +85,148 @@ export class ContentService {
   }
 
   /**
-   * Load default content for all languages
+   * Sync content from API and cache locally
+   */
+  private async syncContentFromAPI(): Promise<void> {
+    try {
+      // Load all languages
+      const languages = await this.getLanguagesFromAPI();
+
+      // Load lessons and snippets for each language
+      for (const language of languages) {
+        await this.syncLanguageContent(language.id);
+      }
+    } catch (error) {
+      console.error('Failed to sync content from API:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get languages from API
+   */
+  private async getLanguagesFromAPI(): Promise<LanguageEntity[]> {
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/languages`, {
+        headers: authService.getAuthHeader(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch languages: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching languages from API:', error);
+      // Return empty array to fall back to default content
+      return [];
+    }
+  }
+
+  /**
+   * Sync content for a specific language from API
+   */
+  private async syncLanguageContent(languageId: string): Promise<void> {
+    try {
+      // Sync lessons
+      const lessons = await this.getLessonsFromAPI(languageId);
+      for (const lesson of lessons) {
+        await this.cacheLesson(lesson);
+      }
+
+      // Sync snippets
+      const snippets = await this.getSnippetsFromAPI(languageId);
+      for (const snippet of snippets) {
+        await this.cacheSnippet(snippet);
+      }
+    } catch (error) {
+      console.error(
+        `Failed to sync content for language ${languageId}:`,
+        error
+      );
+    }
+  }
+
+  /**
+   * Get lessons from API for a specific language
+   */
+  private async getLessonsFromAPI(languageId: string): Promise<Lesson[]> {
+    try {
+      const response = await fetch(
+        `${this.apiBaseUrl}/lessons?languageId=${languageId}`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch lessons: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error fetching lessons for ${languageId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Get snippets from API for a specific language
+   */
+  private async getSnippetsFromAPI(languageId: string): Promise<Snippet[]> {
+    try {
+      const response = await fetch(
+        `${this.apiBaseUrl}/snippets?languageId=${languageId}`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch snippets: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`Error fetching snippets for ${languageId}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Cache lesson in IndexedDB
+   */
+  private async cacheLesson(lesson: Lesson): Promise<void> {
+    const lessonData: LessonData = {
+      id: lesson.id,
+      languageId: lesson.languageId,
+      title: lesson.title,
+      difficulty: lesson.difficulty,
+      version: lesson.version,
+      content: lesson.description || '', // Use description as content for now
+      cachedAt: Date.now(),
+    };
+    await indexedDBManager.saveLesson(lessonData);
+  }
+
+  /**
+   * Cache snippet in IndexedDB
+   */
+  private async cacheSnippet(snippet: Snippet): Promise<void> {
+    const snippetData: SnippetData = {
+      id: snippet.id,
+      languageId: snippet.languageId,
+      title: snippet.title,
+      difficulty: snippet.difficulty,
+      tags: snippet.tags,
+      sourceCode: snippet.sourceCode,
+      cachedAt: Date.now(),
+    };
+    await indexedDBManager.saveSnippet(snippetData);
+  }
+
+  /**
+   * Load default content for all languages (fallback)
    */
   private async loadDefaultContent(): Promise<void> {
     // Load C++ content
@@ -80,7 +237,7 @@ export class ContentService {
   }
 
   /**
-   * Load C++ lessons and snippets
+   * Load C++ lessons and snippets (fallback)
    */
   private async loadCppContent(): Promise<void> {
     const cppLessons: Omit<LessonData, 'cachedAt'>[] = [
@@ -300,7 +457,7 @@ auto resource = createResource(42);`,
   }
 
   /**
-   * Load Rust lessons and snippets
+   * Load Rust lessons and snippets (fallback)
    */
   private async loadRustContent(): Promise<void> {
     const rustLessons: Omit<LessonData, 'cachedAt'>[] = [
@@ -348,7 +505,7 @@ auto resource = createResource(42);`,
     let s3 = String::from("world");
     let len = calculate_length(&s3);
     
-    println!("The length of '{}' is {}.", s3, len);
+    println!("The length of '{}' is {}." , s3, len);
 }
 
 fn calculate_length(s: &String) -> usize {
