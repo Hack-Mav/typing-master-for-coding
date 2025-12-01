@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { authService, LoginRequest } from '../../services/AuthService';
+import { MFAVerification } from './MFAVerification';
+import { MFABackupCode } from './MFABackupCode';
 import './Auth.css';
 
 interface LoginFormProps {
@@ -7,6 +9,8 @@ interface LoginFormProps {
   onSwitchToRegister?: () => void;
   onAnonymousMode?: () => void;
 }
+
+type AuthStep = 'login' | 'mfa' | 'backup-code';
 
 export const LoginForm: React.FC<LoginFormProps> = ({
   onSuccess,
@@ -17,6 +21,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [authStep, setAuthStep] = useState<AuthStep>('login');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,13 +30,31 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
     try {
       const request: LoginRequest = { email, password };
-      await authService.login(request);
+      const response = await authService.login(request);
+
+      // Check if MFA is required
+      if (response.requires_mfa) {
+        // MFA user ID is handled by the MFA verification component
+        setAuthStep('mfa');
+        return;
+      }
+
+      // MFA not required - login successful
       onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleMFASuccess = () => {
+    setAuthStep('login');
+    onSuccess?.();
+  };
+
+  const handleMFACancel = () => {
+    setAuthStep('login');
   };
 
   const handleAnonymousMode = async () => {
@@ -57,6 +80,32 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       setLoading(false);
     }
   };
+
+  // Show MFA verification step
+  if (authStep === 'mfa') {
+    return (
+      <MFAVerification
+        email={email}
+        password={password}
+        onSuccess={handleMFASuccess}
+        onCancel={handleMFACancel}
+        onUseBackupCode={() => setAuthStep('backup-code')}
+      />
+    );
+  }
+
+  // Show backup code step
+  if (authStep === 'backup-code') {
+    return (
+      <MFABackupCode
+        email={email}
+        password={password}
+        onSuccess={handleMFASuccess}
+        onCancel={handleMFACancel}
+        onBackToApp={() => setAuthStep('mfa')}
+      />
+    );
+  }
 
   return (
     <div className="auth-form">

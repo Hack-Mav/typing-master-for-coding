@@ -40,11 +40,7 @@ const CustomSnippetsMode: React.FC<CustomSnippetsModeProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Load saved snippets from backend API
-  useEffect(() => {
-    loadUserSnippets();
-  }, [languageId]);
-
-  const loadUserSnippets = async () => {
+  const loadUserSnippets = useCallback(async () => {
     try {
       const snippets = await contentService.getSnippetsForLanguage(languageId);
       const customSnippets = snippets
@@ -54,7 +50,7 @@ const CustomSnippetsMode: React.FC<CustomSnippetsModeProps> = ({
           code: snippet.sourceCode,
           language: languageId,
           name: snippet.title,
-          createdAt: new Date(), // Use current date since SnippetData doesn't have createdAt
+          createdAt: new Date(),
           userId: authService.getCurrentUser()?.id,
           tags: snippet.tags,
           difficulty: snippet.difficulty,
@@ -64,7 +60,11 @@ const CustomSnippetsMode: React.FC<CustomSnippetsModeProps> = ({
       console.error('Failed to load user snippets:', err);
       setError('Failed to load saved snippets');
     }
-  };
+  }, [languageId]);
+
+  useEffect(() => {
+    loadUserSnippets();
+  }, [loadUserSnippets]);
 
   const handleSaveSnippet = useCallback(async () => {
     if (!customCode.trim()) {

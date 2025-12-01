@@ -16,6 +16,18 @@ export interface AuthContextType {
   register: (handle: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
+
+  // MFA methods
+  loginWithMFA: (
+    email: string,
+    password: string,
+    code: string
+  ) => Promise<void>;
+  setupMFA: () => Promise<any>;
+  verifyMFASetup: (code: string) => Promise<void>;
+  getMFAStatus: () => Promise<any>;
+  disableMFA: (password: string, code: string) => Promise<void>;
+  regenerateMFABackupCodes: (code: string) => Promise<any>;
 }
 
 interface AuthProviderProps {
@@ -67,6 +79,57 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setCurrentUser(null);
   };
 
+  const loginWithMFA = async (
+    email: string,
+    password: string,
+    code: string
+  ) => {
+    setLoading(true);
+    try {
+      await authService.loginWithMFA({ email, password, code });
+      setCurrentUser(authService.getCurrentUser());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const setupMFA = async () => {
+    setLoading(true);
+    try {
+      return await authService.setupMFA();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyMFASetup = async (code: string) => {
+    setLoading(true);
+    try {
+      await authService.verifyMFASetup(code);
+      setCurrentUser(authService.getCurrentUser());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getMFAStatus = async () => {
+    return await authService.getMFAStatus();
+  };
+
+  const disableMFA = async (password: string, code: string) => {
+    setLoading(true);
+    try {
+      await authService.disableMFA(password, code);
+      setCurrentUser(authService.getCurrentUser());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const regenerateMFABackupCodes = async (code: string) => {
+    return await authService.regenerateMFABackupCodes(code);
+  };
+
   const value: AuthContextType = {
     token: authService.getAccessToken(),
     user,
@@ -76,6 +139,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     register,
     logout,
     loading,
+
+    // MFA methods
+    loginWithMFA,
+    setupMFA,
+    verifyMFASetup,
+    getMFAStatus,
+    disableMFA,
+    regenerateMFABackupCodes,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

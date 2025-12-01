@@ -16,6 +16,10 @@ export interface User {
   settings: Record<string, any>;
   createdAt: string;
   updatedAt: string;
+
+  // MFA fields
+  mfaEnabled?: boolean;
+  mfaSetupAt?: string;
 }
 
 export interface TokenPair {
@@ -28,6 +32,9 @@ export interface TokenPair {
 export interface AuthResponse {
   user: User;
   tokens: TokenPair;
+  requires_mfa?: boolean;
+  user_id?: string;
+  message?: string;
 }
 
 export interface RegisterRequest {
@@ -45,10 +52,47 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface LoginWithMFARequest {
+  email: string;
+  password: string;
+  code: string;
+  rememberDevice?: boolean;
+}
+
+export interface MFASetupRequest {
+  // No additional fields needed
+}
+
+export interface MFASetupResponse {
+  secret: string;
+  qr_code_url: string;
+  backup_codes: string[];
+}
+
+export interface MFAVerifyRequest {
+  code: string;
+}
+
+export interface MFAVerifyResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface MFAStatusResponse {
+  enabled: boolean;
+  setup_at?: string;
+  has_backup_codes: boolean;
+}
+
+export interface MFADisableRequest {
+  password: string;
+  code: string;
+}
+
 export interface AnonymousSessionRequest {
   device_id: string;
-  keyboard_layout?: string;
-  locale?: string;
+  keyboard_layout: string;
+  locale: string;
 }
 
 class AuthService {
@@ -170,6 +214,13 @@ class AuthService {
     }
 
     const data: AuthResponse = await response.json();
+
+    // Check if MFA is required
+    if (data.requires_mfa) {
+      return data; // Return early with MFA requirement info
+    }
+
+    // MFA not required - complete login
     this.accessToken = data.tokens.access_token;
     this.refreshToken = data.tokens.refresh_token;
     this.currentUser = data.user;
@@ -378,6 +429,113 @@ class AuthService {
       localStorage.setItem('user', JSON.stringify(user));
     }
     return user;
+  }
+
+  /**
+   * Complete login with MFA verification
+   */
+  async loginWithMFA(request: LoginWithMFARequest): Promise<AuthResponse> {
+    const response = await fetch(`${this.apiBaseUrl}/auth/login/mfa`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'MFA verification failed');
+    }
+
+    const data: AuthResponse = await response.json();
+    this.accessToken = data.tokens.access_token;
+    this.refreshToken = data.tokens.refresh_token;
+    this.currentUser = data.user;
+
+    this.saveToStorage(data.user, data.tokens);
+    this.scheduleTokenRefresh();
+
+    return data;
+  }
+
+  /**
+   * Setup MFA for the current user
+   */
+  async setupMFA(): Promise<MFASetupResponse> {
+    const response = await this.authenticatedRequest<MFASetupResponse>(
+      '/auth/mfa/setup',
+      {
+        method: 'POST',
+        body: JSON.stringify({}),
+      }
+    );
+
+    return response;
+  }
+
+  /**
+   * Verify MFA setup with TOTP code
+   */
+  async verifyMFASetup(code: string): Promise<MFAVerifyResponse> {
+    const response = await this.authenticatedRequest<MFAVerifyResponse>(
+      '/auth/mfa/verify-setup',
+      {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      }
+    );
+
+    return response;
+  }
+
+  /**
+   * Get MFA status for the current user
+   */
+  async getMFAStatus(): Promise<MFAStatusResponse> {
+    const response = await this.authenticatedRequest<MFAStatusResponse>(
+      '/mfa/status',
+      {
+        method: 'GET',
+      }
+    );
+
+    return response;
+  }
+
+  /**
+   * Disable MFA for the current user
+   */
+  async disableMFA(
+    password: string,
+    code: string
+  ): Promise<{ message: string }> {
+    const response = await this.authenticatedRequest<{ message: string }>(
+      '/auth/mfa/disable',
+      {
+        method: 'POST',
+        body: JSON.stringify({ password, code }),
+      }
+    );
+
+    return response;
+  }
+
+  /**
+   * Regenerate MFA backup codes
+   */
+  async regenerateMFABackupCodes(
+    code: string
+  ): Promise<{ backup_codes: string[]; message: string }> {
+    const response = await this.authenticatedRequest<{
+      backup_codes: string[];
+      message: string;
+    }>('/auth/mfa/backup-codes/regenerate', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+
+    return response;
   }
 }
 
