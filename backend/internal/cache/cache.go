@@ -26,10 +26,10 @@ func NewInMemoryCache(maxSize int, ttlMinutes int) *InMemoryCache {
 		maxSize: maxSize,
 		ttl:     time.Duration(ttlMinutes) * time.Minute,
 	}
-	
+
 	// Start cleanup goroutine
 	go cache.cleanup()
-	
+
 	return cache
 }
 
@@ -37,22 +37,22 @@ func NewInMemoryCache(maxSize int, ttlMinutes int) *InMemoryCache {
 func (c *InMemoryCache) Set(key string, value interface{}) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Check if we need to evict items
 	if c.size >= int64(c.maxSize) {
 		c.evictLRU()
 	}
-	
+
 	item := &CacheItem{
 		Value:     value,
 		ExpiresAt: time.Now().Add(c.ttl),
 	}
-	
+
 	// Check if key already exists
 	if _, exists := c.items.Load(key); !exists {
 		c.size++
 	}
-	
+
 	c.items.Store(key, item)
 }
 
@@ -62,15 +62,15 @@ func (c *InMemoryCache) Get(key string) (interface{}, bool) {
 	if !exists {
 		return nil, false
 	}
-	
+
 	item := value.(*CacheItem)
-	
+
 	// Check if item has expired
 	if time.Now().After(item.ExpiresAt) {
 		c.Delete(key)
 		return nil, false
 	}
-	
+
 	return item.Value, true
 }
 
@@ -78,7 +78,7 @@ func (c *InMemoryCache) Get(key string) (interface{}, bool) {
 func (c *InMemoryCache) Delete(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	if _, exists := c.items.Load(key); exists {
 		c.items.Delete(key)
 		c.size--
@@ -89,7 +89,7 @@ func (c *InMemoryCache) Delete(key string) {
 func (c *InMemoryCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.items.Range(func(key, value interface{}) bool {
 		c.items.Delete(key)
 		return true
@@ -108,7 +108,7 @@ func (c *InMemoryCache) Size() int64 {
 func (c *InMemoryCache) evictLRU() {
 	var oldestKey interface{}
 	var oldestTime time.Time
-	
+
 	c.items.Range(func(key, value interface{}) bool {
 		item := value.(*CacheItem)
 		if oldestKey == nil || item.ExpiresAt.Before(oldestTime) {
@@ -117,7 +117,7 @@ func (c *InMemoryCache) evictLRU() {
 		}
 		return true
 	})
-	
+
 	if oldestKey != nil {
 		c.items.Delete(oldestKey)
 		c.size--
@@ -128,11 +128,11 @@ func (c *InMemoryCache) evictLRU() {
 func (c *InMemoryCache) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		now := time.Now()
 		var keysToDelete []interface{}
-		
+
 		c.items.Range(func(key, value interface{}) bool {
 			item := value.(*CacheItem)
 			if now.After(item.ExpiresAt) {
@@ -140,7 +140,7 @@ func (c *InMemoryCache) cleanup() {
 			}
 			return true
 		})
-		
+
 		c.mu.Lock()
 		for _, key := range keysToDelete {
 			c.items.Delete(key)

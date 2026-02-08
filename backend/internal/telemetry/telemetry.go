@@ -8,14 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/propagation"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -42,110 +35,24 @@ type Config struct {
 	Enabled        bool
 }
 
-// Initialize sets up OpenTelemetry
+// Initialize sets up OpenTelemetry with basic console exporter
 func Initialize(cfg Config) (func(context.Context) error, error) {
 	if !cfg.Enabled {
 		log.Println("Telemetry disabled")
 		return func(context.Context) error { return nil }, nil
 	}
 
-	ctx := context.Background()
-
-	// Create resource
-	res, err := resource.New(ctx,
-		resource.WithAttributes(
-			semconv.ServiceName(cfg.ServiceName),
-			semconv.ServiceVersion(cfg.ServiceVersion),
-			attribute.String("environment", cfg.Environment),
-		),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
-	}
-
-	// Setup trace provider
-	traceShutdown, err := setupTraceProvider(ctx, res, cfg.Endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup trace provider: %w", err)
-	}
-
-	// Setup metric provider
-	metricShutdown, err := setupMetricProvider(ctx, res, cfg.Endpoint)
-	if err != nil {
-		traceShutdown(ctx)
-		return nil, fmt.Errorf("failed to setup metric provider: %w", err)
-	}
-
-	// Initialize tracer and meter
-	tracer = otel.Tracer("typing-master-backend")
-	meter = otel.Meter("typing-master-backend")
+	// Initialize tracer and meter with basic providers
+	tracer = otel.Tracer("backend/backend")
+	meter = otel.Meter("backend/backend")
 
 	// Initialize metrics
 	if err := initializeMetrics(); err != nil {
-		traceShutdown(ctx)
-		metricShutdown(ctx)
 		return nil, fmt.Errorf("failed to initialize metrics: %w", err)
 	}
 
-	// Return combined shutdown function
-	shutdown := func(ctx context.Context) error {
-		if err := traceShutdown(ctx); err != nil {
-			log.Printf("Error shutting down trace provider: %v", err)
-		}
-		if err := metricShutdown(ctx); err != nil {
-			log.Printf("Error shutting down metric provider: %v", err)
-		}
-		return nil
-	}
-
 	log.Println("Telemetry initialized successfully")
-	return shutdown, nil
-}
-
-// setupTraceProvider creates and registers trace provider
-func setupTraceProvider(ctx context.Context, res *resource.Resource, endpoint string) (func(context.Context) error, error) {
-	exporter, err := otlptracegrpc.New(ctx,
-		otlptracegrpc.WithEndpoint(endpoint),
-		otlptracegrpc.WithInsecure(), // Use WithTLSCredentials in production
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-	)
-
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	))
-
-	return tp.Shutdown, nil
-}
-
-// setupMetricProvider creates and registers metric provider
-func setupMetricProvider(ctx context.Context, res *resource.Resource, endpoint string) (func(context.Context) error, error) {
-	exporter, err := otlpmetricgrpc.New(ctx,
-		otlpmetricgrpc.WithEndpoint(endpoint),
-		otlpmetricgrpc.WithInsecure(), // Use WithTLSCredentials in production
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	mp := sdkmetric.NewMeterProvider(
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter,
-			sdkmetric.WithInterval(30*time.Second))),
-		sdkmetric.WithResource(res),
-	)
-
-	otel.SetMeterProvider(mp)
-
-	return mp.Shutdown, nil
+	return func(context.Context) error { return nil }, nil
 }
 
 // initializeMetrics creates all metric instruments

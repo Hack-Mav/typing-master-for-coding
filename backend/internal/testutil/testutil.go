@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"typing-master-backend/internal/auth"
-	"typing-master-backend/internal/cache"
-	"typing-master-backend/internal/config"
-	"typing-master-backend/internal/database"
-	"typing-master-backend/internal/models"
+	"github.com/typing-master-for-coding-backend/internal/auth"
+	"github.com/typing-master-for-coding-backend/internal/cache"
+	"github.com/typing-master-for-coding-backend/internal/config"
+	"github.com/typing-master-for-coding-backend/internal/database"
+	"github.com/typing-master-for-coding-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +23,7 @@ import (
 func SetupTestRouter() (*gin.Engine, *database.DatastoreClient, *cache.InMemoryCache) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	
+
 	mockDatastore := database.NewMockDatastore()
 	mockDB := &database.DatastoreClient{
 		Client:    nil,
@@ -32,7 +32,7 @@ func SetupTestRouter() (*gin.Engine, *database.DatastoreClient, *cache.InMemoryC
 		Mock:      mockDatastore,
 	}
 	mockCache := cache.NewInMemoryCache(100, 5) // 5 minutes TTL
-	
+
 	return router, mockDB, mockCache
 }
 
@@ -51,23 +51,23 @@ func MakeRequest(router *gin.Engine, method, path string, body interface{}, head
 	if body != nil {
 		reqBody, _ = json.Marshal(body)
 	}
-	
+
 	req, _ := http.NewRequest(method, path, bytes.NewBuffer(reqBody))
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
-	
+
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
-	
+
 	return w
 }
 
 // GenerateTestToken generates a JWT token for testing
 func GenerateTestToken(userID, handle, email string, isAnonymous bool) (string, error) {
-	tokens, err := auth.GenerateTokenPair(userID, handle, email, isAnonymous, "test-secret-key-for-testing-only")
+	tokens, err := auth.GenerateTokenPair(userID, handle, email, "user", isAnonymous, "test-secret-key-for-testing-only")
 	if err != nil {
 		return "", err
 	}
@@ -77,16 +77,16 @@ func GenerateTestToken(userID, handle, email string, isAnonymous bool) (string, 
 // AssertJSONResponse asserts that the response matches expected JSON
 func AssertJSONResponse(t *testing.T, w *httptest.ResponseRecorder, expectedStatus int, expectedBody interface{}) {
 	assert.Equal(t, expectedStatus, w.Code)
-	
+
 	if expectedBody != nil {
 		var actualBody interface{}
 		err := json.Unmarshal(w.Body.Bytes(), &actualBody)
 		assert.NoError(t, err)
-		
+
 		expectedJSON, _ := json.Marshal(expectedBody)
 		var expectedMap interface{}
 		json.Unmarshal(expectedJSON, &expectedMap)
-		
+
 		assert.Equal(t, expectedMap, actualBody)
 	}
 }
@@ -95,24 +95,25 @@ func AssertJSONResponse(t *testing.T, w *httptest.ResponseRecorder, expectedStat
 func CreateTestUser(mockDB *database.DatastoreClient, userID, handle, email string) *models.User {
 	passwordHash, _ := auth.HashPassword("password123")
 	now := time.Now().UTC()
-	
+
 	user := &models.User{
-		ID:                  userID,
-		Handle:              handle,
-		Email:               email,
-		PasswordHash:        passwordHash,
-		IsAnonymous:         false,
-		Locale:              "en-US",
-		KeyboardLayout:      "QWERTY",
-		PrivacyMode:         false,
-		TelemetryConsent:    true,
+		ID:                    userID,
+		Handle:                handle,
+		Email:                 email,
+		Role:                  "user",
+		PasswordHash:          passwordHash,
+		IsAnonymous:           false,
+		Locale:                "en-US",
+		KeyboardLayout:        "QWERTY",
+		PrivacyMode:           false,
+		TelemetryConsent:      true,
 		DataProcessingConsent: true,
-		Settings:            make(map[string]interface{}),
-		CreatedAt:           now,
-		UpdatedAt:           now,
-		LastLoginAt:         &now,
+		Settings:              make(map[string]interface{}),
+		CreatedAt:             now,
+		UpdatedAt:             now,
+		LastLoginAt:           &now,
 	}
-	
+
 	mockDB.Put(context.Background(), nil, user)
 	return user
 }
@@ -133,7 +134,7 @@ func CreateTestLanguage(mockDB *database.DatastoreClient, id, name string) *mode
 		CreatedBy: "admin",
 		CreatedAt: time.Now().UTC(),
 	}
-	
+
 	mockDB.Put(context.Background(), nil, language)
 	return language
 }
@@ -154,7 +155,7 @@ func CreateTestLesson(mockDB *database.DatastoreClient, id, languageID, title st
 		CreatedBy:        "admin",
 		CreatedAt:        time.Now().UTC(),
 	}
-	
+
 	mockDB.Put(context.Background(), nil, lesson)
 	return lesson
 }
@@ -162,14 +163,14 @@ func CreateTestLesson(mockDB *database.DatastoreClient, id, languageID, title st
 // CreateTestSnippet creates a test snippet in the mock database
 func CreateTestSnippet(mockDB *database.DatastoreClient, id, languageID, title, code string) *models.Snippet {
 	snippet := &models.Snippet{
-		ID:           id,
-		LanguageID:   languageID,
-		Title:        title,
-		SourceCode:   code,
-		Tags:         []string{"test"},
-		Difficulty:   1,
+		ID:            id,
+		LanguageID:    languageID,
+		Title:         title,
+		SourceCode:    code,
+		Tags:          []string{"test"},
+		Difficulty:    1,
 		EstimatedTime: 5,
-		Checksum:     "abc123",
+		Checksum:      "abc123",
 		AccessibilityTags: map[string]interface{}{
 			"line_count": 10,
 		},
@@ -177,7 +178,7 @@ func CreateTestSnippet(mockDB *database.DatastoreClient, id, languageID, title, 
 		Version:   1,
 		CreatedAt: time.Now().UTC(),
 	}
-	
+
 	mockDB.Put(context.Background(), nil, snippet)
 	return snippet
 }
@@ -193,7 +194,7 @@ func CreateTestSession(mockDB *database.DatastoreClient, id, userID, mode, langu
 		Settings:   make(map[string]interface{}),
 		CreatedAt:  time.Now().UTC(),
 	}
-	
+
 	mockDB.Put(context.Background(), nil, session)
 	return session
 }
@@ -201,14 +202,14 @@ func CreateTestSession(mockDB *database.DatastoreClient, id, userID, mode, langu
 // AssertErrorResponse asserts that the response contains an error
 func AssertErrorResponse(t *testing.T, w *httptest.ResponseRecorder, expectedStatus int, expectedErrorContains string) {
 	assert.Equal(t, expectedStatus, w.Code)
-	
+
 	var response map[string]interface{}
 	err := json.Unmarshal(w.Body.Bytes(), &response)
 	assert.NoError(t, err)
-	
+
 	errorMsg, exists := response["error"]
 	assert.True(t, exists, "Response should contain an error field")
-	
+
 	if expectedErrorContains != "" {
 		assert.Contains(t, errorMsg, expectedErrorContains)
 	}

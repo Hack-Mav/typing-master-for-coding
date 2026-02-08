@@ -6,23 +6,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/typing-master-for-coding-backend/internal/models"
+
 	"cloud.google.com/go/datastore"
-	"typing-master-backend/internal/models"
 )
 
 // MockDatastore provides an in-memory implementation for development
 type MockDatastore struct {
-	mu        sync.RWMutex
-	users     map[string]*models.User
-	languages map[string]*models.Language
-	lessons   map[string]*models.Lesson
-	snippets  map[string]*models.Snippet
-	sessions  map[string]*models.Session
-	events    map[string][]*models.SessionEvent
-	results   map[string]*models.Result
-	playlists map[string]*models.Playlist
-	lessonProgress map[string]*models.LessonProgress
-	contentVersions map[string]*models.ContentVersion
+	mu                 sync.RWMutex
+	users              map[string]*models.User
+	languages          map[string]*models.Language
+	lessons            map[string]*models.Lesson
+	snippets           map[string]*models.Snippet
+	sessions           map[string]*models.Session
+	events             map[string][]*models.SessionEvent
+	results            map[string]*models.Result
+	playlists          map[string]*models.Playlist
+	lessonProgress     map[string]*models.LessonProgress
+	contentVersions    map[string]*models.ContentVersion
 	contentValidations map[string]*models.ContentValidation
 }
 
@@ -31,22 +32,22 @@ type MockDatastoreClient = MockDatastore
 
 func NewMockDatastore() *MockDatastore {
 	mock := &MockDatastore{
-		users:     make(map[string]*models.User),
-		languages: make(map[string]*models.Language),
-		lessons:   make(map[string]*models.Lesson),
-		snippets:  make(map[string]*models.Snippet),
-		sessions:  make(map[string]*models.Session),
-		events:    make(map[string][]*models.SessionEvent),
-		results:   make(map[string]*models.Result),
-		playlists: make(map[string]*models.Playlist),
-		lessonProgress: make(map[string]*models.LessonProgress),
-		contentVersions: make(map[string]*models.ContentVersion),
+		users:              make(map[string]*models.User),
+		languages:          make(map[string]*models.Language),
+		lessons:            make(map[string]*models.Lesson),
+		snippets:           make(map[string]*models.Snippet),
+		sessions:           make(map[string]*models.Session),
+		events:             make(map[string][]*models.SessionEvent),
+		results:            make(map[string]*models.Result),
+		playlists:          make(map[string]*models.Playlist),
+		lessonProgress:     make(map[string]*models.LessonProgress),
+		contentVersions:    make(map[string]*models.ContentVersion),
 		contentValidations: make(map[string]*models.ContentValidation),
 	}
-	
+
 	// Initialize with some sample data
 	mock.initSampleData()
-	
+
 	return mock
 }
 
@@ -109,11 +110,11 @@ func (m *MockDatastore) initSampleData() {
 			CreatedAt:       time.Now(),
 		},
 	}
-	
+
 	for _, lang := range languages {
 		m.languages[lang.ID] = lang
 	}
-	
+
 	// Add sample lessons
 	lessons := []*models.Lesson{
 		{
@@ -145,22 +146,22 @@ func (m *MockDatastore) initSampleData() {
 			CreatedAt:        time.Now(),
 		},
 	}
-	
+
 	for _, lesson := range lessons {
 		m.lessons[lesson.ID] = lesson
 	}
-	
+
 	// Add sample snippets
 	snippets := []*models.Snippet{
 		{
-			ID:           "snippet1",
-			LanguageID:   "javascript",
-			Title:        "Hello World",
-			SourceCode:   "console.log('Hello');",
-			Tags:         []string{"test"},
-			Difficulty:   1,
+			ID:            "snippet1",
+			LanguageID:    "javascript",
+			Title:         "Hello World",
+			SourceCode:    "console.log('Hello');",
+			Tags:          []string{"test"},
+			Difficulty:    1,
 			EstimatedTime: 5,
-			Checksum:     "abc123",
+			Checksum:      "abc123",
 			AccessibilityTags: map[string]interface{}{
 				"line_count": 10,
 			},
@@ -169,14 +170,14 @@ func (m *MockDatastore) initSampleData() {
 			CreatedAt: time.Now(),
 		},
 		{
-			ID:           "snippet2",
-			LanguageID:   "javascript",
-			Title:        "Function Example",
-			SourceCode:   "function test() {}",
-			Tags:         []string{"test"},
-			Difficulty:   1,
+			ID:            "snippet2",
+			LanguageID:    "javascript",
+			Title:         "Function Example",
+			SourceCode:    "function test() {}",
+			Tags:          []string{"test"},
+			Difficulty:    1,
 			EstimatedTime: 5,
-			Checksum:     "def456",
+			Checksum:      "def456",
 			AccessibilityTags: map[string]interface{}{
 				"line_count": 5,
 			},
@@ -185,7 +186,7 @@ func (m *MockDatastore) initSampleData() {
 			CreatedAt: time.Now(),
 		},
 	}
-	
+
 	for _, snippet := range snippets {
 		m.snippets[snippet.ID] = snippet
 	}
@@ -195,7 +196,7 @@ func (m *MockDatastore) initSampleData() {
 func (m *MockDatastore) Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	switch v := src.(type) {
 	case *models.User:
 		if key == nil || key.Name == "" {
@@ -234,7 +235,7 @@ func (m *MockDatastore) Put(ctx context.Context, key *datastore.Key, src interfa
 		v.SessionID = key.Name
 		m.results[key.Name] = v
 	}
-	
+
 	return key, nil
 }
 
@@ -242,10 +243,10 @@ func (m *MockDatastore) Get(ctx context.Context, key *datastore.Key, dst interfa
 	if key == nil {
 		return datastore.ErrNoSuchEntity
 	}
-	
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	switch v := dst.(type) {
 	case *models.User:
 		if user, exists := m.users[key.Name]; exists {
@@ -278,21 +279,21 @@ func (m *MockDatastore) Get(ctx context.Context, key *datastore.Key, dst interfa
 			return nil
 		}
 	}
-	
+
 	return datastore.ErrNoSuchEntity
 }
 
 func (m *MockDatastore) GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	// This is a simplified implementation that returns data based on the destination type
 	var keys []*datastore.Key
-	
+
 	switch v := dst.(type) {
 	case *[]models.User:
 		users := v
-		
+
 		// For testing purposes, if this is a query for users, return all users
 		// The Register handler will check for duplicates by email/handle in the returned slice
 		for id, user := range m.users {
@@ -324,7 +325,7 @@ func (m *MockDatastore) GetAll(ctx context.Context, q *datastore.Query, dst inte
 			keys = append(keys, datastore.NameKey("Session", id, nil))
 		}
 	}
-	
+
 	return keys, nil
 }
 
@@ -341,10 +342,10 @@ func (m *MockDatastore) Delete(ctx context.Context, key *datastore.Key) error {
 	if key == nil {
 		return nil
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	switch key.Kind {
 	case "User":
 		delete(m.users, key.Name)
@@ -359,7 +360,7 @@ func (m *MockDatastore) Delete(ctx context.Context, key *datastore.Key) error {
 	case "Result":
 		delete(m.results, key.Name)
 	}
-	
+
 	return nil
 }
 
@@ -367,10 +368,10 @@ func (m *MockDatastore) DeleteMulti(ctx context.Context, keys []*datastore.Key) 
 	if keys == nil {
 		return nil
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	for _, key := range keys {
 		if key == nil {
 			continue
@@ -396,7 +397,7 @@ func (m *MockDatastore) DeleteMulti(ctx context.Context, keys []*datastore.Key) 
 			delete(m.playlists, key.Name)
 		}
 	}
-	
+
 	return nil
 }
 

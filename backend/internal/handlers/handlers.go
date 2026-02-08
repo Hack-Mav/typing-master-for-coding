@@ -9,20 +9,20 @@ import (
 	"strconv"
 	"time"
 
-	"typing-master-backend/internal/cache"
-	"typing-master-backend/internal/database"
-	"typing-master-backend/internal/models"
-	"typing-master-backend/internal/scoring"
-	"typing-master-backend/internal/utils"
+	"github.com/typing-master-for-coding-backend/internal/cache"
+	"github.com/typing-master-for-coding-backend/internal/database"
+	"github.com/typing-master-for-coding-backend/internal/models"
+	"github.com/typing-master-for-coding-backend/internal/scoring"
+	"github.com/typing-master-for-coding-backend/internal/utils"
 
-	"github.com/gin-gonic/gin"
 	"cloud.google.com/go/datastore"
+	"github.com/gin-gonic/gin"
 )
 
 func HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "healthy",
-		"service":   "typing-master-backend",
+		"service":   "backend/backend",
 		"timestamp": time.Now().UTC(),
 		"version":   "1.0.0",
 	})
@@ -441,7 +441,7 @@ func CreateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		userID := c.GetString("user_id")
-		
+
 		var req struct {
 			Mode       string                 `json:"mode" binding:"required"`
 			LanguageID string                 `json:"language_id" binding:"required"`
@@ -449,12 +449,12 @@ func CreateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 			SnippetID  string                 `json:"snippet_id"`
 			Settings   map[string]interface{} `json:"settings"`
 		}
-		
+
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		
+
 		// Create session
 		session := models.Session{
 			UserID:     userID,
@@ -466,17 +466,17 @@ func CreateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 			Settings:   req.Settings,
 			CreatedAt:  time.Now(),
 		}
-		
+
 		sessionID := fmt.Sprintf("session_%s_%d", userID, time.Now().UnixNano())
 		key := datastore.NameKey("Session", sessionID, nil)
-		
+
 		_, err := db.Put(ctx, key, &session)
 		if err != nil {
 			log.Printf("Failed to create session: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create session"})
 			return
 		}
-		
+
 		session.ID = sessionID
 		c.JSON(http.StatusCreated, session)
 	}
@@ -486,17 +486,17 @@ func UpdateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		sessionID := c.Param("id")
-		
+
 		var updates struct {
 			DurationMs int64                  `json:"duration_ms"`
 			Settings   map[string]interface{} `json:"settings"`
 		}
-		
+
 		if err := c.ShouldBindJSON(&updates); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		
+
 		// Get existing session
 		key := datastore.NameKey("Session", sessionID, nil)
 		var session models.Session
@@ -505,7 +505,7 @@ func UpdateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
 			return
 		}
-		
+
 		// Update fields
 		if updates.DurationMs > 0 {
 			session.DurationMs = updates.DurationMs
@@ -513,7 +513,7 @@ func UpdateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 		if updates.Settings != nil {
 			session.Settings = updates.Settings
 		}
-		
+
 		// Save updated session
 		_, err = db.Put(ctx, key, &session)
 		if err != nil {
@@ -521,7 +521,7 @@ func UpdateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update session"})
 			return
 		}
-		
+
 		session.ID = sessionID
 		c.JSON(http.StatusOK, session)
 	}
@@ -531,41 +531,48 @@ func RecordEvents(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		sessionID := c.Param("id")
-		
+
 		var events []models.SessionEvent
 		if err := c.ShouldBindJSON(&events); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		
-		// Verify session exists
-		sessionKey := datastore.NameKey("Session", sessionID, nil)
+
+		// Verify session exists (check cache first)
 		var session models.Session
-		err := db.Get(ctx, sessionKey, &session)
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
-			return
+		if cachedSession, found := cache.Get(sessionID); found {
+			session = cachedSession.(models.Session)
+		} else {
+			sessionKey := datastore.NameKey("Session", sessionID, nil)
+			err := db.Get(ctx, sessionKey, &session)
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+				return
+			}
+			cache.Set(sessionID, session) // Cache the session for future requests
 		}
-		
+
 		// Store events in batch
 		keys := make([]*datastore.Key, len(events))
 		entities := make([]interface{}, len(events))
-		
+
+		baseTimestamp := time.Now().UnixNano()
 		for i, event := range events {
 			event.SessionID = sessionID
 			event.CreatedAt = time.Now()
-			eventID := fmt.Sprintf("%s_event_%d", sessionID, time.Now().UnixNano()+int64(i))
+			eventID := fmt.Sprintf("%s_event_%d", sessionID, baseTimestamp+int64(i))
 			keys[i] = datastore.NameKey("SessionEvent", eventID, nil)
 			entities[i] = &event
 		}
-		
-		_, err = db.PutMulti(ctx, keys, entities)
-		if err != nil {
-			log.Printf("Failed to record events: %v", err)
+
+		var putMultiErr error
+		_, putMultiErr = db.PutMulti(ctx, keys, entities)
+		if putMultiErr != nil {
+			log.Printf("Failed to record events: %v", putMultiErr)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to record events"})
 			return
 		}
-		
+
 		c.JSON(http.StatusOK, gin.H{"message": "Events recorded successfully", "count": len(events)})
 	}
 }
@@ -574,7 +581,7 @@ func FinalizeSession(db *database.DatastoreClient, cache *cache.InMemoryCache) g
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		sessionID := c.Param("id")
-		
+
 		// Get session
 		sessionKey := datastore.NameKey("Session", sessionID, nil)
 		var session models.Session
@@ -583,14 +590,14 @@ func FinalizeSession(db *database.DatastoreClient, cache *cache.InMemoryCache) g
 			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
 			return
 		}
-		
+
 		// Mark session as ended
 		endTime := time.Now()
 		session.EndedAt = &endTime
 		if session.DurationMs == 0 {
 			session.DurationMs = endTime.Sub(session.StartedAt).Milliseconds()
 		}
-		
+
 		// Save updated session
 		_, err = db.Put(ctx, sessionKey, &session)
 		if err != nil {
@@ -598,7 +605,7 @@ func FinalizeSession(db *database.DatastoreClient, cache *cache.InMemoryCache) g
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to finalize session"})
 			return
 		}
-		
+
 		// Process scoring if service is initialized
 		if scoringService != nil {
 			go func() {
@@ -608,18 +615,18 @@ func FinalizeSession(db *database.DatastoreClient, cache *cache.InMemoryCache) g
 					log.Printf("Failed to process session metrics: %v", err)
 					return
 				}
-				
+
 				// Update leaderboards
 				err = scoringService.UpdateLeaderboard(context.Background(), sessionID)
 				if err != nil {
 					log.Printf("Failed to update leaderboards: %v", err)
 				}
-				
-				log.Printf("Session %s processed: Score=%d, CPM=%.2f, TWPM=%.2f", 
+
+				log.Printf("Session %s processed: Score=%d, CPM=%.2f, TWPM=%.2f",
 					sessionID, metrics.CompositeScore, metrics.CPM, metrics.TWPM)
 			}()
 		}
-		
+
 		session.ID = sessionID
 		c.JSON(http.StatusOK, gin.H{
 			"message": "Session finalized successfully",
@@ -632,7 +639,7 @@ func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		userID := c.GetString("user_id")
-		
+
 		// Query parameters
 		limit := 50
 		if limitStr := c.Query("limit"); limitStr != "" {
@@ -640,10 +647,10 @@ func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 				limit = l
 			}
 		}
-		
+
 		languageID := c.Query("language_id")
 		mode := c.Query("mode")
-		
+
 		// Get user's sessions first to filter results
 		sessionQuery := datastore.NewQuery("Session").FilterField("UserID", "=", userID)
 		if languageID != "" {
@@ -653,7 +660,7 @@ func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 			sessionQuery = sessionQuery.FilterField("Mode", "=", mode)
 		}
 		sessionQuery = sessionQuery.Order("-CreatedAt").Limit(limit)
-		
+
 		var sessions []*models.Session
 		sessionKeys, err := db.GetAll(ctx, sessionQuery, &sessions)
 		if err != nil {
@@ -661,7 +668,7 @@ func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch results"})
 			return
 		}
-		
+
 		// Get results for these sessions
 		results := make([]models.Result, 0)
 		for i := range sessions {
@@ -674,7 +681,7 @@ func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 				results = append(results, result)
 			}
 		}
-		
+
 		c.JSON(http.StatusOK, results)
 	}
 }
@@ -683,7 +690,7 @@ func GetResult(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		sessionID := c.Param("session_id")
-		
+
 		// Get result
 		key := datastore.NameKey("Result", sessionID, nil)
 		var result models.Result
@@ -697,9 +704,9 @@ func GetResult(db *database.DatastoreClient) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch result"})
 			return
 		}
-		
+
 		result.SessionID = sessionID
-		
+
 		// Also get session details
 		sessionKey := datastore.NameKey("Session", sessionID, nil)
 		var session models.Session
@@ -707,7 +714,7 @@ func GetResult(db *database.DatastoreClient) gin.HandlerFunc {
 		if err == nil {
 			session.ID = sessionID
 		}
-		
+
 		c.JSON(http.StatusOK, gin.H{
 			"result":  result,
 			"session": session,
@@ -722,27 +729,27 @@ func GetLeaderboards(cache *cache.InMemoryCache) gin.HandlerFunc {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Leaderboard service not initialized"})
 			return
 		}
-		
+
 		languageID := c.Query("language_id")
 		if languageID == "" {
 			languageID = "python"
 		}
-		
+
 		mode := c.Query("mode")
 		if mode == "" {
 			mode = "timed"
 		}
-		
+
 		scope := c.Query("scope")
 		if scope == "" {
 			scope = "global"
 		}
-		
+
 		timeWindow := c.Query("time_window")
 		if timeWindow == "" {
 			timeWindow = "weekly"
 		}
-		
+
 		limitStr := c.Query("limit")
 		limit := 50
 		if limitStr != "" {
@@ -750,7 +757,7 @@ func GetLeaderboards(cache *cache.InMemoryCache) gin.HandlerFunc {
 				limit = l
 			}
 		}
-		
+
 		req := &scoring.LeaderboardRequest{
 			LanguageID: languageID,
 			Mode:       mode,
@@ -758,7 +765,7 @@ func GetLeaderboards(cache *cache.InMemoryCache) gin.HandlerFunc {
 			TimeWindow: timeWindow,
 			Limit:      limit,
 		}
-		
+
 		ctx := context.Background()
 		response, err := leaderboardService.GetLeaderboard(ctx, req)
 		if err != nil {
@@ -766,7 +773,7 @@ func GetLeaderboards(cache *cache.InMemoryCache) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leaderboard"})
 			return
 		}
-		
+
 		c.JSON(http.StatusOK, response)
 	}
 }
@@ -979,11 +986,11 @@ func ValidateContentChecksum(db *database.DatastoreClient) gin.HandlerFunc {
 func ImportSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var importRequest struct {
-			LanguageID  string `json:"language_id" binding:"required"`
-			Title       string `json:"title" binding:"required"`
-			SourceCode  string `json:"source_code" binding:"required"`
-			Tags        []string `json:"tags"`
-			Difficulty  int    `json:"difficulty"`
+			LanguageID string   `json:"language_id" binding:"required"`
+			Title      string   `json:"title" binding:"required"`
+			SourceCode string   `json:"source_code" binding:"required"`
+			Tags       []string `json:"tags"`
+			Difficulty int      `json:"difficulty"`
 		}
 
 		if err := c.ShouldBindJSON(&importRequest); err != nil {
@@ -1072,10 +1079,10 @@ func UpdateLessonProgress(db *database.DatastoreClient) gin.HandlerFunc {
 		lessonID := c.Param("id")
 
 		var progressUpdate struct {
-			CurrentStage    string  `json:"current_stage"`
-			ProgressPercent float64 `json:"progress_percent"`
+			CurrentStage    string   `json:"current_stage"`
+			ProgressPercent float64  `json:"progress_percent"`
 			TokensCovered   []string `json:"tokens_covered"`
-			Score           int     `json:"score"`
+			Score           int      `json:"score"`
 		}
 
 		if err := c.ShouldBindJSON(&progressUpdate); err != nil {
@@ -1190,10 +1197,10 @@ func CheckLessonPrerequisites(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		response := gin.H{
-			"lesson_id":     lessonID,
-			"is_unlocked":   unlocked,
+			"lesson_id":       lessonID,
+			"is_unlocked":     unlocked,
 			"missing_prereqs": missingPrereqs,
-			"lesson":        lesson,
+			"lesson":          lesson,
 		}
 
 		c.JSON(http.StatusOK, response)
@@ -1219,34 +1226,34 @@ func GetLessonProgressionFlow(db *database.DatastoreClient) gin.HandlerFunc {
 		// Define the standard progression flow
 		flow := []gin.H{
 			{
-				"stage":       "intro",
-				"description": "Introduction to concepts",
+				"stage":             "intro",
+				"description":       "Introduction to concepts",
 				"estimated_minutes": lesson.EstimatedMinutes / 5,
-				"tokens_to_cover": lesson.TokensCovered[:min(2, len(lesson.TokensCovered))],
+				"tokens_to_cover":   lesson.TokensCovered[:min(2, len(lesson.TokensCovered))],
 			},
 			{
-				"stage":       "core",
-				"description": "Core concepts and syntax",
+				"stage":             "core",
+				"description":       "Core concepts and syntax",
 				"estimated_minutes": lesson.EstimatedMinutes / 2,
-				"tokens_to_cover": lesson.TokensCovered[:min(4, len(lesson.TokensCovered))],
+				"tokens_to_cover":   lesson.TokensCovered[:min(4, len(lesson.TokensCovered))],
 			},
 			{
-				"stage":       "idioms",
-				"description": "Language idioms and patterns",
+				"stage":             "idioms",
+				"description":       "Language idioms and patterns",
 				"estimated_minutes": lesson.EstimatedMinutes / 3,
-				"tokens_to_cover": lesson.TokensCovered,
+				"tokens_to_cover":   lesson.TokensCovered,
 			},
 			{
-				"stage":       "advanced",
-				"description": "Advanced concepts and edge cases",
+				"stage":             "advanced",
+				"description":       "Advanced concepts and edge cases",
 				"estimated_minutes": lesson.EstimatedMinutes / 4,
-				"tokens_to_cover": lesson.TokensCovered,
+				"tokens_to_cover":   lesson.TokensCovered,
 			},
 			{
-				"stage":       "review",
-				"description": "Review and practice",
+				"stage":             "review",
+				"description":       "Review and practice",
 				"estimated_minutes": lesson.EstimatedMinutes / 5,
-				"tokens_to_cover": lesson.TokensCovered,
+				"tokens_to_cover":   lesson.TokensCovered,
 			},
 		}
 
@@ -1324,11 +1331,11 @@ func GetUserProgressionSummary(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		summary := gin.H{
-			"total_lessons":      totalLessons,
-			"completed_lessons":  completedLessons,
-			"overall_progress":   overallProgress,
-			"average_score":      averageScore,
-			"completion_rate":    float64(completedLessons) / float64(totalLessons) * 100,
+			"total_lessons":     totalLessons,
+			"completed_lessons": completedLessons,
+			"overall_progress":  overallProgress,
+			"average_score":     averageScore,
+			"completion_rate":   float64(completedLessons) / float64(totalLessons) * 100,
 		}
 
 		c.JSON(http.StatusOK, summary)
@@ -1349,16 +1356,16 @@ func contains(slice []string, item string) bool {
 
 // Global scoring service instance (would be injected via dependency injection)
 var scoringService *scoring.Service
-var leaderboardService *scoring.LeaderboardService
+var leaderboardService scoring.LeaderboardService
 var antiCheatService *scoring.AntiCheatService
 var tournamentService *scoring.TournamentService
 
 // InitializeScoringServices initializes the scoring services (called during app startup)
 func InitializeScoringServices(dsClient *datastore.Client) {
-	scoringService = scoring.NewService(dsClient)
-	leaderboardService = scoring.NewLeaderboardService(dsClient)
-	antiCheatService = scoring.NewAntiCheatService(dsClient)
-	tournamentService = scoring.NewTournamentService(dsClient, antiCheatService, leaderboardService)
+	scoringService = scoring.NewService(scoring.NewDatastoreClient(dsClient))
+	leaderboardService = scoring.NewLeaderboardService(scoring.NewDatastoreClient(dsClient))
+	antiCheatService = scoring.NewAntiCheatService(scoring.NewDatastoreClient(dsClient))
+	tournamentService = scoring.NewTournamentService(scoring.NewDatastoreClient(dsClient), *antiCheatService, leaderboardService)
 }
 
 // ProcessSessionMetrics processes and stores session metrics

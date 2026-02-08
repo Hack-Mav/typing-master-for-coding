@@ -7,49 +7,50 @@ import (
 	"sort"
 	"time"
 
+	"github.com/typing-master-for-coding-backend/internal/models"
+
 	"cloud.google.com/go/datastore"
-	"typing-master-backend/internal/models"
 )
 
 // TournamentService handles tournament creation, management, and results
 type TournamentService struct {
-	dsClient       *datastore.Client
-	antiCheatSvc   *AntiCheatService
-	leaderboardSvc *LeaderboardService
+	datastoreClient DatastoreClient
+	antiCheatSvc    AntiCheatService
+	leaderboardSvc  LeaderboardService
 }
 
 // NewTournamentService creates a new tournament service
-func NewTournamentService(dsClient *datastore.Client, antiCheatSvc *AntiCheatService, leaderboardSvc *LeaderboardService) *TournamentService {
+func NewTournamentService(datastoreClient DatastoreClient, antiCheatSvc AntiCheatService, leaderboardSvc LeaderboardService) *TournamentService {
 	return &TournamentService{
-		dsClient:       dsClient,
-		antiCheatSvc:   antiCheatSvc,
-		leaderboardSvc: leaderboardSvc,
+		datastoreClient: datastoreClient,
+		antiCheatSvc:    antiCheatSvc,
+		leaderboardSvc:  leaderboardSvc,
 	}
 }
 
 // CreateTournament creates a new tournament
 func (s *TournamentService) CreateTournament(ctx context.Context, req *CreateTournamentRequest) (*models.Tournament, error) {
 	tournament := &models.Tournament{
-		Title:               req.Title,
-		Description:         req.Description,
-		LanguageID:          req.LanguageID,
-		Mode:                req.Mode,
+		Title:                req.Title,
+		Description:          req.Description,
+		LanguageID:           req.LanguageID,
+		Mode:                 req.Mode,
 		VerificationRequired: req.VerificationRequired,
-		VerificationMethod:  req.VerificationMethod,
-		AntiCheatLevel:      req.AntiCheatLevel,
-		RegistrationStart:   req.RegistrationStart,
-		RegistrationEnd:     req.RegistrationEnd,
-		StartTime:           req.StartTime,
-		EndTime:             req.EndTime,
-		DurationMinutes:     req.DurationMinutes,
-		MaxParticipants:     req.MaxParticipants,
-		PrizePool:           req.PrizePool,
-		PrizeDistribution:   req.PrizeDistribution,
-		BadgeReward:         req.BadgeReward,
-		Status:              "upcoming",
-		CreatedBy:           req.CreatedBy,
-		CreatedAt:           time.Now(),
-		UpdatedAt:           time.Now(),
+		VerificationMethod:   req.VerificationMethod,
+		AntiCheatLevel:       req.AntiCheatLevel,
+		RegistrationStart:    req.RegistrationStart,
+		RegistrationEnd:      req.RegistrationEnd,
+		StartTime:            req.StartTime,
+		EndTime:              req.EndTime,
+		DurationMinutes:      req.DurationMinutes,
+		MaxParticipants:      req.MaxParticipants,
+		PrizePool:            req.PrizePool,
+		PrizeDistribution:    req.PrizeDistribution,
+		BadgeReward:          req.BadgeReward,
+		Status:               "upcoming",
+		CreatedBy:            req.CreatedBy,
+		CreatedAt:            time.Now(),
+		UpdatedAt:            time.Now(),
 	}
 
 	// Generate tournament ID
@@ -63,7 +64,7 @@ func (s *TournamentService) CreateTournament(ctx context.Context, req *CreateTou
 
 	// Store tournament
 	key := datastore.NameKey("Tournament", tournament.ID, nil)
-	_, err = s.dsClient.Put(ctx, key, tournament)
+	_, err = s.datastoreClient.Put(ctx, key, tournament)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store tournament: %w", err)
 	}
@@ -283,10 +284,10 @@ func (s *TournamentService) GetTournamentLeaderboard(ctx context.Context, tourna
 	for i, participant := range participants {
 		if participant.Status == "completed" && participant.Score > 0 {
 			entry := LeaderboardEntry{
-				UserID:    participant.UserID,
-				Username:  s.getUsername(participant.UserID), // TODO: Implement user lookup
-				Score:     participant.Score,
-				Rank:      i + 1,
+				UserID:     participant.UserID,
+				Username:   s.getUsername(participant.UserID), // TODO: Implement user lookup
+				Score:      participant.Score,
+				Rank:       i + 1,
 				IsVerified: participant.VerificationStatus == "verified",
 			}
 			entries = append(entries, entry)
@@ -309,7 +310,7 @@ func (s *TournamentService) GetUserTournaments(ctx context.Context, userID strin
 		FilterField("UserID", "=", userID)
 
 	var participants []*models.TournamentParticipant
-	_, err := s.dsClient.GetAll(ctx, query, &participants)
+	_, err := s.datastoreClient.GetAll(ctx, query, &participants)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user tournaments: %w", err)
 	}
@@ -434,7 +435,7 @@ func (s *TournamentService) updateTournamentLeaderboard(ctx context.Context, tou
 func (s *TournamentService) getTournament(ctx context.Context, tournamentID string) (*models.Tournament, error) {
 	key := datastore.NameKey("Tournament", tournamentID, nil)
 	var tournament models.Tournament
-	err := s.dsClient.Get(ctx, key, &tournament)
+	err := s.datastoreClient.Get(ctx, key, &tournament)
 	if err != nil {
 		return nil, err
 	}
@@ -443,7 +444,7 @@ func (s *TournamentService) getTournament(ctx context.Context, tournamentID stri
 
 func (s *TournamentService) updateTournament(ctx context.Context, tournament *models.Tournament) error {
 	key := datastore.NameKey("Tournament", tournament.ID, nil)
-	_, err := s.dsClient.Put(ctx, key, tournament)
+	_, err := s.datastoreClient.Put(ctx, key, tournament)
 	return err
 }
 
@@ -453,7 +454,7 @@ func (s *TournamentService) getParticipant(ctx context.Context, tournamentID, us
 		FilterField("UserID", "=", userID)
 
 	var participants []*models.TournamentParticipant
-	_, err := s.dsClient.GetAll(ctx, query, &participants)
+	_, err := s.datastoreClient.GetAll(ctx, query, &participants)
 	if err != nil {
 		return nil, err
 	}
@@ -468,14 +469,14 @@ func (s *TournamentService) getParticipant(ctx context.Context, tournamentID, us
 func (s *TournamentService) storeParticipant(ctx context.Context, participant *models.TournamentParticipant) error {
 	key := datastore.NameKey("TournamentParticipant",
 		fmt.Sprintf("%s_%s", participant.TournamentID, participant.UserID), nil)
-	_, err := s.dsClient.Put(ctx, key, participant)
+	_, err := s.datastoreClient.Put(ctx, key, participant)
 	return err
 }
 
 func (s *TournamentService) updateParticipant(ctx context.Context, participant *models.TournamentParticipant) error {
 	key := datastore.NameKey("TournamentParticipant",
 		fmt.Sprintf("%s_%s", participant.TournamentID, participant.UserID), nil)
-	_, err := s.dsClient.Put(ctx, key, participant)
+	_, err := s.datastoreClient.Put(ctx, key, participant)
 	return err
 }
 
@@ -484,7 +485,7 @@ func (s *TournamentService) getTournamentParticipants(ctx context.Context, tourn
 		FilterField("TournamentID", "=", tournamentID)
 
 	var participants []*models.TournamentParticipant
-	_, err := s.dsClient.GetAll(ctx, query, &participants)
+	_, err := s.datastoreClient.GetAll(ctx, query, &participants)
 	return participants, err
 }
 
@@ -496,21 +497,21 @@ func (s *TournamentService) getUsername(userID string) string {
 // Request/Response types
 
 type CreateTournamentRequest struct {
-	Title               string            `json:"title"`
-	Description         string            `json:"description"`
-	LanguageID          string            `json:"language_id"`
-	Mode                string            `json:"mode"`
-	VerificationRequired bool             `json:"verification_required"`
-	VerificationMethod  string            `json:"verification_method"`
-	AntiCheatLevel      string            `json:"anti_cheat_level"`
-	RegistrationStart   time.Time         `json:"registration_start"`
-	RegistrationEnd     time.Time         `json:"registration_end"`
-	StartTime           time.Time         `json:"start_time"`
-	EndTime             time.Time         `json:"end_time"`
-	DurationMinutes     int               `json:"duration_minutes"`
-	MaxParticipants     int               `json:"max_participants"`
-	PrizePool           float64           `json:"prize_pool"`
-	PrizeDistribution   map[string]float64 `json:"prize_distribution"`
-	BadgeReward         string            `json:"badge_reward"`
-	CreatedBy           string            `json:"created_by"`
+	Title                string             `json:"title"`
+	Description          string             `json:"description"`
+	LanguageID           string             `json:"language_id"`
+	Mode                 string             `json:"mode"`
+	VerificationRequired bool               `json:"verification_required"`
+	VerificationMethod   string             `json:"verification_method"`
+	AntiCheatLevel       string             `json:"anti_cheat_level"`
+	RegistrationStart    time.Time          `json:"registration_start"`
+	RegistrationEnd      time.Time          `json:"registration_end"`
+	StartTime            time.Time          `json:"start_time"`
+	EndTime              time.Time          `json:"end_time"`
+	DurationMinutes      int                `json:"duration_minutes"`
+	MaxParticipants      int                `json:"max_participants"`
+	PrizePool            float64            `json:"prize_pool"`
+	PrizeDistribution    map[string]float64 `json:"prize_distribution"`
+	BadgeReward          string             `json:"badge_reward"`
+	CreatedBy            string             `json:"created_by"`
 }

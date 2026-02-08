@@ -14,10 +14,11 @@ var (
 
 // TokenClaims represents the JWT claims structure
 type TokenClaims struct {
-	UserID         string `json:"user_id"`
-	Handle         string `json:"handle"`
-	Email          string `json:"email"`
-	IsAnonymous    bool   `json:"is_anonymous"`
+	UserID      string `json:"user_id"`
+	Handle      string `json:"handle"`
+	Email       string `json:"email"`
+	Role        string `json:"role"`
+	IsAnonymous bool   `json:"is_anonymous"`
 	jwt.RegisteredClaims
 }
 
@@ -30,15 +31,15 @@ type TokenPair struct {
 }
 
 // GenerateTokenPair creates both access and refresh tokens
-func GenerateTokenPair(userID, handle, email string, isAnonymous bool, jwtSecret string) (*TokenPair, error) {
+func GenerateTokenPair(userID, handle, email, role string, isAnonymous bool, jwtSecret string) (*TokenPair, error) {
 	// Access token expires in 15 minutes
-	accessToken, err := generateToken(userID, handle, email, isAnonymous, jwtSecret, 15*time.Minute)
+	accessToken, err := generateToken(userID, handle, email, role, isAnonymous, jwtSecret, 15*time.Minute)
 	if err != nil {
 		return nil, err
 	}
 
 	// Refresh token expires in 7 days
-	refreshToken, err := generateToken(userID, handle, email, isAnonymous, jwtSecret, 7*24*time.Hour)
+	refreshToken, err := generateToken(userID, handle, email, role, isAnonymous, jwtSecret, 7*24*time.Hour)
 	if err != nil {
 		return nil, err
 	}
@@ -52,12 +53,13 @@ func GenerateTokenPair(userID, handle, email string, isAnonymous bool, jwtSecret
 }
 
 // generateToken creates a JWT token with specified expiration
-func generateToken(userID, handle, email string, isAnonymous bool, jwtSecret string, expiration time.Duration) (string, error) {
+func generateToken(userID, handle, email, role string, isAnonymous bool, jwtSecret string, expiration time.Duration) (string, error) {
 	now := time.Now()
 	claims := TokenClaims{
 		UserID:      userID,
 		Handle:      handle,
 		Email:       email,
+		Role:        role,
 		IsAnonymous: isAnonymous,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(expiration)),
@@ -108,5 +110,5 @@ func RefreshAccessToken(refreshToken, jwtSecret string) (*TokenPair, error) {
 	}
 
 	// Generate new token pair
-	return GenerateTokenPair(claims.UserID, claims.Handle, claims.Email, claims.IsAnonymous, jwtSecret)
+	return GenerateTokenPair(claims.UserID, claims.Handle, claims.Email, claims.Role, claims.IsAnonymous, jwtSecret)
 }

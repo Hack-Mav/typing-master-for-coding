@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"time"
 
-	"typing-master-backend/internal/cache"
-	"typing-master-backend/internal/database"
-	"typing-master-backend/internal/models"
+	"github.com/typing-master-for-coding-backend/internal/cache"
+	"github.com/typing-master-for-coding-backend/internal/database"
+	"github.com/typing-master-for-coding-backend/internal/models"
 
-	"github.com/gin-gonic/gin"
 	"cloud.google.com/go/datastore"
+	"github.com/gin-gonic/gin"
 )
 
 // Assessment Blueprint handlers
@@ -22,7 +22,7 @@ func GetAssessmentBlueprints(db *database.DatastoreClient, cache *cache.InMemory
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		language := c.Query("language")
-		
+
 		cacheKey := fmt.Sprintf("assessment_blueprints_%s", language)
 		if cached, found := cache.Get(cacheKey); found {
 			c.JSON(http.StatusOK, cached)
@@ -61,7 +61,7 @@ func GetAssessmentBlueprint(db *database.DatastoreClient, cache *cache.InMemoryC
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		blueprintID := c.Param("id")
-		
+
 		cacheKey := fmt.Sprintf("assessment_blueprint_%s", blueprintID)
 		if cached, found := cache.Get(cacheKey); found {
 			c.JSON(http.StatusOK, cached)
@@ -70,7 +70,7 @@ func GetAssessmentBlueprint(db *database.DatastoreClient, cache *cache.InMemoryC
 
 		key := datastore.NameKey("AssessmentBlueprint", blueprintID, nil)
 		var blueprint models.AssessmentBlueprint
-		
+
 		err := db.Get(ctx, key, &blueprint)
 		if err != nil {
 			if err == datastore.ErrNoSuchEntity {
@@ -83,7 +83,7 @@ func GetAssessmentBlueprint(db *database.DatastoreClient, cache *cache.InMemoryC
 		}
 
 		blueprint.ID = blueprintID
-		
+
 		// Cache the result
 		cache.Set(cacheKey, blueprint)
 		c.JSON(http.StatusOK, blueprint)
@@ -93,7 +93,7 @@ func GetAssessmentBlueprint(db *database.DatastoreClient, cache *cache.InMemoryC
 func CreateAssessmentBlueprint(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
-		
+
 		var blueprint models.AssessmentBlueprint
 		if err := c.ShouldBindJSON(&blueprint); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -124,7 +124,7 @@ func CreateAssessmentBlueprint(db *database.DatastoreClient, cache *cache.InMemo
 
 		// Invalidate cache
 		cache.Delete(fmt.Sprintf("assessment_blueprints_%s", blueprint.Language))
-		
+
 		c.JSON(http.StatusCreated, blueprint)
 	}
 }
@@ -134,12 +134,12 @@ func CreateAssessmentBlueprint(db *database.DatastoreClient, cache *cache.InMemo
 func CreateAssessmentSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
-		
+
 		var request struct {
 			BlueprintID string `json:"blueprintId" binding:"required"`
 			UserID      string `json:"userId"`
 		}
-		
+
 		if err := c.ShouldBindJSON(&request); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 			return
@@ -161,13 +161,13 @@ func CreateAssessmentSession(db *database.DatastoreClient, cache *cache.InMemory
 
 		// Create assessment session
 		session := models.AssessmentSession{
-			ID:                   fmt.Sprintf("session-%d", time.Now().UnixNano()),
-			BlueprintID:          request.BlueprintID,
-			UserID:               request.UserID,
-			StartedAt:            time.Now(),
-			Status:               "not_started",
-			CurrentSnippetIndex:  0,
-			SnippetResults:       []models.AssessmentSnippetResult{},
+			ID:                  fmt.Sprintf("session-%d", time.Now().UnixNano()),
+			BlueprintID:         request.BlueprintID,
+			UserID:              request.UserID,
+			StartedAt:           time.Now(),
+			Status:              "not_started",
+			CurrentSnippetIndex: 0,
+			SnippetResults:      []models.AssessmentSnippetResult{},
 			Metadata: models.AssessmentMetadata{
 				Language:          blueprint.Language,
 				Difficulty:        blueprint.Difficulty,
@@ -192,10 +192,10 @@ func GetAssessmentSession(db *database.DatastoreClient, cache *cache.InMemoryCac
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		sessionID := c.Param("id")
-		
+
 		key := datastore.NameKey("AssessmentSession", sessionID, nil)
 		var session models.AssessmentSession
-		
+
 		err := db.Get(ctx, key, &session)
 		if err != nil {
 			if err == datastore.ErrNoSuchEntity {
@@ -216,7 +216,7 @@ func RecordSnippetResult(db *database.DatastoreClient, cache *cache.InMemoryCach
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		sessionID := c.Param("id")
-		
+
 		var result models.AssessmentSnippetResult
 		if err := c.ShouldBindJSON(&result); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -258,11 +258,11 @@ func FinalizeAssessment(db *database.DatastoreClient, cache *cache.InMemoryCache
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		sessionID := c.Param("id")
-		
+
 		var request struct {
 			TimeExpired bool `json:"timeExpired"`
 		}
-		
+
 		if err := c.ShouldBindJSON(&request); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 			return
@@ -325,7 +325,7 @@ func GetAssessmentSnippet(db *database.DatastoreClient, cache *cache.InMemoryCac
 		ctx := context.Background()
 		blueprintID := c.Param("id")
 		snippetID := c.Param("snippetId")
-		
+
 		cacheKey := fmt.Sprintf("assessment_snippet_%s_%s", blueprintID, snippetID)
 		if cached, found := cache.Get(cacheKey); found {
 			c.JSON(http.StatusOK, cached)
@@ -347,7 +347,7 @@ func GetAssessmentSnippet(db *database.DatastoreClient, cache *cache.InMemoryCac
 		}
 
 		snippet.ID = snippetID
-		
+
 		// Cache the result
 		cache.Set(cacheKey, snippet)
 		c.JSON(http.StatusOK, snippet)
@@ -359,7 +359,7 @@ func GetAssessmentSnippet(db *database.DatastoreClient, cache *cache.InMemoryCac
 func GetAssessmentAnalytics(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		language := c.Query("language")
-		
+
 		cacheKey := fmt.Sprintf("assessment_analytics_%s", language)
 		if cached, found := cache.Get(cacheKey); found {
 			c.JSON(http.StatusOK, cached)
@@ -393,15 +393,15 @@ func GetAssessmentAnalytics(db *database.DatastoreClient, cache *cache.InMemoryC
 			},
 			LanguagePerformance: map[string]models.LanguagePerformance{
 				"javascript": {
-					AverageScore: 745,
-					PassRate:     0.72,
-					CommonErrors: []string{"missing_semicolon", "bracket_mismatch"},
+					AverageScore:  745,
+					PassRate:      0.72,
+					CommonErrors:  []string{"missing_semicolon", "bracket_mismatch"},
 					StrengthAreas: []string{"function_syntax", "variable_declaration"},
 				},
 				"python": {
-					AverageScore: 720,
-					PassRate:     0.68,
-					CommonErrors: []string{"indentation_error", "colon_missing"},
+					AverageScore:  720,
+					PassRate:      0.68,
+					CommonErrors:  []string{"indentation_error", "colon_missing"},
 					StrengthAreas: []string{"list_comprehension", "function_definition"},
 				},
 			},
@@ -419,7 +419,7 @@ func GetUserBadges(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 	return func(c *gin.Context) {
 		ctx := context.Background()
 		userID := c.Query("userId")
-		
+
 		if userID == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "userId parameter is required"})
 			return
@@ -466,7 +466,7 @@ func GetUserBadges(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 func ScheduleAssessment(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
-		
+
 		var schedule models.AssessmentSchedule
 		if err := c.ShouldBindJSON(&schedule); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -485,7 +485,7 @@ func ScheduleAssessment(db *database.DatastoreClient, cache *cache.InMemoryCache
 
 		scheduleID := fmt.Sprintf("%s-%s-%d", schedule.UserID, schedule.AssessmentID, time.Now().Unix())
 		key := datastore.NameKey("AssessmentSchedule", scheduleID, nil)
-		
+
 		_, err := db.Put(ctx, key, &schedule)
 		if err != nil {
 			log.Printf("Error scheduling assessment: %v", err)
@@ -501,11 +501,11 @@ func ScheduleAssessment(db *database.DatastoreClient, cache *cache.InMemoryCache
 func calculateAssessmentResult(session models.AssessmentSession, blueprint models.AssessmentBlueprint, timeExpired bool) models.AssessmentResult {
 	// This is a simplified calculation - in a real implementation,
 	// this would use the advanced scoring algorithms from the StructuralAnalyzer
-	
+
 	totalScore := 0.0
 	totalSnippets := len(session.SnippetResults)
 	passedSnippets := 0
-	
+
 	for _, result := range session.SnippetResults {
 		if result.Passed {
 			passedSnippets++
@@ -513,16 +513,16 @@ func calculateAssessmentResult(session models.AssessmentSession, blueprint model
 		// Add metrics-based scoring here
 		totalScore += float64(result.Metrics.RawAccuracy * 100)
 	}
-	
+
 	if totalSnippets > 0 {
 		totalScore = totalScore / float64(totalSnippets)
 	}
-	
+
 	// Apply time penalty if expired
 	if timeExpired {
 		totalScore *= 0.8
 	}
-	
+
 	// Determine grade
 	grade := "F"
 	switch {
@@ -547,9 +547,9 @@ func calculateAssessmentResult(session models.AssessmentSession, blueprint model
 	case totalScore >= 50:
 		grade = "D"
 	}
-	
+
 	passed := totalScore >= float64(blueprint.PassingCriteria.MinimumAccuracy*100)
-	
+
 	return models.AssessmentResult{
 		OverallScore: int(totalScore),
 		Passed:       passed,
@@ -561,16 +561,28 @@ func calculateAssessmentResult(session models.AssessmentSession, blueprint model
 			SyntaxScore:        85,
 			ConsistencyScore:   70,
 			ErrorRecoveryScore: 75,
-			TotalPenalties:     func() float64 { if timeExpired { return 20 } else { return 10 } }(),
-			BonusPoints:        func() float64 { if passed { return 10 } else { return 0 } }(),
+			TotalPenalties: func() float64 {
+				if timeExpired {
+					return 20
+				} else {
+					return 10
+				}
+			}(),
+			BonusPoints: func() float64 {
+				if passed {
+					return 10
+				} else {
+					return 0
+				}
+			}(),
 		},
 		Recommendations: []string{
 			"Focus on improving typing consistency",
 			"Practice more complex syntax patterns",
 			"Work on error correction efficiency",
 		},
-		CertificateEligible:      totalScore >= 80,
-		RetakeAllowed:           !passed,
+		CertificateEligible: totalScore >= 80,
+		RetakeAllowed:       !passed,
 		NextAssessmentSuggestion: func() *string {
 			if totalScore >= 80 {
 				suggestion := "advanced-assessment"

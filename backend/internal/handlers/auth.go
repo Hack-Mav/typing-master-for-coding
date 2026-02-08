@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"typing-master-backend/internal/auth"
-	"typing-master-backend/internal/database"
-	"typing-master-backend/internal/models"
+	"github.com/typing-master-for-coding-backend/internal/auth"
+	"github.com/typing-master-for-coding-backend/internal/database"
+	"github.com/typing-master-for-coding-backend/internal/models"
+	"github.com/typing-master-for-coding-backend/internal/rbac"
 
 	"cloud.google.com/go/datastore"
 	"github.com/gin-gonic/gin"
@@ -63,20 +64,21 @@ func Register(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 		userID := uuid.New().String()
 		now := time.Now().UTC()
 		user := models.User{
-			ID:                  userID,
-			Handle:              req.Handle,
-			Email:               req.Email,
-			PasswordHash:        passwordHash,
-			IsAnonymous:         false,
-			Locale:              req.Locale,
-			KeyboardLayout:      req.KeyboardLayout,
-			PrivacyMode:         false,
-			TelemetryConsent:    req.TelemetryConsent,
+			ID:                    userID,
+			Handle:                req.Handle,
+			Email:                 req.Email,
+			Role:                  "user", // Default role for new users
+			PasswordHash:          passwordHash,
+			IsAnonymous:           false,
+			Locale:                req.Locale,
+			KeyboardLayout:        req.KeyboardLayout,
+			PrivacyMode:           false,
+			TelemetryConsent:      req.TelemetryConsent,
 			DataProcessingConsent: req.DataProcessingConsent,
-			Settings:            make(map[string]interface{}),
-			CreatedAt:           now,
-			UpdatedAt:           now,
-			LastLoginAt:         &now,
+			Settings:              make(map[string]interface{}),
+			CreatedAt:             now,
+			UpdatedAt:             now,
+			LastLoginAt:           &now,
 		}
 
 		// Save to Datastore
@@ -87,8 +89,19 @@ func Register(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
+		// Automatically assign the basic "user" role via RBAC system
+		rbacService := rbac.NewService(db)
+		_, err = rbacService.AssignRole(ctx, models.AssignRoleRequest{
+			UserID: userID,
+			RoleID: "user",
+		}, "system")
+		if err != nil {
+			// Log error but don't fail user creation
+			fmt.Printf("Failed to assign user role: %v\n", err)
+		}
+
 		// Generate JWT tokens
-		tokens, err := auth.GenerateTokenPair(userID, user.Handle, user.Email, false, jwtSecret)
+		tokens, err := auth.GenerateTokenPair(userID, user.Handle, user.Email, user.Role, false, jwtSecret)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 			return
@@ -147,7 +160,18 @@ func Login(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// Update last login time
+		// Check if MFA is enabled for this user
+		if user.MFAEnabled {
+			// MFA is required - don't complete login yet
+			c.JSON(http.StatusOK, gin.H{
+				"requires_mfa": true,
+				"user_id":      user.ID,
+				"message":      "MFA verification required",
+			})
+			return
+		}
+
+		// MFA not enabled - complete login normally
 		now := time.Now().UTC()
 		user.LastLoginAt = &now
 		user.UpdatedAt = now
@@ -160,15 +184,16 @@ func Login(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 		}
 
 		// Generate JWT tokens
-		tokens, err := auth.GenerateTokenPair(user.ID, user.Handle, user.Email, false, jwtSecret)
+		tokens, err := auth.GenerateTokenPair(user.ID, user.Handle, user.Email, user.Role, false, jwtSecret)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 			return
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"user":   toUserResponse(&user),
-			"tokens": tokens,
+			"requires_mfa": false,
+			"user":         toUserResponse(&user),
+			"tokens":       tokens,
 		})
 	}
 }
@@ -208,7 +233,7 @@ func CreateAnonymousSession(jwtSecret string) gin.HandlerFunc {
 		anonymousID := fmt.Sprintf("anon_%s", req.DeviceID)
 
 		// Generate JWT tokens for anonymous user
-		tokens, err := auth.GenerateTokenPair(anonymousID, "Anonymous", "", true, jwtSecret)
+		tokens, err := auth.GenerateTokenPair(anonymousID, "Anonymous", "", "user", true, jwtSecret)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 			return
@@ -331,18 +356,278 @@ func UpdateProfile(db *database.DatastoreClient) gin.HandlerFunc {
 
 // Helper function to convert User to UserResponse
 func toUserResponse(user *models.User) models.UserResponse {
+	var mfaSetupAt string
+	if user.MFASetupAt != nil {
+		mfaSetupAt = user.MFASetupAt.Format(time.RFC3339)
+	}
+
 	return models.UserResponse{
-		ID:                  user.ID,
-		Handle:              user.Handle,
-		Email:               user.Email,
-		IsAnonymous:         user.IsAnonymous,
-		Locale:              user.Locale,
-		KeyboardLayout:      user.KeyboardLayout,
-		PrivacyMode:         user.PrivacyMode,
-		TelemetryConsent:    user.TelemetryConsent,
+		ID:                    user.ID,
+		Handle:                user.Handle,
+		Email:                 user.Email,
+		IsAnonymous:           user.IsAnonymous,
+		Locale:                user.Locale,
+		KeyboardLayout:        user.KeyboardLayout,
+		PrivacyMode:           user.PrivacyMode,
+		TelemetryConsent:      user.TelemetryConsent,
 		DataProcessingConsent: user.DataProcessingConsent,
-		Settings:            user.Settings,
-		CreatedAt:           user.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:           user.UpdatedAt.Format(time.RFC3339),
+		Settings:              user.Settings,
+		CreatedAt:             user.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:             user.UpdatedAt.Format(time.RFC3339),
+
+		// MFA fields
+		MFAEnabled: user.MFAEnabled,
+		MFASetupAt: mfaSetupAt,
+	}
+}
+
+// MFA Handler Functions
+
+// SetupMFA handles MFA setup initiation
+func SetupMFA(db *database.DatastoreClient) gin.HandlerFunc {
+	mfaService := NewMFAService(db)
+
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Anonymous users cannot set up MFA
+		if strings.HasPrefix(userID.(string), "anon_") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Anonymous users cannot set up MFA"})
+			return
+		}
+
+		var req models.MFASetupRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		setupResponse, err := mfaService.SetupMFA(userID.(string))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, setupResponse)
+	}
+}
+
+// VerifyMFASetup handles MFA setup verification
+func VerifyMFASetup(db *database.DatastoreClient) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Anonymous users cannot verify MFA
+		if strings.HasPrefix(userID.(string), "anon_") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Anonymous users cannot set up MFA"})
+			return
+		}
+
+		var req models.MFAVerifyRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		mfaService := NewMFAService(db)
+		err := mfaService.VerifyMFASetup(userID.(string), req.Code)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, models.MFAVerifyResponse{
+			Success: true,
+			Message: "MFA setup verified successfully",
+		})
+	}
+}
+
+// GetMFAStatus returns the current MFA status for the authenticated user
+func GetMFAStatus(db *database.DatastoreClient) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Anonymous users don't have MFA
+		if strings.HasPrefix(userID.(string), "anon_") {
+			c.JSON(http.StatusOK, models.MFAStatusResponse{
+				Enabled:        false,
+				HasBackupCodes: false,
+			})
+			return
+		}
+
+		mfaService := NewMFAService(db)
+		status, err := mfaService.GetMFAStatus(userID.(string))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, status)
+	}
+}
+
+// DisableMFA handles MFA disable request
+func DisableMFA(db *database.DatastoreClient) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Anonymous users don't have MFA to disable
+		if strings.HasPrefix(userID.(string), "anon_") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Anonymous users cannot disable MFA"})
+			return
+		}
+
+		var req models.MFADisableRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		mfaService := NewMFAService(db)
+		err := mfaService.DisableMFA(userID.(string), req.Password, req.Code)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "MFA disabled successfully"})
+	}
+}
+
+// RegenerateMFABackupCodes generates new backup codes for the user
+func RegenerateMFABackupCodes(db *database.DatastoreClient) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+			return
+		}
+
+		// Anonymous users cannot regenerate backup codes
+		if strings.HasPrefix(userID.(string), "anon_") {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Anonymous users cannot regenerate backup codes"})
+			return
+		}
+
+		var req models.MFAVerifyRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		mfaService := NewMFAService(db)
+		backupCodes, err := mfaService.RegenerateBackupCodes(userID.(string), req.Code)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"backup_codes": backupCodes,
+			"message":      "Backup codes regenerated successfully",
+		})
+	}
+}
+
+// LoginWithMFA completes login with MFA verification
+func LoginWithMFA(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req models.LoginWithMFARequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		ctx := context.Background()
+
+		// Find user by email
+		query := datastore.NewQuery("User").Filter("email =", req.Email).Limit(1)
+		var users []models.User
+		keys, err := db.GetAll(ctx, query, &users)
+		if err != nil || len(users) == 0 {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			return
+		}
+
+		user := users[0]
+		userKey := keys[0]
+		user.ID = userKey.Name
+
+		// Verify password again for security
+		if !auth.CheckPassword(req.Password, user.PasswordHash) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			return
+		}
+
+		// Check if MFA is enabled
+		if !user.MFAEnabled {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "MFA is not enabled for this user"})
+			return
+		}
+
+		// Validate TOTP code or backup code
+		mfaService := NewMFAService(db)
+		valid, err := mfaService.ValidateMFACode(user.ID, req.Code)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if !valid {
+			// Try backup codes if TOTP failed
+			valid, err = mfaService.ValidateBackupCode(user.ID, req.Code)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			if !valid {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid MFA code"})
+				return
+			}
+		}
+
+		// MFA verification successful - complete login
+		now := time.Now().UTC()
+		user.LastLoginAt = &now
+		user.UpdatedAt = now
+
+		key := datastore.NameKey("User", user.ID, nil)
+		_, err = db.Put(ctx, key, &user)
+		if err != nil {
+			// Log error but don't fail login
+			fmt.Printf("Failed to update last login time: %v\n", err)
+		}
+
+		// Generate JWT tokens
+		tokens, err := auth.GenerateTokenPair(user.ID, user.Handle, user.Email, user.Role, false, jwtSecret)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"requires_mfa": false,
+			"user":         toUserResponse(&user),
+			"tokens":       tokens,
+		})
 	}
 }

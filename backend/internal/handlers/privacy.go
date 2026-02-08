@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"typing-master-backend/internal/database"
-	"typing-master-backend/internal/models"
+	"github.com/typing-master-for-coding-backend/internal/database"
+	"github.com/typing-master-for-coding-backend/internal/models"
 
 	"cloud.google.com/go/datastore"
 	"github.com/gin-gonic/gin"
@@ -61,8 +61,8 @@ func UpdatePrivacySettings(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"privacy_mode":          user.PrivacyMode,
-			"telemetry_consent":     user.TelemetryConsent,
+			"privacy_mode":            user.PrivacyMode,
+			"telemetry_consent":       user.TelemetryConsent,
 			"data_processing_consent": user.DataProcessingConsent,
 		})
 	}
@@ -147,9 +147,9 @@ func ExportUserData(db *database.DatastoreClient) gin.HandlerFunc {
 			exportDataAsCSV(c, userData)
 		} else {
 			c.JSON(http.StatusOK, gin.H{
-				"user_id":    userID,
+				"user_id":     userID,
 				"exported_at": time.Now().UTC().Format(time.RFC3339),
-				"data":       userData,
+				"data":        userData,
 			})
 		}
 	}
@@ -256,8 +256,8 @@ func GetConsentStatus(db *database.DatastoreClient) gin.HandlerFunc {
 		// Anonymous users have no consent settings
 		if strings.HasPrefix(userID.(string), "anon_") {
 			c.JSON(http.StatusOK, gin.H{
-				"is_anonymous":          true,
-				"telemetry_consent":     false,
+				"is_anonymous":            true,
+				"telemetry_consent":       false,
 				"data_processing_consent": false,
 			})
 			return
@@ -274,9 +274,9 @@ func GetConsentStatus(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"is_anonymous":          user.IsAnonymous,
-			"privacy_mode":          user.PrivacyMode,
-			"telemetry_consent":     user.TelemetryConsent,
+			"is_anonymous":            user.IsAnonymous,
+			"privacy_mode":            user.PrivacyMode,
+			"telemetry_consent":       user.TelemetryConsent,
 			"data_processing_consent": user.DataProcessingConsent,
 		})
 	}

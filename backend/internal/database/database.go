@@ -7,7 +7,6 @@ import (
 
 	"cloud.google.com/go/datastore"
 	"google.golang.org/api/option"
-	"typing-master-backend/internal/models"
 )
 
 type DatastoreClient struct {
@@ -19,7 +18,7 @@ type DatastoreClient struct {
 
 func Initialize(projectID string) (*DatastoreClient, error) {
 	ctx := context.Background()
-	
+
 	// Check if we're in development mode without credentials
 	environment := os.Getenv("ENVIRONMENT")
 	if environment == "development" {
@@ -36,7 +35,7 @@ func Initialize(projectID string) (*DatastoreClient, error) {
 				Mock:      nil,
 			}, nil
 		}
-		
+
 		// If no emulator and no credentials, return a mock client for development
 		return &DatastoreClient{
 			Client:    nil,
@@ -45,17 +44,17 @@ func Initialize(projectID string) (*DatastoreClient, error) {
 			Mock:      NewMockDatastore(),
 		}, nil
 	}
-	
+
 	// Production mode - use real credentials
 	var client *datastore.Client
 	var err error
-	
+
 	if credentialsFile := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); credentialsFile != "" {
 		client, err = datastore.NewClient(ctx, projectID, option.WithCredentialsFile(credentialsFile))
 	} else {
 		client, err = datastore.NewClient(ctx, projectID)
 	}
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to create datastore client: %v", err)
 	}
@@ -151,23 +150,10 @@ func (dc *DatastoreClient) Clear() {
 	}
 }
 
-// PutLessonProgress stores lesson progress data (for testing)
-func (dc *DatastoreClient) PutLessonProgress(id string, progress *models.LessonProgress) {
+// PutEntity stores any entity data (for testing)
+func (dc *DatastoreClient) PutEntity(id string, entity interface{}) {
 	if dc.IsMock && dc.Mock != nil {
-		dc.Mock.PutLessonProgress(id, progress)
-	}
-}
-
-// PutLesson stores lesson data (for testing)
-func (dc *DatastoreClient) PutLesson(id string, lesson *models.Lesson) {
-	if dc.IsMock && dc.Mock != nil {
-		dc.Mock.PutLesson(id, lesson)
-	}
-}
-
-// PutPlaylist stores playlist data (for testing)
-func (dc *DatastoreClient) PutPlaylist(id string, playlist *models.Playlist) {
-	if dc.IsMock && dc.Mock != nil {
-		dc.Mock.PutPlaylist(id, playlist)
+		key := dc.NameKey("Entity", id, nil)
+		dc.Mock.Put(context.Background(), key, entity)
 	}
 }

@@ -4,11 +4,13 @@ import (
 	"log"
 	"os"
 
-	"typing-master-backend/internal/api"
-	"typing-master-backend/internal/cache"
-	"typing-master-backend/internal/config"
-	"typing-master-backend/internal/database"
-	"typing-master-backend/internal/handlers"
+	"github.com/typing-master-for-coding-backend/internal/api"
+	"github.com/typing-master-for-coding-backend/internal/cache"
+	"github.com/typing-master-for-coding-backend/internal/config"
+	"github.com/typing-master-for-coding-backend/internal/database"
+	"github.com/typing-master-for-coding-backend/internal/errors"
+	"github.com/typing-master-for-coding-backend/internal/handlers"
+	"github.com/typing-master-for-coding-backend/internal/logging"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -56,8 +58,12 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	// Initialize logger and error handler
+	logger := logging.NewLogger(db, logging.DefaultLoggerConfig())
+	errorHandler := errors.NewErrorHandler(logger, errors.DefaultErrorHandlerConfig())
+
 	// Initialize router
-	router := api.SetupRouter(db, cacheClient, cfg)
+	router := api.SetupRouter(db, cacheClient, cfg, logger, errorHandler)
 
 	// Start server
 	port := os.Getenv("PORT")
@@ -68,7 +74,7 @@ func main() {
 	log.Printf("Server starting on port %s", port)
 	log.Printf("Project ID: %s", cfg.ProjectID)
 	log.Printf("Environment: %s", cfg.Environment)
-	
+
 	if err := router.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}

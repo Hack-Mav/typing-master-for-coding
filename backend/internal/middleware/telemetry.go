@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/typing-master-for-coding-backend/internal/telemetry"
+
 	"github.com/gin-gonic/gin"
-	"typing-master-backend/internal/telemetry"
 )
 
 // TelemetryMiddleware adds OpenTelemetry tracing and metrics to requests

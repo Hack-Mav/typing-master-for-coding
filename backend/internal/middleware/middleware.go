@@ -13,7 +13,7 @@ import (
 func CORS(allowedOrigins []string) gin.HandlerFunc {
 	return gin.HandlerFunc(func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
-		
+
 		// Check if origin is allowed
 		allowed := false
 		for _, allowedOrigin := range allowedOrigins {
@@ -22,11 +22,11 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 				break
 			}
 		}
-		
+
 		if allowed {
 			c.Header("Access-Control-Allow-Origin", origin)
 		}
-		
+
 		c.Header("Access-Control-Allow-Credentials", "true")
 		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
@@ -97,6 +97,9 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			}
 			if handle, exists := claims["handle"]; exists {
 				c.Set("user_handle", handle)
+			}
+			if role, exists := claims["role"]; exists {
+				c.Set("role", role)
 			}
 		}
 

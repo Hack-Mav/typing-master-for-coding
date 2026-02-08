@@ -12,82 +12,82 @@ import (
 
 // AntiCheatReport represents the results of anti-cheat analysis
 type AntiCheatReport struct {
-	SessionID           string                 `json:"session_id"`
-	UserID              string                 `json:"user_id"`
+	SessionID string `json:"session_id"`
+	UserID    string `json:"user_id"`
 
 	// Detection results
-	PasteDetected       bool                   `json:"paste_detected"`
-	UnrealisticKPS      bool                   `json:"unrealistic_kps"`
-	AutoTypePattern     bool                   `json:"auto_type_pattern"`
-	WindowFocusLost     bool                   `json:"window_focus_lost"`
-	AnomalousTiming     bool                   `json:"anomalous_timing"`
+	PasteDetected   bool `json:"paste_detected"`
+	UnrealisticKPS  bool `json:"unrealistic_kps"`
+	AutoTypePattern bool `json:"auto_type_pattern"`
+	WindowFocusLost bool `json:"window_focus_lost"`
+	AnomalousTiming bool `json:"anomalous_timing"`
 
 	// Analysis data
-	KPSVariance         float64                `json:"kps_variance"`
-	BurstConsistency    float64                `json:"burst_consistency"`
-	ErrorPatternScore   float64                `json:"error_pattern_score"`
-	StatisticalAnomaly  float64                `json:"statistical_anomaly"`
+	KPSVariance        float64 `json:"kps_variance"`
+	BurstConsistency   float64 `json:"burst_consistency"`
+	ErrorPatternScore  float64 `json:"error_pattern_score"`
+	StatisticalAnomaly float64 `json:"statistical_anomaly"`
 
 	// Evidence
-	SuspiciousEvents    []string               `json:"suspicious_events"`
-	EvidenceDetails     map[string]interface{} `json:"evidence_details"`
-	ConfidenceScore     float64                `json:"confidence_score"`
-	RiskLevel           string                 `json:"risk_level"` // "low", "medium", "high", "critical"
-	SuspiciousActivity  bool                   `json:"suspicious_activity"`
-	CheatFlags          []string               `json:"cheat_flags"`
+	SuspiciousEvents   []string               `json:"suspicious_events"`
+	EvidenceDetails    map[string]interface{} `json:"evidence_details"`
+	ConfidenceScore    float64                `json:"confidence_score"`
+	RiskLevel          string                 `json:"risk_level"` // "low", "medium", "high", "critical"
+	SuspiciousActivity bool                   `json:"suspicious_activity"`
+	CheatFlags         []string               `json:"cheat_flags"`
 
 	// Actions taken
-	FlaggedForReview    bool                   `json:"flagged_for_review"`
-	ScoreInvalidated    bool                   `json:"score_invalidated"`
-	LeaderboardExcluded bool                   `json:"leaderboard_excluded"`
+	FlaggedForReview    bool `json:"flagged_for_review"`
+	ScoreInvalidated    bool `json:"score_invalidated"`
+	LeaderboardExcluded bool `json:"leaderboard_excluded"`
 
 	// Timestamps
-	DetectedAt          time.Time              `json:"detected_at"`
-	ReviewedAt          *time.Time             `json:"reviewed_at"`
-	ReviewedBy          string                 `json:"reviewed_by"`
+	DetectedAt time.Time  `json:"detected_at"`
+	ReviewedAt *time.Time `json:"reviewed_at"`
+	ReviewedBy string     `json:"reviewed_by"`
 }
 
 // AntiCheatConfig holds configuration for anti-cheat detection
 type AntiCheatConfig struct {
-	Enabled           bool               `json:"enabled"`
-	StrictMode        bool               `json:"strict_mode"`
-	VerificationRequired bool             `json:"verification_required"`
-	VerificationMethods []string         `json:"verification_methods"`
-	Thresholds        *DetectionThresholds `json:"thresholds"`
+	Enabled              bool                 `json:"enabled"`
+	StrictMode           bool                 `json:"strict_mode"`
+	VerificationRequired bool                 `json:"verification_required"`
+	VerificationMethods  []string             `json:"verification_methods"`
+	Thresholds           *DetectionThresholds `json:"thresholds"`
 }
 
 // DetectionThresholds holds threshold values for various cheat detection methods
 type DetectionThresholds struct {
-	MaxKPS                float64 `json:"max_kps"`
-	MinBurstConsistency   float64 `json:"min_burst_consistency"`
-	MaxErrorRate          float64 `json:"max_error_rate"`
-	MinIdleTimePercent    float64 `json:"min_idle_time_percent"`
-	MaxPasteEventRate     float64 `json:"max_paste_event_rate"`
-	MinConfidenceScore    float64 `json:"min_confidence_score"`
-	MaxAnomalousEvents    int     `json:"max_anomalous_events"`
-	StatisticalThreshold  float64 `json:"statistical_threshold"`
+	MaxKPS               float64 `json:"max_kps"`
+	MinBurstConsistency  float64 `json:"min_burst_consistency"`
+	MaxErrorRate         float64 `json:"max_error_rate"`
+	MinIdleTimePercent   float64 `json:"min_idle_time_percent"`
+	MaxPasteEventRate    float64 `json:"max_paste_event_rate"`
+	MinConfidenceScore   float64 `json:"min_confidence_score"`
+	MaxAnomalousEvents   int     `json:"max_anomalous_events"`
+	StatisticalThreshold float64 `json:"statistical_threshold"`
 }
 
 // AntiCheatService handles anti-cheat detection and analysis
 type AntiCheatService struct {
-	dsClient    *datastore.Client
-	config      *AntiCheatConfig
-	thresholds  *DetectionThresholds
+	dsClient   DatastoreClient
+	config     *AntiCheatConfig
+	thresholds *DetectionThresholds
 }
 
 // NewAntiCheatService creates a new anti-cheat service
-func NewAntiCheatService(dsClient *datastore.Client) *AntiCheatService {
+func NewAntiCheatService(dsClient DatastoreClient) *AntiCheatService {
 	service := &AntiCheatService{
 		dsClient: dsClient,
 		config:   getDefaultAntiCheatConfig(),
 		thresholds: &DetectionThresholds{
-			MaxKPS:              12.0,
-			MinBurstConsistency: 0.7,
-			MaxErrorRate:        0.15,
-			MinIdleTimePercent:  0.05,
-			MaxPasteEventRate:   0.02,
-			MinConfidenceScore:  0.6,
-			MaxAnomalousEvents:  3,
+			MaxKPS:               12.0,
+			MinBurstConsistency:  0.7,
+			MaxErrorRate:         0.15,
+			MinIdleTimePercent:   0.05,
+			MaxPasteEventRate:    0.02,
+			MinConfidenceScore:   0.6,
+			MaxAnomalousEvents:   3,
 			StatisticalThreshold: 2.5,
 		},
 	}
@@ -105,7 +105,7 @@ func (s *AntiCheatService) AnalyzeSession(ctx context.Context, sessionID string)
 
 	if len(events) == 0 {
 		return &AntiCheatReport{
-			SessionID:      sessionID,
+			SessionID:       sessionID,
 			ConfidenceScore: 1.0,
 		}, nil
 	}
@@ -442,8 +442,8 @@ func (s *AntiCheatService) calculateStatisticalScore(events []*ScoringEvent) flo
 	accuracy := s.calculateAccuracy(events)
 
 	// Z-score like calculation against expected values
-	kpsDeviation := math.Abs(kps - 6.0) / 2.0  // Expected KPS around 6
-	accuracyDeviation := math.Abs(accuracy - 0.95) / 0.1 // Expected accuracy around 95%
+	kpsDeviation := math.Abs(kps-6.0) / 2.0            // Expected KPS around 6
+	accuracyDeviation := math.Abs(accuracy-0.95) / 0.1 // Expected accuracy around 95%
 
 	deviations += kpsDeviation + accuracyDeviation
 
@@ -656,13 +656,13 @@ func getDefaultAntiCheatConfig() *AntiCheatConfig {
 		VerificationRequired: false,
 		VerificationMethods:  []string{"webcam", "hid"},
 		Thresholds: &DetectionThresholds{
-			MaxKPS:              12.0,
-			MinBurstConsistency: 0.7,
-			MaxErrorRate:        0.15,
-			MinIdleTimePercent:  0.05,
-			MaxPasteEventRate:   0.02,
-			MinConfidenceScore:  0.6,
-			MaxAnomalousEvents:  3,
+			MaxKPS:               12.0,
+			MinBurstConsistency:  0.7,
+			MaxErrorRate:         0.15,
+			MinIdleTimePercent:   0.05,
+			MaxPasteEventRate:    0.02,
+			MinConfidenceScore:   0.6,
+			MaxAnomalousEvents:   3,
 			StatisticalThreshold: 2.5,
 		},
 	}

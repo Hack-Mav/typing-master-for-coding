@@ -21,7 +21,7 @@ steps:
       - 'go'
       - 'build'
       - '-o'
-      - 'typing-master-backend'
+      - 'typing-master-for-coding/backend'
       - '-ldflags'
       - '-s -w -X main.Version=${SHORT_SHA} -X main.BuildTime=${BUILD_ID}'
       - './main.go'
@@ -59,7 +59,7 @@ artifacts:
     location: 'gs://typing-master-prod-artifacts/${BUILD_ID}'
     paths:
       - 'coverage.out'
-      - 'typing-master-backend'
+      - 'typing-master-for-coding/backend'
 
 # Substitutions
 substitutions:

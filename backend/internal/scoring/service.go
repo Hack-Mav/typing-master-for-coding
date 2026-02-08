@@ -13,7 +13,7 @@ import (
 
 // Service handles scoring computation and metrics processing
 type Service struct {
-	dsClient    *datastore.Client
+	dsClient    DatastoreClient
 	cache       *sync.Map
 	config      *ScoringConfig
 	eventQueue  chan *ScoringEvent
@@ -36,32 +36,32 @@ type ScoringEvent struct {
 
 // SessionMetrics represents computed metrics for a session
 type SessionMetrics struct {
-	SessionID           string                 `json:"session_id"`
-	UserID              string                 `json:"user_id"`
-	LanguageID          string                 `json:"language_id"`
-	Mode                string                 `json:"mode"`
-	DurationMs          int64                  `json:"duration_ms"`
+	SessionID  string `json:"session_id"`
+	UserID     string `json:"user_id"`
+	LanguageID string `json:"language_id"`
+	Mode       string `json:"mode"`
+	DurationMs int64  `json:"duration_ms"`
 
 	// Speed metrics
-	CPM                 float64                `json:"cpm"`
-	TWPM                float64                `json:"twpm"`
-	KPS                 float64                `json:"kps"`
+	CPM  float64 `json:"cpm"`
+	TWPM float64 `json:"twpm"`
+	KPS  float64 `json:"kps"`
 
 	// Accuracy metrics
-	RawAccuracy         float64                `json:"raw_accuracy"`
-	TokenAccuracy       float64                `json:"token_accuracy"`
-	SyntaxAccuracy      float64                `json:"syntax_accuracy"`
-	WhitespaceAccuracy  float64                `json:"whitespace_accuracy"`
+	RawAccuracy        float64 `json:"raw_accuracy"`
+	TokenAccuracy      float64 `json:"token_accuracy"`
+	SyntaxAccuracy     float64 `json:"syntax_accuracy"`
+	WhitespaceAccuracy float64 `json:"whitespace_accuracy"`
 
 	// Efficiency metrics
-	BackspaceRate       float64                `json:"backspace_rate"`
-	CorrectionRate      float64                `json:"correction_rate"`
-	IdleTimePercent     float64                `json:"idle_time_percent"`
+	BackspaceRate   float64 `json:"backspace_rate"`
+	CorrectionRate  float64 `json:"correction_rate"`
+	IdleTimePercent float64 `json:"idle_time_percent"`
 
 	// Composite scores
-	CompositeScore      int                    `json:"composite_score"`
-	ConsistencyScore    float64                `json:"consistency_score"`
-	EfficiencyScore     float64                `json:"efficiency_score"`
+	CompositeScore   int     `json:"composite_score"`
+	ConsistencyScore float64 `json:"consistency_score"`
+	EfficiencyScore  float64 `json:"efficiency_score"`
 
 	// Detailed analysis
 	ErrorClusters       map[string]interface{} `json:"error_clusters"`
@@ -69,32 +69,47 @@ type SessionMetrics struct {
 	TypingPatterns      map[string]interface{} `json:"typing_patterns"`
 
 	// Anti-cheat analysis
-	SuspiciousActivity  bool                   `json:"suspicious_activity"`
-	CheatFlags          []string               `json:"cheat_flags"`
-	ConfidenceScore     float64                `json:"confidence_score"`
+	SuspiciousActivity bool     `json:"suspicious_activity"`
+	CheatFlags         []string `json:"cheat_flags"`
+	ConfidenceScore    float64  `json:"confidence_score"`
 
-	CalculatedAt        time.Time              `json:"calculated_at"`
+	CalculatedAt time.Time `json:"calculated_at"`
 }
 
 // ScoringConfig holds configurable scoring parameters
 type ScoringConfig struct {
-	Version             string             `json:"version"`
-	TWPMWeight          float64            `json:"twpm_weight"`
-	RawAccuracyWeight   float64            `json:"raw_accuracy_weight"`
-	SyntaxAccuracyWeight float64           `json:"syntax_accuracy_weight"`
-	BackspacePenalty    float64            `json:"backspace_penalty"`
-	IdleTimePenalty     float64            `json:"idle_time_penalty"`
-	ConsistencyBonus    float64            `json:"consistency_bonus"`
-	MaxKPS              float64            `json:"max_kps"`
-	MinBurstConsistency float64            `json:"min_burst_consistency"`
-	MaxErrorRate        float64            `json:"max_error_rate"`
-	MinConfidenceScore  float64            `json:"min_confidence_score"`
-	LanguageMultipliers map[string]float64 `json:"language_multipliers"`
-	ModeMultipliers     map[string]float64 `json:"mode_multipliers"`
+	Version              string             `json:"version"`
+	TWPMWeight           float64            `json:"twpm_weight"`
+	RawAccuracyWeight    float64            `json:"raw_accuracy_weight"`
+	SyntaxAccuracyWeight float64            `json:"syntax_accuracy_weight"`
+	BackspacePenalty     float64            `json:"backspace_penalty"`
+	IdleTimePenalty      float64            `json:"idle_time_penalty"`
+	ConsistencyBonus     float64            `json:"consistency_bonus"`
+	MaxKPS               float64            `json:"max_kps"`
+	MinBurstConsistency  float64            `json:"min_burst_consistency"`
+	MaxErrorRate         float64            `json:"max_error_rate"`
+	MinConfidenceScore   float64            `json:"min_confidence_score"`
+	LanguageMultipliers  map[string]float64 `json:"language_multipliers"`
+	ModeMultipliers      map[string]float64 `json:"mode_multipliers"`
 }
 
-// NewService creates a new scoring service instance
-func NewService(dsClient *datastore.Client) *Service {
+// DatastoreClient defines the interface for the Datastore client operations used in this package.
+type DatastoreClient interface {
+	Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error)
+	Get(ctx context.Context, key *datastore.Key, dst interface{}) error
+	Run(ctx context.Context, q *datastore.Query) Iterator
+	GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error)
+}
+
+// Iterator defines the interface for iterating over Datastore query results.
+type Iterator interface {
+	Next(dst interface{}) (*datastore.Key, error)
+}
+
+// Service provides scoring and anti-cheat functionalities.
+
+// NewService creates a new scoring service.
+func NewService(dsClient DatastoreClient) *Service {
 	service := &Service{
 		dsClient:    dsClient,
 		cache:       &sync.Map{},
@@ -241,14 +256,19 @@ func (s *Service) processEventBatch(ctx context.Context, events []*ScoringEvent)
 		sessionEvents[event.SessionID] = append(sessionEvents[event.SessionID], event)
 	}
 
-	// Process each session
+	// Process each session asynchronously
 	for sessionID, sessionEventList := range sessionEvents {
 		// Check if session is complete
 		if s.isSessionComplete(sessionEventList) {
-			_, err := s.ProcessSession(ctx, sessionID)
-			if err != nil {
-				log.Printf("Failed to process session %s: %v", sessionID, err)
-			}
+			go func(sessionID string) {
+				// Use a background context to ensure the goroutine can complete
+				// even if the original request context is cancelled.
+				processingCtx := context.WithoutCancel(ctx)
+				_, err := s.ProcessSession(processingCtx, sessionID)
+				if err != nil {
+					log.Printf("Failed to process session %s: %v", sessionID, err)
+				}
+			}(sessionID)
 		}
 	}
 }
@@ -307,38 +327,38 @@ func (s *Service) computeMetrics(events []*ScoringEvent) *SessionMetrics {
 	compositeScore = int(float64(compositeScore) * langMultiplier * modeMultiplier)
 
 	return &SessionMetrics{
-		SessionID:           sessionID,
-		UserID:              userID,
-		LanguageID:          languageID,
-		Mode:                mode,
-		DurationMs:          duration,
+		SessionID:  sessionID,
+		UserID:     userID,
+		LanguageID: languageID,
+		Mode:       mode,
+		DurationMs: duration,
 
-		CPM:                 cpm,
-		TWPM:                twpm,
-		KPS:                 kps,
+		CPM:  cpm,
+		TWPM: twpm,
+		KPS:  kps,
 
-		RawAccuracy:         rawAccuracy,
-		TokenAccuracy:       tokenAccuracy,
-		SyntaxAccuracy:      syntaxAccuracy,
-		WhitespaceAccuracy:  whitespaceAccuracy,
+		RawAccuracy:        rawAccuracy,
+		TokenAccuracy:      tokenAccuracy,
+		SyntaxAccuracy:     syntaxAccuracy,
+		WhitespaceAccuracy: whitespaceAccuracy,
 
-		BackspaceRate:       backspaceRate,
-		CorrectionRate:      correctionRate,
-		IdleTimePercent:     idleTimePercent,
+		BackspaceRate:   backspaceRate,
+		CorrectionRate:  correctionRate,
+		IdleTimePercent: idleTimePercent,
 
-		CompositeScore:      compositeScore,
-		ConsistencyScore:    consistencyScore,
-		EfficiencyScore:     efficiencyScore,
+		CompositeScore:   compositeScore,
+		ConsistencyScore: consistencyScore,
+		EfficiencyScore:  efficiencyScore,
 
 		ErrorClusters:       errorClusters,
 		PerformanceInsights: performanceInsights,
 		TypingPatterns:      typingPatterns,
 
-		SuspiciousActivity:  false, // Will be set by anti-cheat analysis
-		CheatFlags:          []string{},
-		ConfidenceScore:     1.0, // Will be set by anti-cheat analysis
+		SuspiciousActivity: false, // Will be set by anti-cheat analysis
+		CheatFlags:         []string{},
+		ConfidenceScore:    1.0, // Will be set by anti-cheat analysis
 
-		CalculatedAt:        time.Now(),
+		CalculatedAt: time.Now(),
 	}
 }
 
@@ -527,10 +547,10 @@ func (s *Service) getSessionEvents(ctx context.Context, sessionID string) ([]*Sc
 	query := datastore.NewQuery("SessionEvent").
 		FilterField("SessionID", "=", sessionID).
 		Order("TimestampMs")
-	
+
 	var events []*ScoringEvent
 	iter := s.dsClient.Run(ctx, query)
-	
+
 	for {
 		var sessionEvent struct {
 			SessionID      string
@@ -542,7 +562,7 @@ func (s *Service) getSessionEvents(ctx context.Context, sessionID string) ([]*Sc
 			ExpectedToken  string
 			Metadata       map[string]interface{}
 		}
-		
+
 		_, err := iter.Next(&sessionEvent)
 		if err == iterator.Done {
 			break
@@ -550,7 +570,7 @@ func (s *Service) getSessionEvents(ctx context.Context, sessionID string) ([]*Sc
 		if err != nil {
 			return nil, fmt.Errorf("failed to iterate events: %w", err)
 		}
-		
+
 		// Convert to ScoringEvent
 		event := &ScoringEvent{
 			SessionID:     sessionEvent.SessionID,
@@ -565,19 +585,19 @@ func (s *Service) getSessionEvents(ctx context.Context, sessionID string) ([]*Sc
 		}
 		events = append(events, event)
 	}
-	
+
 	return events, nil
 }
 
 func (s *Service) storeMetrics(ctx context.Context, metrics *SessionMetrics) error {
 	// Store ScoringMetrics in Datastore
 	key := datastore.NameKey("ScoringMetrics", metrics.SessionID, nil)
-	
+
 	_, err := s.dsClient.Put(ctx, key, metrics)
 	if err != nil {
 		return fmt.Errorf("failed to store metrics: %w", err)
 	}
-	
+
 	// Also store as Result for backward compatibility
 	result := &struct {
 		SessionID      string
@@ -606,20 +626,20 @@ func (s *Service) storeMetrics(ctx context.Context, metrics *SessionMetrics) err
 		},
 		CreatedAt: metrics.CalculatedAt,
 	}
-	
+
 	resultKey := datastore.NameKey("Result", metrics.SessionID, nil)
 	_, err = s.dsClient.Put(ctx, resultKey, result)
 	if err != nil {
 		return fmt.Errorf("failed to store result: %w", err)
 	}
-	
+
 	return nil
 }
 
 func (s *Service) getStoredMetrics(ctx context.Context, sessionID string) (*SessionMetrics, error) {
 	// Retrieve ScoringMetrics from Datastore
 	key := datastore.NameKey("ScoringMetrics", sessionID, nil)
-	
+
 	var metrics SessionMetrics
 	err := s.dsClient.Get(ctx, key, &metrics)
 	if err != nil {
@@ -628,7 +648,7 @@ func (s *Service) getStoredMetrics(ctx context.Context, sessionID string) (*Sess
 		}
 		return nil, fmt.Errorf("failed to get metrics: %w", err)
 	}
-	
+
 	return &metrics, nil
 }
 
@@ -636,12 +656,12 @@ func (s *Service) storeAntiCheatReport(ctx context.Context, report *AntiCheatRep
 	// Store AntiCheatReport in Datastore
 	reportID := fmt.Sprintf("%s_%d", report.SessionID, time.Now().Unix())
 	key := datastore.NameKey("AntiCheatReport", reportID, nil)
-	
+
 	_, err := s.dsClient.Put(ctx, key, report)
 	if err != nil {
 		return fmt.Errorf("failed to store anti-cheat report: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -737,7 +757,7 @@ func (s *Service) isSessionComplete(events []*ScoringEvent) bool {
 func (s *Service) queryLeaderboard(ctx context.Context, languageID, mode, scope, timeWindow string, limit int) ([]LeaderboardEntry, error) {
 	// Calculate time window boundaries
 	windowStart, windowEnd := s.calculateTimeWindow(timeWindow)
-	
+
 	// Query leaderboard entities
 	query := datastore.NewQuery("Leaderboard").
 		FilterField("LanguageID", "=", languageID).
@@ -748,7 +768,7 @@ func (s *Service) queryLeaderboard(ctx context.Context, languageID, mode, scope,
 		FilterField("RecordedAt", "<=", windowEnd).
 		Order("-Score").
 		Limit(limit)
-	
+
 	var leaderboardEntities []struct {
 		UserID             string
 		Score              int
@@ -760,12 +780,12 @@ func (s *Service) queryLeaderboard(ctx context.Context, languageID, mode, scope,
 		VerificationMethod string
 		RecordedAt         time.Time
 	}
-	
+
 	_, err := s.dsClient.GetAll(ctx, query, &leaderboardEntities)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query leaderboard: %w", err)
 	}
-	
+
 	// Convert to LeaderboardEntry
 	entries := make([]LeaderboardEntry, len(leaderboardEntities))
 	for i, entity := range leaderboardEntities {
@@ -783,18 +803,18 @@ func (s *Service) queryLeaderboard(ctx context.Context, languageID, mode, scope,
 			LastActive:         entity.RecordedAt,
 		}
 	}
-	
+
 	return entries, nil
 }
 
 func (s *Service) updateLeaderboardEntry(ctx context.Context, metrics *SessionMetrics, scope, timeWindow string) error {
 	// Calculate time window boundaries
 	windowStart, windowEnd := s.calculateTimeWindow(timeWindow)
-	
+
 	// Create leaderboard entry
-	entryID := fmt.Sprintf("%s_%s_%s_%s_%d", 
+	entryID := fmt.Sprintf("%s_%s_%s_%s_%d",
 		metrics.UserID, metrics.LanguageID, metrics.Mode, timeWindow, time.Now().Unix())
-	
+
 	entry := struct {
 		UserID             string
 		SessionID          string
@@ -802,6 +822,8 @@ func (s *Service) updateLeaderboardEntry(ctx context.Context, metrics *SessionMe
 		Mode               string
 		Scope              string
 		TimeWindow         string
+		Username           string // Added for direct storage
+		Handle             string // Added for direct storage
 		Rank               int
 		Score              int
 		CPM                float64
@@ -815,23 +837,25 @@ func (s *Service) updateLeaderboardEntry(ctx context.Context, metrics *SessionMe
 		WindowStart        time.Time
 		WindowEnd          time.Time
 	}{
-		UserID:      metrics.UserID,
-		SessionID:   metrics.SessionID,
-		LanguageID:  metrics.LanguageID,
-		Mode:        metrics.Mode,
-		Scope:       scope,
-		TimeWindow:  timeWindow,
-		Rank:        0, // Will be calculated later
-		Score:       metrics.CompositeScore,
-		CPM:         metrics.CPM,
-		TWPM:        metrics.TWPM,
-		Accuracy:    metrics.RawAccuracy,
+		UserID:     metrics.UserID,
+		SessionID:  metrics.SessionID,
+		LanguageID: metrics.LanguageID,
+		Mode:       metrics.Mode,
+		Scope:      scope,
+		TimeWindow: timeWindow,
+		Username:   s.getUsername(metrics.UserID),   // Populate username
+		Handle:     s.getUserHandle(metrics.UserID), // Populate handle
+		Rank:       0,                               // Will be calculated later
+		Score:      metrics.CompositeScore,
+		CPM:        metrics.CPM,
+		TWPM:       metrics.TWPM,
+		Accuracy:   metrics.RawAccuracy,
 		MetricsSnapshot: map[string]interface{}{
-			"kps":                metrics.KPS,
-			"token_accuracy":     metrics.TokenAccuracy,
-			"syntax_accuracy":    metrics.SyntaxAccuracy,
-			"consistency_score":  metrics.ConsistencyScore,
-			"efficiency_score":   metrics.EfficiencyScore,
+			"kps":               metrics.KPS,
+			"token_accuracy":    metrics.TokenAccuracy,
+			"syntax_accuracy":   metrics.SyntaxAccuracy,
+			"consistency_score": metrics.ConsistencyScore,
+			"efficiency_score":  metrics.EfficiencyScore,
 		},
 		Badge:              "",
 		IsVerified:         metrics.ConfidenceScore >= s.config.MinConfidenceScore,
@@ -840,17 +864,17 @@ func (s *Service) updateLeaderboardEntry(ctx context.Context, metrics *SessionMe
 		WindowStart:        windowStart,
 		WindowEnd:          windowEnd,
 	}
-	
+
 	key := datastore.NameKey("Leaderboard", entryID, nil)
 	_, err := s.dsClient.Put(ctx, key, &entry)
 	if err != nil {
 		return fmt.Errorf("failed to update leaderboard entry: %w", err)
 	}
-	
+
 	// Invalidate cache
 	cacheKey := fmt.Sprintf("leaderboard:%s:%s:%s:%s", metrics.LanguageID, metrics.Mode, scope, timeWindow)
 	s.cache.Delete(cacheKey)
-	
+
 	return nil
 }
 
@@ -858,7 +882,7 @@ func (s *Service) updateLeaderboardEntry(ctx context.Context, metrics *SessionMe
 func (s *Service) calculateTimeWindow(timeWindow string) (time.Time, time.Time) {
 	now := time.Now()
 	var windowStart time.Time
-	
+
 	switch timeWindow {
 	case "daily":
 		windowStart = now.AddDate(0, 0, -1)
@@ -871,23 +895,23 @@ func (s *Service) calculateTimeWindow(timeWindow string) (time.Time, time.Time) 
 	default:
 		windowStart = now.AddDate(0, 0, -7) // Default to weekly
 	}
-	
+
 	return windowStart, now
 }
 
 func (s *Service) getDefaultConfig() *ScoringConfig {
 	return &ScoringConfig{
-		Version:             "1.0",
-		TWPMWeight:          0.6,
-		RawAccuracyWeight:   0.3,
+		Version:              "1.0",
+		TWPMWeight:           0.6,
+		RawAccuracyWeight:    0.3,
 		SyntaxAccuracyWeight: 0.1,
-		BackspacePenalty:    0.2,
-		IdleTimePenalty:     0.1,
-		ConsistencyBonus:    0.05,
-		MaxKPS:              10.0,
-		MinBurstConsistency: 0.8,
-		MaxErrorRate:        0.15,
-		MinConfidenceScore:  0.7,
+		BackspacePenalty:     0.2,
+		IdleTimePenalty:      0.1,
+		ConsistencyBonus:     0.05,
+		MaxKPS:               10.0,
+		MinBurstConsistency:  0.8,
+		MaxErrorRate:         0.15,
+		MinConfidenceScore:   0.7,
 		LanguageMultipliers: map[string]float64{
 			"python":     1.0,
 			"javascript": 1.1,
@@ -896,10 +920,18 @@ func (s *Service) getDefaultConfig() *ScoringConfig {
 			"yaml":       0.9,
 		},
 		ModeMultipliers: map[string]float64{
-			"timed":   1.0,
-			"zen":     0.8,
+			"timed":    1.0,
+			"zen":      0.8,
 			"tutorial": 0.9,
 			"accuracy": 1.1,
 		},
 	}
+}
+
+// LeaderboardService defines the interface for leaderboard operations.
+type LeaderboardService interface {
+	GetLeaderboard(ctx context.Context, req *LeaderboardRequest) (*LeaderboardResponse, error)
+	UpdateLeaderboard(ctx context.Context, sessionID string) error
+	GetUserRank(ctx context.Context, userID, languageID, mode, scope, timeWindow string) (*UserRank, error)
+	GetLeaderboardTrends(ctx context.Context, req *LeaderboardTrendsRequest) (*LeaderboardTrendsResponse, error)
 }

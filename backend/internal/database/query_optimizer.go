@@ -23,10 +23,10 @@ func NewQueryOptimizer(client *datastore.Client) *QueryOptimizer {
 
 // QueryOptions holds common query options
 type QueryOptions struct {
-	Limit      int
-	Offset     int
-	StartAfter interface{}
-	UseKeysOnly bool
+	Limit         int
+	Offset        int
+	StartAfter    interface{}
+	UseKeysOnly   bool
 	UseProjection []string
 }
 
@@ -321,6 +321,37 @@ func getTimeWindowCutoff(window string) time.Time {
 	default:
 		return now.AddDate(0, 0, -7) // Default to weekly
 	}
+}
+
+// ArchiveOldSessionData orchestrates the deletion of old session-related data
+func (qo *QueryOptimizer) ArchiveOldSessionData(ctx context.Context) error {
+	// Define retention policies
+	sessionRetention := 90 * 24 * time.Hour      // 90 days for sessions
+	sessionEventRetention := 90 * 24 * time.Hour // 90 days for session events
+	resultRetention := 365 * 24 * time.Hour      // 1 year for results
+
+	// Delete old sessions
+	deletedSessions, err := qo.DeleteOldEntities(ctx, "Session", sessionRetention)
+	if err != nil {
+		return fmt.Errorf("failed to delete old sessions: %w", err)
+	}
+	fmt.Printf("Archived %d old sessions.\n", deletedSessions)
+
+	// Delete old session events
+	deletedEvents, err := qo.DeleteOldEntities(ctx, "SessionEvent", sessionEventRetention)
+	if err != nil {
+		return fmt.Errorf("failed to delete old session events: %w", err)
+	}
+	fmt.Printf("Archived %d old session events.\n", deletedEvents)
+
+	// Delete old results
+	deletedResults, err := qo.DeleteOldEntities(ctx, "Result", resultRetention)
+	if err != nil {
+		return fmt.Errorf("failed to delete old results: %w", err)
+	}
+	fmt.Printf("Archived %d old results.\n", deletedResults)
+
+	return nil
 }
 
 // Session represents a typing session

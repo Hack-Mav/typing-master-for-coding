@@ -5,8 +5,8 @@ import (
 	"context"
 	"strings"
 
-	"typing-master-backend/internal/database"
-	"typing-master-backend/internal/models"
+	"github.com/typing-master-for-coding-backend/internal/database"
+	"github.com/typing-master-for-coding-backend/internal/models"
 
 	"cloud.google.com/go/datastore"
 	"github.com/gin-gonic/gin"

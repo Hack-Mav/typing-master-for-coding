@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/typing-master-for-coding-backend/internal/models"
+
 	"cloud.google.com/go/datastore"
-	"typing-master-backend/internal/models"
 )
 
 // InitializeDefaultAssessments creates the default assessment blueprints in Datastore

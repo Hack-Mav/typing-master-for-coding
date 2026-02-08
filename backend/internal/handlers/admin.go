@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"typing-master-backend/internal/database"
-	"typing-master-backend/internal/models"
-	"typing-master-backend/internal/utils"
+	"github.com/typing-master-for-coding-backend/internal/database"
+	"github.com/typing-master-for-coding-backend/internal/models"
+	"github.com/typing-master-for-coding-backend/internal/utils"
 
 	"cloud.google.com/go/datastore"
 	"github.com/gin-gonic/gin"

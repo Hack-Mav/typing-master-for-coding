@@ -81,7 +81,7 @@ handlers:
 #   name: projects/typing-master-prod/locations/us-central1/connectors/typing-master-connector
 
 # Entrypoint
-entrypoint: ./typing-master-backend
+entrypoint: ./typing-master-for-coding/backend
 
 # Build configuration
 build_env_variables:
