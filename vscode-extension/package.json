@@ -1,0 +1,166 @@
+﻿{
+  "name": "typing-master-for-coding",
+  "displayName": "Typing Master for Coding",
+  "description": "Practice typing real code with syntax-aware guidance directly in VS Code",
+  "version": "0.1.0",
+  "publisher": "typing-master",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Education"
+  ],
+  "keywords": [
+    "typing",
+    "practice",
+    "coding",
+    "syntax",
+    "education",
+    "programming",
+    "github"
+  ],
+  "icon": "icon.png",
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onCommand:typing-master.startPractice",
+    "onCommand:typing-master.practiceCurrentFile",
+    "onCommand:typing-master.practiceSelection",
+    "onCommand:typing-master.showLeaderboard",
+    "onCommand:typing-master.shareToGitHub",
+    "onCommand:typing-master.syncWithGitHub"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "typing-master.startPractice",
+        "title": "Start Typing Practice",
+        "category": "Typing Master"
+      },
+      {
+        "command": "typing-master.practiceCurrentFile",
+        "title": "Practice Current File",
+        "category": "Typing Master"
+      },
+      {
+        "command": "typing-master.practiceSelection",
+        "title": "Practice Selection",
+        "category": "Typing Master"
+      },
+      {
+        "command": "typing-master.showLeaderboard",
+        "title": "Show Leaderboard",
+        "category": "Typing Master"
+      },
+      {
+        "command": "typing-master.shareToGitHub",
+        "title": "Share to GitHub",
+        "category": "Typing Master"
+      },
+      {
+        "command": "typing-master.syncWithGitHub",
+        "title": "Sync with GitHub",
+        "category": "Typing Master"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "typing-master.practiceSelection",
+          "when": "editorHasSelection",
+          "group": "1_modification"
+        },
+        {
+          "command": "typing-master.shareToGitHub",
+          "when": "editorHasSelection",
+          "group": "1_modification"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "typing-master.practiceCurrentFile",
+          "when": "editorTextFocus",
+          "group": "navigation"
+        },
+        {
+          "command": "typing-master.shareToGitHub",
+          "when": "editorTextFocus",
+          "group": "navigation"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "typing-master-practice",
+          "name": "Typing Practice",
+          "when": "typing-master.active",
+          "icon": "icon.png"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "typing-master",
+          "title": "Typing Master",
+          "icon": "icon.png"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Typing Master for Coding",
+      "properties": {
+        "typing-master.apiUrl": {
+          "type": "string",
+          "default": "https://api.typing-master-for-coding.com",
+          "description": "API URL for the Typing Master backend"
+        },
+        "typing-master.practiceMode": {
+          "type": "string",
+          "enum": [
+            "timed",
+            "accuracy",
+            "zen"
+          ],
+          "default": "timed",
+          "description": "Default practice mode"
+        },
+        "typing-master.duration": {
+          "type": "number",
+          "default": 3,
+          "description": "Practice duration in minutes (for timed mode)"
+        },
+        "typing-master.showRealTimeMetrics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show real-time typing metrics during practice"
+        },
+        "typing-master.autoSaveResults": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically save practice results to leaderboards"
+        },
+        "typing-master.githubToken": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub personal access token used for sharing snippets and syncing repositories"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "echo \"No tests specified\""
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}
