@@ -49,7 +49,8 @@ class LeaderboardService {
   private apiBaseUrl: string;
 
   constructor() {
-    this.apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
+    this.apiBaseUrl =
+      process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
   }
 
   /**
@@ -83,9 +84,12 @@ class LeaderboardService {
    */
   async getUserRank(userId: string): Promise<number> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/leaderboards/rank/${userId}`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/leaderboards/rank/${userId}`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to fetch user rank: ${response.statusText}`);
@@ -115,7 +119,9 @@ class LeaderboardService {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch leaderboard trends: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch leaderboard trends: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -128,7 +134,9 @@ class LeaderboardService {
   /**
    * Get available tournaments
    */
-  async getTournaments(status?: 'upcoming' | 'active' | 'completed'): Promise<Tournament[]> {
+  async getTournaments(
+    status?: 'upcoming' | 'active' | 'completed'
+  ): Promise<Tournament[]> {
     try {
       const url = status
         ? `${this.apiBaseUrl}/tournaments?status=${status}`
@@ -154,9 +162,12 @@ class LeaderboardService {
    */
   async getTournament(tournamentId: string): Promise<Tournament | null> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/tournaments/${tournamentId}`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/tournaments/${tournamentId}`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
@@ -177,16 +188,21 @@ class LeaderboardService {
    */
   async registerForTournament(tournamentId: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/tournaments/${tournamentId}/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/tournaments/${tournamentId}/register`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to register for tournament: ${response.statusText}`);
+        throw new Error(
+          `Failed to register for tournament: ${response.statusText}`
+        );
       }
     } catch (error) {
       console.error('Error registering for tournament:', error);
@@ -197,14 +213,21 @@ class LeaderboardService {
   /**
    * Get tournament leaderboard
    */
-  async getTournamentLeaderboard(tournamentId: string): Promise<TournamentParticipant[]> {
+  async getTournamentLeaderboard(
+    tournamentId: string
+  ): Promise<TournamentParticipant[]> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/tournaments/${tournamentId}/leaderboard`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/tournaments/${tournamentId}/leaderboard`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch tournament leaderboard: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch tournament leaderboard: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -223,20 +246,25 @@ class LeaderboardService {
     score: number
   ): Promise<void> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/tournaments/${tournamentId}/submit`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
-        body: JSON.stringify({
-          sessionId,
-          score,
-        }),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/tournaments/${tournamentId}/submit`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+          body: JSON.stringify({
+            sessionId,
+            score,
+          }),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to submit tournament result: ${response.statusText}`);
+        throw new Error(
+          `Failed to submit tournament result: ${response.statusText}`
+        );
       }
     } catch (error) {
       console.error('Error submitting tournament result:', error);
@@ -249,12 +277,17 @@ class LeaderboardService {
    */
   async getUserTournaments(userId: string): Promise<Tournament[]> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/tournaments/user/${userId}`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/tournaments/user/${userId}`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch user tournaments: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch user tournaments: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -267,7 +300,9 @@ class LeaderboardService {
   /**
    * Create a new tournament (admin only)
    */
-  async createTournament(tournament: Omit<Tournament, 'id' | 'participantCount'>): Promise<Tournament> {
+  async createTournament(
+    tournament: Omit<Tournament, 'id' | 'participantCount'>
+  ): Promise<Tournament> {
     try {
       const response = await fetch(`${this.apiBaseUrl}/tournaments`, {
         method: 'POST',
@@ -294,13 +329,16 @@ class LeaderboardService {
    */
   async startTournament(tournamentId: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/tournaments/${tournamentId}/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/tournaments/${tournamentId}/start`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to start tournament: ${response.statusText}`);
@@ -316,13 +354,16 @@ class LeaderboardService {
    */
   async endTournament(tournamentId: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/tournaments/${tournamentId}/end`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/tournaments/${tournamentId}/end`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to end tournament: ${response.statusText}`);

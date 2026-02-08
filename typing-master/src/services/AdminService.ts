@@ -49,7 +49,8 @@ class AdminService {
   private apiBaseUrl: string;
 
   constructor() {
-    this.apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
+    this.apiBaseUrl =
+      process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
   }
 
   /**
@@ -84,7 +85,9 @@ class AdminService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch admin languages: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch admin languages: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -97,7 +100,9 @@ class AdminService {
   /**
    * Create a new language
    */
-  async createLanguage(language: Omit<LanguageEntity, 'id' | 'createdAt'>): Promise<LanguageEntity> {
+  async createLanguage(
+    language: Omit<LanguageEntity, 'id' | 'createdAt'>
+  ): Promise<LanguageEntity> {
     try {
       const response = await fetch(`${this.apiBaseUrl}/admin/languages`, {
         method: 'POST',
@@ -122,16 +127,22 @@ class AdminService {
   /**
    * Update a language
    */
-  async updateLanguage(languageId: string, updates: Partial<LanguageEntity>): Promise<LanguageEntity> {
+  async updateLanguage(
+    languageId: string,
+    updates: Partial<LanguageEntity>
+  ): Promise<LanguageEntity> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/admin/languages/${languageId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
-        body: JSON.stringify(updates),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/admin/languages/${languageId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+          body: JSON.stringify(updates),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to update language: ${response.statusText}`);
@@ -149,10 +160,13 @@ class AdminService {
    */
   async deleteLanguage(languageId: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/admin/languages/${languageId}`, {
-        method: 'DELETE',
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/admin/languages/${languageId}`,
+        {
+          method: 'DELETE',
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to delete language: ${response.statusText}`);
@@ -173,7 +187,9 @@ class AdminService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch admin lessons: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch admin lessons: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -186,7 +202,9 @@ class AdminService {
   /**
    * Create a new lesson
    */
-  async createLesson(lesson: Omit<Lesson, 'id' | 'createdAt'>): Promise<Lesson> {
+  async createLesson(
+    lesson: Omit<Lesson, 'id' | 'createdAt'>
+  ): Promise<Lesson> {
     try {
       const response = await fetch(`${this.apiBaseUrl}/admin/lessons`, {
         method: 'POST',
@@ -211,16 +229,22 @@ class AdminService {
   /**
    * Update a lesson
    */
-  async updateLesson(lessonId: string, updates: Partial<Lesson>): Promise<Lesson> {
+  async updateLesson(
+    lessonId: string,
+    updates: Partial<Lesson>
+  ): Promise<Lesson> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/admin/lessons/${lessonId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
-        body: JSON.stringify(updates),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/admin/lessons/${lessonId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+          body: JSON.stringify(updates),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to update lesson: ${response.statusText}`);
@@ -238,10 +262,13 @@ class AdminService {
    */
   async deleteLesson(lessonId: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/admin/lessons/${lessonId}`, {
-        method: 'DELETE',
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/admin/lessons/${lessonId}`,
+        {
+          method: 'DELETE',
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to delete lesson: ${response.statusText}`);
@@ -262,7 +289,9 @@ class AdminService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch admin snippets: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch admin snippets: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -275,7 +304,9 @@ class AdminService {
   /**
    * Create a new snippet
    */
-  async createSnippet(snippet: Omit<Snippet, 'id' | 'createdAt'>): Promise<Snippet> {
+  async createSnippet(
+    snippet: Omit<Snippet, 'id' | 'createdAt'>
+  ): Promise<Snippet> {
     try {
       const response = await fetch(`${this.apiBaseUrl}/admin/snippets`, {
         method: 'POST',
@@ -300,16 +331,22 @@ class AdminService {
   /**
    * Update a snippet
    */
-  async updateSnippet(snippetId: string, updates: Partial<Snippet>): Promise<Snippet> {
+  async updateSnippet(
+    snippetId: string,
+    updates: Partial<Snippet>
+  ): Promise<Snippet> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/admin/snippets/${snippetId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
-        body: JSON.stringify(updates),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/admin/snippets/${snippetId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+          body: JSON.stringify(updates),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to update snippet: ${response.statusText}`);
@@ -327,10 +364,13 @@ class AdminService {
    */
   async deleteSnippet(snippetId: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/admin/snippets/${snippetId}`, {
-        method: 'DELETE',
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/admin/snippets/${snippetId}`,
+        {
+          method: 'DELETE',
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to delete snippet: ${response.statusText}`);
@@ -391,16 +431,22 @@ class AdminService {
   /**
    * Update an A/B test
    */
-  async updateABTest(testId: string, updates: Partial<ABTest>): Promise<ABTest> {
+  async updateABTest(
+    testId: string,
+    updates: Partial<ABTest>
+  ): Promise<ABTest> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/admin/ab-tests/${testId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
-        body: JSON.stringify(updates),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/admin/ab-tests/${testId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+          body: JSON.stringify(updates),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to update A/B test: ${response.statusText}`);
@@ -418,10 +464,13 @@ class AdminService {
    */
   async deleteABTest(testId: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/admin/ab-tests/${testId}`, {
-        method: 'DELETE',
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/admin/ab-tests/${testId}`,
+        {
+          method: 'DELETE',
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to delete A/B test: ${response.statusText}`);
@@ -437,12 +486,17 @@ class AdminService {
    */
   async getABTestResults(testId: string): Promise<ABTest['results']> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/admin/ab-tests/${testId}/results`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/admin/ab-tests/${testId}/results`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch A/B test results: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch A/B test results: ${response.statusText}`
+        );
       }
 
       return await response.json();

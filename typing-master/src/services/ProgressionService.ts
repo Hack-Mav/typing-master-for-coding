@@ -51,7 +51,8 @@ class ProgressionService {
   private apiBaseUrl: string;
 
   constructor() {
-    this.apiBaseUrl = process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
+    this.apiBaseUrl =
+      process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
   }
 
   /**
@@ -59,15 +60,20 @@ class ProgressionService {
    */
   async getLessonProgress(lessonId: string): Promise<LessonProgress | null> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/lessons/${lessonId}/progress`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/lessons/${lessonId}/progress`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
           return null;
         }
-        throw new Error(`Failed to fetch lesson progress: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch lesson progress: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -85,17 +91,22 @@ class ProgressionService {
     progress: Partial<LessonProgress>
   ): Promise<LessonProgress> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/lessons/${lessonId}/progress`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
-        body: JSON.stringify(progress),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/lessons/${lessonId}/progress`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+          body: JSON.stringify(progress),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to update lesson progress: ${response.statusText}`);
+        throw new Error(
+          `Failed to update lesson progress: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -114,12 +125,17 @@ class ProgressionService {
     recommendations: string[];
   }> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/lessons/${lessonId}/prerequisites`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/lessons/${lessonId}/prerequisites`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to check lesson prerequisites: ${response.statusText}`);
+        throw new Error(
+          `Failed to check lesson prerequisites: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -136,14 +152,21 @@ class ProgressionService {
   /**
    * Get lesson progression flow
    */
-  async getLessonProgressionFlow(lessonId: string): Promise<LessonProgressionFlow> {
+  async getLessonProgressionFlow(
+    lessonId: string
+  ): Promise<LessonProgressionFlow> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/lessons/${lessonId}/flow`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/lessons/${lessonId}/flow`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch lesson progression flow: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch lesson progression flow: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -163,7 +186,9 @@ class ProgressionService {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch progression summary: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch progression summary: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -178,12 +203,17 @@ class ProgressionService {
    */
   async getRecommendedLessons(limit: number = 5): Promise<LessonData[]> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/progression/recommendations?limit=${limit}`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/progression/recommendations?limit=${limit}`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch recommended lessons: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch recommended lessons: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -203,18 +233,21 @@ class ProgressionService {
     mistakes: number
   ): Promise<LessonProgress> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/lessons/${lessonId}/complete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authService.getAuthHeader(),
-        },
-        body: JSON.stringify({
-          score,
-          timeSpent,
-          mistakes,
-        }),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/lessons/${lessonId}/complete`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...authService.getAuthHeader(),
+          },
+          body: JSON.stringify({
+            score,
+            timeSpent,
+            mistakes,
+          }),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to complete lesson: ${response.statusText}`);
@@ -232,12 +265,17 @@ class ProgressionService {
    */
   async getLearningPath(topic: string): Promise<LessonData[]> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/progression/path?topic=${encodeURIComponent(topic)}`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/progression/path?topic=${encodeURIComponent(topic)}`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch learning path: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch learning path: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -250,16 +288,24 @@ class ProgressionService {
   /**
    * Get user's current skill level for each programming concept
    */
-  async getSkillLevels(): Promise<Record<string, {
-    level: number;
-    proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert';
-    lessonsCompleted: number;
-    averageScore: number;
-  }>> {
+  async getSkillLevels(): Promise<
+    Record<
+      string,
+      {
+        level: number;
+        proficiency: 'beginner' | 'intermediate' | 'advanced' | 'expert';
+        lessonsCompleted: number;
+        averageScore: number;
+      }
+    >
+  > {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/progression/skill-levels`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/progression/skill-levels`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to fetch skill levels: ${response.statusText}`);
@@ -275,22 +321,33 @@ class ProgressionService {
   /**
    * Get detailed progress analytics
    */
-  async getProgressAnalytics(timeRange: 'week' | 'month' | 'quarter' | 'year' = 'month'): Promise<{
+  async getProgressAnalytics(
+    timeRange: 'week' | 'month' | 'quarter' | 'year' = 'month'
+  ): Promise<{
     totalPracticeTime: number;
     lessonsCompleted: number;
     averageScore: number;
     improvementRate: number;
     consistencyScore: number;
     dailyProgress: { date: string; lessons: number; timeSpent: number }[];
-    skillProgression: { skill: string; progress: number; trend: 'up' | 'down' | 'stable' }[];
+    skillProgression: {
+      skill: string;
+      progress: number;
+      trend: 'up' | 'down' | 'stable';
+    }[];
   }> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/progression/analytics?timeRange=${timeRange}`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/progression/analytics?timeRange=${timeRange}`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch progress analytics: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch progress analytics: ${response.statusText}`
+        );
       }
 
       return await response.json();
@@ -305,13 +362,18 @@ class ProgressionService {
    */
   async resetLessonProgress(lessonId: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/lessons/${lessonId}/progress`, {
-        method: 'DELETE',
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/lessons/${lessonId}/progress`,
+        {
+          method: 'DELETE',
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to reset lesson progress: ${response.statusText}`);
+        throw new Error(
+          `Failed to reset lesson progress: ${response.statusText}`
+        );
       }
     } catch (error) {
       console.error('Error resetting lesson progress:', error);
@@ -330,15 +392,20 @@ class ProgressionService {
     certificateUrl?: string;
   } | null> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/lessons/${lessonId}/certificate`, {
-        headers: authService.getAuthHeader(),
-      });
+      const response = await fetch(
+        `${this.apiBaseUrl}/lessons/${lessonId}/certificate`,
+        {
+          headers: authService.getAuthHeader(),
+        }
+      );
 
       if (!response.ok) {
         if (response.status === 404) {
           return null;
         }
-        throw new Error(`Failed to fetch lesson certificate: ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch lesson certificate: ${response.statusText}`
+        );
       }
 
       return await response.json();

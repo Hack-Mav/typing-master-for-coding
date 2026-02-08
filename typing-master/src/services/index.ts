@@ -49,10 +49,7 @@ export type {
 
 // Admin panel exports
 export { adminService } from './AdminService';
-export type {
-  AdminDashboard,
-  ABTest,
-} from './AdminService';
+export type { AdminDashboard, ABTest } from './AdminService';
 
 // Lesson progression exports
 export { progressionService } from './ProgressionService';

@@ -1,4 +1,10 @@
-import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
+import React, {
+  useState,
+  useEffect,
+  Component,
+  ErrorInfo,
+  ReactNode,
+} from 'react';
 import ZenMode from './components/ZenMode';
 import TimedDrillMode from './components/TimedDrillMode';
 import SyntaxTutorialMode from './components/SyntaxTutorialMode';
@@ -11,6 +17,7 @@ import AccessibilityProvider from './components/AccessibilitySettings';
 import { Language } from './types/parser';
 import AuthModal from './components/AuthModal';
 import { AuthProvider, useAuth } from './services/AuthContext';
+import { privacyService } from './services/PrivacyService';
 import './App.css';
 
 type AppMode =
@@ -27,6 +34,14 @@ interface AppState {
   selectedLanguage: string;
   timedDrillDuration: number;
 }
+
+const COMMUNITY_FORUM_URL =
+  process.env.REACT_APP_COMMUNITY_FORUM_URL ||
+  'https://community.typingmaster.dev/forums';
+
+const SUPPORT_PORTAL_URL =
+  process.env.REACT_APP_SUPPORT_PORTAL_URL ||
+  'https://community.typingmaster.dev/support';
 
 // Error Boundary Component
 interface ErrorBoundaryProps {
@@ -133,6 +148,23 @@ function AppContentWithAuth() {
 
   const handleDurationSelect = (duration: number) => {
     setState(prev => ({ ...prev, timedDrillDuration: duration }));
+  };
+
+  const handleCommunityClick = (channel: 'forum' | 'support') => {
+    const url = channel === 'forum' ? COMMUNITY_FORUM_URL : SUPPORT_PORTAL_URL;
+
+    try {
+      privacyService.recordTelemetryEvent('community_navigation', {
+        channel,
+        location: 'main_menu',
+      });
+    } catch (error) {
+      console.warn('Failed to record community navigation telemetry', error);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const handleSessionComplete = (result: SessionResult | AssessmentResult) => {
@@ -277,6 +309,27 @@ function AppContentWithAuth() {
           </div>
         </div>
       )}
+
+      <div className="community-support">
+        <h3>Community &amp; Support</h3>
+        <p>Get help, share feedback, and connect with other developers.</p>
+        <div className="community-buttons">
+          <button
+            className="community-btn"
+            type="button"
+            onClick={() => handleCommunityClick('forum')}
+          >
+            Community Forums
+          </button>
+          <button
+            className="community-btn secondary"
+            type="button"
+            onClick={() => handleCommunityClick('support')}
+          >
+            Support &amp; Help Center
+          </button>
+        </div>
+      </div>
     </div>
   );
 
@@ -296,26 +349,28 @@ function AppContentWithAuth() {
         <ErrorBoundary>{renderMenu()}</ErrorBoundary>
       )}
 
-      {state.currentMode === 'syntax-tutorial' && (isAuthenticated || isAnonymous) && (
-        <ErrorBoundary>
-          <SyntaxTutorialMode
-            languageId={state.selectedLanguage as Language}
-            onComplete={handleSessionComplete}
-            onExit={handleExit}
-          />
-        </ErrorBoundary>
-      )}
+      {state.currentMode === 'syntax-tutorial' &&
+        (isAuthenticated || isAnonymous) && (
+          <ErrorBoundary>
+            <SyntaxTutorialMode
+              languageId={state.selectedLanguage as Language}
+              onComplete={handleSessionComplete}
+              onExit={handleExit}
+            />
+          </ErrorBoundary>
+        )}
 
-      {state.currentMode === 'timed-drill' && (isAuthenticated || isAnonymous) && (
-        <ErrorBoundary>
-          <TimedDrillMode
-            languageId={state.selectedLanguage}
-            duration={state.timedDrillDuration}
-            onComplete={handleSessionComplete}
-            onExit={handleExit}
-          />
-        </ErrorBoundary>
-      )}
+      {state.currentMode === 'timed-drill' &&
+        (isAuthenticated || isAnonymous) && (
+          <ErrorBoundary>
+            <TimedDrillMode
+              languageId={state.selectedLanguage}
+              duration={state.timedDrillDuration}
+              onComplete={handleSessionComplete}
+              onExit={handleExit}
+            />
+          </ErrorBoundary>
+        )}
 
       {state.currentMode === 'accuracy' && (isAuthenticated || isAnonymous) && (
         <ErrorBoundary>
@@ -337,25 +392,27 @@ function AppContentWithAuth() {
         </ErrorBoundary>
       )}
 
-      {state.currentMode === 'custom-snippets' && (isAuthenticated || isAnonymous) && (
-        <ErrorBoundary>
-          <CustomSnippetsMode
-            languageId={state.selectedLanguage as Language}
-            onComplete={handleSessionComplete}
-            onExit={handleExit}
-          />
-        </ErrorBoundary>
-      )}
+      {state.currentMode === 'custom-snippets' &&
+        (isAuthenticated || isAnonymous) && (
+          <ErrorBoundary>
+            <CustomSnippetsMode
+              languageId={state.selectedLanguage as Language}
+              onComplete={handleSessionComplete}
+              onExit={handleExit}
+            />
+          </ErrorBoundary>
+        )}
 
-      {state.currentMode === 'assessment' && (isAuthenticated || isAnonymous) && (
-        <ErrorBoundary>
-          <AssessmentMode
-            language={state.selectedLanguage as Language}
-            onComplete={handleSessionComplete}
-            onExit={handleExit}
-          />
-        </ErrorBoundary>
-      )}
+      {state.currentMode === 'assessment' &&
+        (isAuthenticated || isAnonymous) && (
+          <ErrorBoundary>
+            <AssessmentMode
+              language={state.selectedLanguage as Language}
+              onComplete={handleSessionComplete}
+              onExit={handleExit}
+            />
+          </ErrorBoundary>
+        )}
 
       <AuthModal
         isOpen={showAuthModal}
