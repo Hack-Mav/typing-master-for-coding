@@ -1,0 +1,317 @@
+export interface KeyboardLayout {
+  name: string;
+  displayName: string;
+  keyMap: Record<string, string>;
+}
+
+export class KeyboardLayoutService {
+  private static layouts: Record<string, KeyboardLayout> = {
+    qwerty: {
+      name: 'qwerty',
+      displayName: 'QWERTY',
+      keyMap: {
+        // Row 1 (numbers)
+        '`': '`',
+        '1': '1',
+        '2': '2',
+        '3': '3',
+        '4': '4',
+        '5': '5',
+        '6': '6',
+        '7': '7',
+        '8': '8',
+        '9': '9',
+        '0': '0',
+        '-': '-',
+        '=': '=',
+        // Row 2 (QWERTY)
+        q: 'q',
+        w: 'w',
+        e: 'e',
+        r: 'r',
+        t: 't',
+        y: 'y',
+        u: 'u',
+        i: 'i',
+        o: 'o',
+        p: 'p',
+        '[': '[',
+        ']': ']',
+        '\\': '\\',
+        // Row 3 (ASDF)
+        a: 'a',
+        s: 's',
+        d: 'd',
+        f: 'f',
+        g: 'g',
+        h: 'h',
+        j: 'j',
+        k: 'k',
+        l: 'l',
+        ';': ';',
+        "'": "'",
+        // Row 4 (ZXCV)
+        z: 'z',
+        x: 'x',
+        c: 'c',
+        v: 'v',
+        b: 'b',
+        n: 'n',
+        m: 'm',
+        ',': ',',
+        '.': '.',
+        '/': '/',
+      },
+    },
+    azerty: {
+      name: 'azerty',
+      displayName: 'AZERTY',
+      keyMap: {
+        // Row 1 (numbers)
+        '`': '`',
+        '1': '1',
+        '2': '2',
+        '3': '3',
+        '4': '4',
+        '5': '5',
+        '6': '6',
+        '7': '7',
+        '8': '8',
+        '9': '9',
+        '0': '0',
+        '-': '-',
+        '=': '=',
+        // Row 2 (AZERTY)
+        a: 'a',
+        z: 'z',
+        e: 'e',
+        r: 'r',
+        t: 't',
+        y: 'y',
+        u: 'u',
+        i: 'i',
+        o: 'o',
+        p: 'p',
+        '[': '[',
+        ']': ']',
+        '\\': '\\',
+        // Row 3 (QSDF)
+        q: 'q',
+        s: 's',
+        d: 'd',
+        f: 'f',
+        g: 'g',
+        h: 'h',
+        j: 'j',
+        k: 'k',
+        l: 'l',
+        m: 'm',
+        ';': ';',
+        "'": "'",
+        // Row 4 (WXCV)
+        w: 'w',
+        x: 'x',
+        c: 'c',
+        v: 'v',
+        b: 'b',
+        n: 'n',
+        ',': ',',
+        '.': '.',
+        '/': '/',
+      },
+    },
+    qwertz: {
+      name: 'qwertz',
+      displayName: 'QWERTZ',
+      keyMap: {
+        // Row 1 (numbers)
+        '`': '`',
+        '1': '1',
+        '2': '2',
+        '3': '3',
+        '4': '4',
+        '5': '5',
+        '6': '6',
+        '7': '7',
+        '8': '8',
+        '9': '9',
+        '0': '0',
+        '=': '=',
+        // Row 2 (QWERTZ)
+        q: 'q',
+        w: 'w',
+        e: 'e',
+        r: 'r',
+        t: 't',
+        z: 'z',
+        u: 'u',
+        i: 'i',
+        o: 'o',
+        p: 'p',
+        ü: 'ü',
+        '+': '+',
+        '#': '#',
+        // Row 3 (ASDF)
+        a: 'a',
+        s: 's',
+        d: 'd',
+        f: 'f',
+        g: 'g',
+        h: 'h',
+        j: 'j',
+        k: 'k',
+        l: 'l',
+        ö: 'ö',
+        ä: 'ä',
+        "'": "'",
+        // Row 4 (YXCV)
+        y: 'y',
+        x: 'x',
+        c: 'c',
+        v: 'v',
+        b: 'b',
+        n: 'n',
+        m: 'm',
+        ',': ',',
+        '.': '.',
+        '-': '-',
+      },
+    },
+    colemak: {
+      name: 'colemak',
+      displayName: 'Colemak',
+      keyMap: {
+        // Row 1 (numbers)
+        '`': '`',
+        '1': '1',
+        '2': '2',
+        '3': '3',
+        '4': '4',
+        '5': '5',
+        '6': '6',
+        '7': '7',
+        '8': '8',
+        '9': '9',
+        '0': '0',
+        '-': '-',
+        '=': '=',
+        // Row 2 (QWFPGJ)
+        q: 'q',
+        w: 'w',
+        f: 'f',
+        p: 'p',
+        g: 'g',
+        j: 'j',
+        l: 'l',
+        u: 'u',
+        y: 'y',
+        ';': ';',
+        '[': '[',
+        ']': ']',
+        '\\': '\\',
+        // Row 3 (ARSTDH)
+        a: 'a',
+        r: 'r',
+        s: 's',
+        t: 't',
+        d: 'd',
+        h: 'h',
+        n: 'n',
+        e: 'e',
+        i: 'i',
+        o: 'o',
+        "'": "'",
+        // Row 4 (ZXCVBK)
+        z: 'z',
+        x: 'x',
+        c: 'c',
+        v: 'v',
+        b: 'b',
+        k: 'k',
+        m: 'm',
+        ',': ',',
+        '.': '.',
+        '/': '/',
+      },
+    },
+    dvorak: {
+      name: 'dvorak',
+      displayName: 'Dvorak',
+      keyMap: {
+        // Row 1 (numbers)
+        '`': '`',
+        '1': '1',
+        '2': '2',
+        '3': '3',
+        '4': '4',
+        '5': '5',
+        '6': '6',
+        '7': '7',
+        '8': '8',
+        '9': '9',
+        '0': '0',
+        '[': '[',
+        ']': ']',
+        // Row 2 (PYFGCRL)
+        "'": "'",
+        ',': ',',
+        '.': '.',
+        p: 'p',
+        y: 'y',
+        f: 'f',
+        g: 'g',
+        c: 'c',
+        r: 'r',
+        l: 'l',
+        '/': '/',
+        '=': '=',
+        '\\': '\\',
+        // Row 3 (AOEUIDHT)
+        a: 'a',
+        o: 'o',
+        e: 'e',
+        u: 'u',
+        i: 'i',
+        d: 'd',
+        h: 'h',
+        t: 't',
+        n: 'n',
+        s: 's',
+        '-': '-',
+        // Row 4 (QJKXBMWV)
+        ';': ';',
+        q: 'q',
+        j: 'j',
+        k: 'k',
+        x: 'x',
+        b: 'b',
+        m: 'm',
+        w: 'w',
+        v: 'v',
+        z: 'z',
+      },
+    },
+  };
+
+  static getLayout(layoutName: string): KeyboardLayout | null {
+    return this.layouts[layoutName.toLowerCase()] || null;
+  }
+
+  static getAllLayouts(): KeyboardLayout[] {
+    return Object.values(this.layouts);
+  }
+
+  static getKeyPosition(key: string, layoutName: string): string {
+    const layout = this.getLayout(layoutName);
+    if (!layout) return key;
+
+    return layout.keyMap[key.toLowerCase()] || key;
+  }
+
+  static getLayoutDisplayName(layoutName: string): string {
+    const layout = this.getLayout(layoutName);
+    return layout ? layout.displayName : layoutName;
+  }
+}
+
+export default KeyboardLayoutService;
