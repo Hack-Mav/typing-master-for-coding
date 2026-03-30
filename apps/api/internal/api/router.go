@@ -225,7 +225,6 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 			adminOnly.PUT("/monitoring/alerts/:id/resolve", monitoringHandler.ResolveAlert)
 			adminOnly.POST("/monitoring/metrics", monitoringHandler.LogPerformanceMetric)
 			adminOnly.POST("/monitoring/errors", monitoringHandler.LogError)
-			adminOnly.GET("/monitoring/health", monitoringHandler.GetHealthStatus)
 			adminOnly.GET("/monitoring/metrics", monitoringHandler.GetMetrics)
 			adminOnly.POST("/monitoring/cleanup", monitoringHandler.CleanupLogs)
 
