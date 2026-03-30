@@ -33,27 +33,24 @@ A desktop-first, web-enabled application designed to help developers practice ty
    # Copy environment variables
    cp .env.example .env
    
+   # Install all dependencies
+   make install
+   
    # Start databases
-   docker-compose up -d postgres redis
-   
-   # Install frontend dependencies
-   cd typing-master
-   npm install
-   
-   # Install backend dependencies
-   cd ../backend
-   go mod download
+   make docker-up
    ```
 
 3. **Run the application**
    ```bash
-   # Terminal 1: Start backend
-   cd backend
-   go run main.go
+   # Start all services
+   make dev
    
-   # Terminal 2: Start frontend
-   cd typing-master
-   npm start
+   # Or start individually:
+   # Terminal 1: Start backend
+   make dev-api
+   
+   # Terminal 2: Start frontend  
+   make dev-web
    ```
 
 4. **Access the application**
@@ -65,34 +62,65 @@ A desktop-first, web-enabled application designed to help developers practice ty
 
 ```bash
 # Start all services
-docker-compose up -d
+make docker-up
 
 # View logs
 docker-compose logs -f
 
 # Stop all services
-docker-compose down
+make docker-down
 ```
 
 ## Project Structure
 
 ```
 typing-master-for-coding/
-├── typing-master/          # React frontend
-│   ├── src/
-│   ├── public/
-│   └── package.json
-├── backend/                # Go backend
-│   ├── internal/
-│   ├── main.go
-│   └── go.mod
-├── database/               # Database initialization
-│   └── init/
-├── nginx/                  # Nginx configuration
-├── .github/workflows/      # CI/CD pipelines
-├── docker-compose.yml      # Development environment
-├── docker-compose.prod.yml # Production environment
-└── README.md
+├── README.md                           # Main project README
+├── LICENSE                             # License file
+├── Makefile                            # Common commands and scripts
+├── docker-compose.yml                  # Development environment
+├── docker-compose.prod.yml             # Production environment
+│
+├── docs/                               # All documentation
+│   ├── api/                            # API documentation
+│   ├── deployment/                     # Deployment guides
+│   ├── development/                    # Development guides
+│   └── architecture/                   # Architecture docs
+│
+├── packages/                           # Shared resources
+│   ├── types/                          # Shared TypeScript types
+│   ├── utils/                          # Shared utilities
+│   └── schemas/                        # Shared validation schemas
+│
+├── apps/                               # Main applications
+│   ├── web/                            # React frontend
+│   │   ├── src/
+│   │   │   ├── components/             # Reusable UI components
+│   │   │   ├── features/               # Feature-based modules
+│   │   │   ├── hooks/                  # Custom React hooks
+│   │   │   ├── services/               # API and external services
+│   │   │   ├── store/                  # State management (Zustand)
+│   │   │   └── utils/                  # Frontend utilities
+│   │   └── package.json
+│   │
+│   └── api/                            # Go backend
+│       ├── cmd/server/                 # Application entry point
+│       ├── internal/                   # Private application code
+│       ├── pkg/                        # Public library code
+│       └── go.mod
+│
+├── infrastructure/                     # Infrastructure and deployment
+│   ├── docker/                         # Docker configurations
+│   ├── kubernetes/                     # K8s manifests (if needed)
+│   ├── terraform/                      # Infrastructure as code
+│   └── ci-cd/                         # CI/CD pipeline configurations
+│
+├── tools/                              # Development tools and scripts
+├── tests/                              # Cross-application tests
+│   ├── e2e/                            # End-to-end tests
+│   ├── integration/                    # Integration tests
+│   └── load/                           # Load testing
+│       └── performance/                # Performance testing
 ```
 
 ## Development
@@ -100,7 +128,7 @@ typing-master-for-coding/
 ### Frontend Development
 
 ```bash
-cd typing-master
+cd apps/web
 
 # Run tests
 npm test
@@ -121,7 +149,7 @@ npm run build
 ### Backend Development
 
 ```bash
-cd backend
+cd apps/api
 
 # Run tests
 go test ./...
@@ -133,7 +161,32 @@ go fmt ./...
 air
 
 # Build for production
-go build -o main .
+go build -o bin/server cmd/server/main.go
+```
+
+### Using Make Commands
+
+```bash
+# Install all dependencies
+make install
+
+# Start all development services
+make dev
+
+# Run all tests
+make test
+
+# Run linting for all applications
+make lint
+
+# Format all code
+make format
+
+# Build all applications
+make build
+
+# Clean build artifacts
+make clean
 ```
 
 ### Database Management
@@ -155,13 +208,25 @@ docker-compose up -d postgres redis
 ### Running Tests
 
 ```bash
+# Using Make commands (recommended)
+make test              # Run all tests
+make test-web          # Run frontend tests only
+make test-api          # Run backend tests only
+make test-e2e          # Run end-to-end tests
+
+# Or run individually:
+
 # Frontend tests
-cd typing-master
+cd apps/web
 npm test -- --coverage
 
 # Backend tests
-cd backend
+cd apps/api
 go test -v -race -coverprofile=coverage.out ./...
+
+# End-to-end tests
+cd tests/e2e
+npm test
 ```
 
 ### CI/CD

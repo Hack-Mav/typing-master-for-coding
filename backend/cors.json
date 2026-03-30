@@ -1,8 +1,0 @@
-[
-  {
-    "origin": ["https://typing-master.app", "https://www.typing-master.app"],
-    "method": ["GET", "HEAD", "OPTIONS"],
-    "responseHeader": ["Content-Type", "Cache-Control", "ETag"],
-    "maxAgeSeconds": 3600
-  }
-]
