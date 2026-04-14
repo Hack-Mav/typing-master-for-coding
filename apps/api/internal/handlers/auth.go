@@ -232,22 +232,34 @@ func CreateAnonymousSession(jwtSecret string) gin.HandlerFunc {
 		// Generate anonymous user ID based on device ID
 		anonymousID := fmt.Sprintf("anon_%s", req.DeviceID)
 
-		// Generate JWT tokens for anonymous user
+		// Generate JWT tokens for anonymous user with longer expiration (24 hours)
 		tokens, err := auth.GenerateTokenPair(anonymousID, "Anonymous", "", "user", true, jwtSecret)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 			return
 		}
 
+		// Create anonymous user response
+		anonymousUser := gin.H{
+			"id":                      anonymousID,
+			"handle":                  "Anonymous",
+			"email":                   "",
+			"is_anonymous":            true,
+			"keyboard_layout":         req.KeyboardLayout,
+			"locale":                  req.Locale,
+			"privacy_mode":            true, // Anonymous users get privacy mode by default
+			"telemetry_consent":       false,
+			"data_processing_consent": false,
+			"settings":                make(map[string]interface{}),
+			"created_at":              time.Now().UTC().Format(time.RFC3339),
+			"updated_at":              time.Now().UTC().Format(time.RFC3339),
+			"role":                    "user",
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"user": gin.H{
-				"id":              anonymousID,
-				"handle":          "Anonymous",
-				"is_anonymous":    true,
-				"keyboard_layout": req.KeyboardLayout,
-				"locale":          req.Locale,
-			},
-			"tokens": tokens,
+			"user":         anonymousUser,
+			"tokens":       tokens,
+			"requires_mfa": false, // Anonymous users don't use MFA
 		})
 	}
 }

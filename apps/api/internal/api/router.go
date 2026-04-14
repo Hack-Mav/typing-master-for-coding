@@ -117,10 +117,22 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 			auth.POST("/mfa/backup-codes/regenerate", handlers.RegenerateMFABackupCodes(db))
 		}
 
+		// Anonymous session routes (no authentication required)
+		v1.POST("/sessions/anonymous", handlers.CreateAnonymousTypingSession(db, cacheClient))
+
 		// Protected routes
 		protected := v1.Group("/")
 		protected.Use(middleware.AuthMiddleware(cfg.JWTSecret))
 		{
+			// Session management routes
+			protected.POST("/sessions", handlers.CreateSession(db, cacheClient))
+			protected.PUT("/sessions/:id", handlers.UpdateSession(db, cacheClient))
+			protected.POST("/sessions/:id/events", handlers.RecordEvents(db, cacheClient))
+			protected.POST("/sessions/:id/finalize", handlers.FinalizeSession(db, cacheClient))
+			protected.GET("/results", handlers.GetResults(db))
+			protected.GET("/results/:session_id", handlers.GetResult(db))
+			protected.GET("/leaderboards", handlers.GetLeaderboards(cacheClient))
+
 			// User routes
 			protected.GET("/profile", handlers.GetProfile(db))
 			protected.PUT("/profile", handlers.UpdateProfile(db))

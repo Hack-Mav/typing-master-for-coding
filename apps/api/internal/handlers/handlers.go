@@ -437,6 +437,57 @@ func DeleteSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 	}
 }
 
+func CreateAnonymousTypingSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx := context.Background()
+
+		var req struct {
+			Mode       string                 `json:"mode" binding:"required"`
+			LanguageID string                 `json:"language_id" binding:"required"`
+			LessonID   string                 `json:"lesson_id"`
+			SnippetID  string                 `json:"snippet_id"`
+			Settings   map[string]interface{} `json:"settings"`
+			DeviceID   string                 `json:"device_id"`
+		}
+
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Generate anonymous user ID if not provided
+		if req.DeviceID == "" {
+			req.DeviceID = fmt.Sprintf("device_%d", time.Now().UnixNano())
+		}
+		userID := fmt.Sprintf("anon_%s", req.DeviceID)
+
+		// Create session
+		session := models.Session{
+			UserID:     userID,
+			Mode:       req.Mode,
+			LanguageID: req.LanguageID,
+			LessonID:   req.LessonID,
+			SnippetID:  req.SnippetID,
+			StartedAt:  time.Now(),
+			Settings:   req.Settings,
+			CreatedAt:  time.Now(),
+		}
+
+		sessionID := fmt.Sprintf("session_%s_%d", userID, time.Now().UnixNano())
+		key := datastore.NameKey("Session", sessionID, nil)
+
+		_, err := db.Put(ctx, key, &session)
+		if err != nil {
+			log.Printf("Failed to create anonymous session: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create anonymous session"})
+			return
+		}
+
+		session.ID = sessionID
+		c.JSON(http.StatusCreated, session)
+	}
+}
+
 func CreateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()

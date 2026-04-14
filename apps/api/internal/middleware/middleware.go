@@ -101,6 +101,9 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			if role, exists := claims["role"]; exists {
 				c.Set("role", role)
 			}
+			if isAnonymous, exists := claims["is_anonymous"]; exists {
+				c.Set("is_anonymous", isAnonymous)
+			}
 		}
 
 		c.Next()
