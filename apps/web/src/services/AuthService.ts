@@ -95,6 +95,22 @@ export interface AnonymousSessionRequest {
   locale: string;
 }
 
+export interface AnonymousUserResponse {
+  id: string;
+  handle: string;
+  email: string;
+  is_anonymous: boolean;
+  keyboard_layout: string;
+  locale: string;
+  privacy_mode: boolean;
+  telemetry_consent: boolean;
+  data_processing_consent: boolean;
+  settings: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  role: string;
+}
+
 class AuthService {
   private apiBaseUrl: string;
   private accessToken: string | null = null;
@@ -232,56 +248,63 @@ class AuthService {
   }
 
   /**
-   * Create an anonymous session (handled entirely in frontend)
+   * Create an anonymous session by calling the backend API
    */
   async createAnonymousSession(
     request: AnonymousSessionRequest
   ): Promise<AuthResponse> {
-    // Generate anonymous user ID based on device ID
-    const anonymousID = `anon_${request.device_id}`;
-    
-    // Create mock user object
-    const anonymousUser: User = {
-      id: anonymousID,
-      handle: 'Anonymous',
-      email: '',
-      isAnonymous: true,
-      locale: request.locale,
-      keyboardLayout: request.keyboard_layout,
-      privacyMode: true, // Anonymous users get privacy mode by default
-      telemetryConsent: false,
-      dataProcessingConsent: false,
-      settings: {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    const response = await fetch(`${this.apiBaseUrl}/auth/anonymous`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
 
-    // Generate mock tokens (for frontend-only use)
-    const mockTokens: TokenPair = {
-      access_token: `anon_token_${anonymousID}_${Date.now()}`,
-      refresh_token: `anon_refresh_${anonymousID}_${Date.now()}`,
-      expires_in: 86400, // 24 hours
-      token_type: 'Bearer',
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to create anonymous session');
+    }
+
+    const data = await response.json() as { user: AnonymousUserResponse, tokens: TokenPair, requires_mfa?: boolean };
+    
+    // Convert the response to match our User interface
+    const user: User = {
+      id: data.user.id,
+      handle: data.user.handle,
+      email: data.user.email || '',
+      isAnonymous: data.user.is_anonymous || true,
+      locale: data.user.locale,
+      keyboardLayout: data.user.keyboard_layout,
+      privacyMode: data.user.privacy_mode || true,
+      telemetryConsent: data.user.telemetry_consent || false,
+      dataProcessingConsent: data.user.data_processing_consent || false,
+      role: data.user.role || 'user',
+      settings: data.user.settings || {},
+      createdAt: data.user.created_at,
+      updatedAt: data.user.updated_at,
+      mfaEnabled: false, // Anonymous users don't have MFA
     };
 
     // Set current user and tokens
-    this.currentUser = anonymousUser;
-    this.accessToken = mockTokens.access_token;
-    this.refreshToken = mockTokens.refresh_token;
+    this.currentUser = user;
+    this.accessToken = data.tokens.access_token;
+    this.refreshToken = data.tokens.refresh_token;
 
     // Save to localStorage for persistence
-    this.saveToStorage(anonymousUser, mockTokens);
-    
-    // No need to schedule token refresh for anonymous users
+    this.saveToStorage(user, data.tokens);
+
+    // No need to schedule token refresh for anonymous users (tokens last 24 hours)
     if (this.tokenRefreshTimeout) {
       clearTimeout(this.tokenRefreshTimeout);
       this.tokenRefreshTimeout = null;
     }
 
     return {
-      user: anonymousUser,
-      tokens: mockTokens,
-    };
+      user: user,
+      tokens: data.tokens,
+      requires_mfa: false,
+    } as AuthResponse;
   }
 
   /**
