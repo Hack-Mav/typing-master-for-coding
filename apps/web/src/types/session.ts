@@ -164,4 +164,12 @@ export type SessionEvent =
       type: 'SYNC_COMPLETED';
       payload: { syncedCount: number; timestamp: number };
     }
-  | { type: 'SYNC_FAILED'; payload: { error: string; timestamp: number } };
+  | { type: 'SYNC_FAILED'; payload: { error: string; timestamp: number } }
+  | { 
+      type: 'AUTHENTICATION_CHOICE_REQUIRED'; 
+      payload: { sessionId: string; options: string[] } 
+    }
+  | { 
+      type: 'AUTHENTICATION_REQUIRED'; 
+      payload: { sessionId: string; reason: string } 
+    };

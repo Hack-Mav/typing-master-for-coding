@@ -80,26 +80,58 @@ export class SessionManager {
     this.activeSessions.set(sessionId, session);
     this.eventBatches.set(sessionId, []);
 
-    // Try to create session on backend if online and authenticated
-    if (navigator.onLine && authService.isAuthenticated()) {
+    // Try to create session on backend if online
+    if (navigator.onLine) {
       try {
-        await this.createSessionOnBackend(session);
+        if (authService.isAuthenticated() && !authService.isAnonymous()) {
+          // Authenticated normal user - use protected endpoint
+          await this.createSessionOnBackend(session);
+        } else if (authService.isAuthenticated() && authService.isAnonymous()) {
+          // Anonymous user with valid JWT - use anonymous endpoint
+          await this.createAnonymousSessionOnBackend(session);
+        } else {
+          // Not authenticated - check if user has made a choice
+          const authChoice = this.getAuthenticationChoice();
+
+          if (authChoice === 'anonymous') {
+            // User chose anonymous mode - create anonymous session
+            const deviceId =
+              localStorage.getItem('device_id') ||
+              `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            localStorage.setItem('device_id', deviceId);
+
+            await authService.createAnonymousSession({
+              device_id: deviceId,
+              keyboard_layout: 'qwerty',
+              locale: 'en-US',
+            });
+
+            // Now create the session with the anonymous token
+            await this.createAnonymousSessionOnBackend(session);
+          } else if (authChoice === 'authenticate') {
+            // User chose to authenticate - emit event to show login
+            this.emitEvent({
+              type: 'AUTHENTICATION_REQUIRED',
+              payload: { sessionId, reason: 'user_chose_authenticate' },
+            });
+            // Return the session without backend sync - will be synced after authentication
+            return session;
+          } else {
+            // User hasn't made a choice - emit event to show choice dialog
+            this.emitEvent({
+              type: 'AUTHENTICATION_CHOICE_REQUIRED',
+              payload: { sessionId, options: ['anonymous', 'authenticate'] },
+            });
+            // Return the session without backend sync - will be synced after choice
+            return session;
+          }
+        }
         session.synced = true;
       } catch (error) {
         console.warn(
           'Failed to create session on backend, will work offline:',
           error
         );
-        this.offlineQueue.pendingSessions.push(session);
-        await this.persistOfflineQueue();
-      }
-    } else if (navigator.onLine) {
-      // Anonymous session - still create on backend if possible
-      try {
-        await this.createSessionOnBackend(session);
-        session.synced = true;
-      } catch (error) {
-        console.warn('Failed to create anonymous session on backend:', error);
         this.offlineQueue.pendingSessions.push(session);
         await this.persistOfflineQueue();
       }
@@ -121,8 +153,15 @@ export class SessionManager {
   }
 
   async startSession(sessionId: string): Promise<void> {
+    console.log('Starting session with ID:', sessionId);
+    console.log('Active sessions:', Array.from(this.activeSessions.keys()));
+
     const session = this.activeSessions.get(sessionId);
     if (!session) {
+      console.error(
+        'Session not found. Available sessions:',
+        Array.from(this.activeSessions.keys())
+      );
       throw new Error(`Session ${sessionId} not found`);
     }
 
@@ -214,7 +253,7 @@ export class SessionManager {
       },
     };
 
-    // Try to finalize session on backend if online and authenticated
+    // Try to finalize session on backend if online
     if (navigator.onLine && authService.isAuthenticated()) {
       try {
         await this.finalizeSessionOnBackend(sessionId, result);
@@ -227,18 +266,8 @@ export class SessionManager {
         this.offlineQueue.pendingSessions.push(session);
         await this.persistOfflineQueue();
       }
-    } else if (navigator.onLine) {
-      // Anonymous session
-      try {
-        await this.finalizeSessionOnBackend(sessionId, result);
-        session.synced = true;
-      } catch (error) {
-        console.warn('Failed to finalize anonymous session on backend:', error);
-        this.offlineQueue.pendingSessions.push(session);
-        await this.persistOfflineQueue();
-      }
     } else {
-      // Offline mode
+      // Offline mode or not authenticated
       this.offlineQueue.pendingSessions.push(session);
       await this.persistOfflineQueue();
     }
@@ -635,9 +664,74 @@ export class SessionManager {
 
       const backendSession = await response.json();
       // Update session with backend data if needed
+      const originalId = session.id;
       session.id = backendSession.id || session.id;
+
+      // If the backend returned a new ID, update the activeSessions map
+      if (backendSession.id && backendSession.id !== originalId) {
+        console.log(`Session ID changed from ${originalId} to ${session.id}`);
+        this.activeSessions.delete(originalId);
+        this.activeSessions.set(session.id, session);
+        this.eventBatches.set(
+          session.id,
+          this.eventBatches.get(originalId) || []
+        );
+        this.eventBatches.delete(originalId);
+      }
     } catch (error) {
       console.error('Error creating session on backend:', error);
+      throw error;
+    }
+  }
+
+  private async createAnonymousSessionOnBackend(
+    session: TypingSession
+  ): Promise<void> {
+    try {
+      // Get device ID for anonymous session
+      const deviceId =
+        localStorage.getItem('device_id') ||
+        `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      const response = await fetch(`${this.apiBaseUrl}/sessions/anonymous`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mode: session.config.mode,
+          language_id: session.config.languageId,
+          lesson_id: session.config.lessonId,
+          snippet_id: session.config.snippetId,
+          settings: session.config.settings,
+          device_id: deviceId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Failed to create anonymous session on backend: ${response.statusText}`
+        );
+      }
+
+      const backendSession = await response.json();
+      // Update session with backend data if needed
+      const originalId = session.id;
+      session.id = backendSession.id || session.id;
+
+      // If the backend returned a new ID, update the activeSessions map
+      if (backendSession.id && backendSession.id !== originalId) {
+        console.log(`Session ID changed from ${originalId} to ${session.id}`);
+        this.activeSessions.delete(originalId);
+        this.activeSessions.set(session.id, session);
+        this.eventBatches.set(
+          session.id,
+          this.eventBatches.get(originalId) || []
+        );
+        this.eventBatches.delete(originalId);
+      }
+    } catch (error) {
+      console.error('Error creating anonymous session on backend:', error);
       throw error;
     }
   }
@@ -839,6 +933,69 @@ export class SessionManager {
     if (index > -1) {
       this.eventListeners.splice(index, 1);
     }
+  }
+
+  /**
+   * Get user's authentication choice from localStorage
+   */
+  private getAuthenticationChoice(): 'anonymous' | 'authenticate' | null {
+    return localStorage.getItem('auth_choice') as
+      | 'anonymous'
+      | 'authenticate'
+      | null;
+  }
+
+  /**
+   * Set user's authentication choice
+   */
+  setAuthenticationChoice(choice: 'anonymous' | 'authenticate'): void {
+    localStorage.setItem('auth_choice', choice);
+  }
+
+  /**
+   * Clear authentication choice
+   */
+  clearAuthenticationChoice(): void {
+    localStorage.removeItem('auth_choice');
+  }
+
+  /**
+   * Resume session creation after authentication choice
+   */
+  async resumeSessionCreation(sessionId: string): Promise<TypingSession> {
+    const session = this.activeSessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    const authChoice = this.getAuthenticationChoice();
+
+    if (authChoice === 'anonymous') {
+      // Create anonymous session
+      const deviceId =
+        localStorage.getItem('device_id') ||
+        `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('device_id', deviceId);
+
+      await authService.createAnonymousSession({
+        device_id: deviceId,
+        keyboard_layout: 'qwerty',
+        locale: 'en-US',
+      });
+
+      await this.createAnonymousSessionOnBackend(session);
+    } else if (authChoice === 'authenticate') {
+      // User should be authenticated by now
+      if (!authService.isAuthenticated() || authService.isAnonymous()) {
+        throw new Error('User not authenticated after authentication choice');
+      }
+      await this.createSessionOnBackend(session);
+    }
+
+    session.synced = true;
+    await this.persistSession(session);
+
+    return session;
   }
 
   private emitEvent(event: SessionEventType): void {
