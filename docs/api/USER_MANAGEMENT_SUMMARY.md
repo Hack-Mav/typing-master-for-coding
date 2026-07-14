@@ -6,6 +6,10 @@ Successfully implemented comprehensive user management and privacy features for 
 
 - ✅ JWT-based authentication with automatic token refresh
 - ✅ User registration and login
+- ✅ Password complexity validation (8+ chars, mixed case, digit, special)
+- ✅ Email verification flow with `POST /api/v1/auth/verify-email`
+- ✅ Account lockout after 5 failed login attempts in a 15-minute window
+- ✅ Refresh token rotation and reuse detection
 - ✅ Anonymous mode with device-local storage
 - ✅ Profile management
 - ✅ GDPR-compliant data export and deletion
@@ -17,24 +21,29 @@ Successfully implemented comprehensive user management and privacy features for 
 
 ### Backend (Go)
 ```
-backend/internal/
+apps/api/internal/
 ├── auth/
 │   ├── jwt.go          # JWT token generation and validation
-│   └── password.go     # Password hashing with bcrypt
+│   ├── password.go     # Password hashing, complexity validation, and refresh token hash helpers
+│   ├── lockout.go      # Cache-backed account lockout for login/MFA
+│   └── mfa.go          # TOTP generation and validation
 ├── handlers/
 │   ├── auth.go         # Authentication endpoints
+│   ├── handlers.go     # Session endpoints with ownership checks
 │   └── privacy.go      # Privacy and GDPR endpoints
 └── models/
+    ├── models.go       # User and Session data models
     └── dto.go          # Request/response DTOs
 ```
 
 ### Frontend (React/TypeScript)
 ```
-typing-master/src/
+apps/web/src/
 ├── services/
-│   ├── AuthService.ts          # Authentication service
+│   ├── AuthService.ts          # Authentication service (HttpOnly cookie auth)
+│   ├── AuthContext.tsx         # React auth context with MFA helpers
 │   ├── PrivacyService.ts       # Privacy and GDPR service
-│   └── LocalStorageService.ts  # Local storage for anonymous mode
+│   └── LocalStorageService.ts  # Local-only storage for anonymous mode data
 └── components/
     ├── Auth/
     │   ├── LoginForm.tsx        # Login UI
@@ -49,8 +58,9 @@ typing-master/src/
 
 ### 1. Anonymous Mode
 Users can practice without creating an account:
-- All data stored locally on device
-- No server communication
+- Device-generated `device_id` is stored in `localStorage` for anonymous session linking
+- Anonymous backend sessions are created via `POST /api/v1/auth/anonymous`
+- Local session data is stored by `LocalStorageService` / `IndexedDBManager` for offline use
 - Full functionality available offline
 - Easy upgrade to registered account
 
@@ -60,6 +70,7 @@ Secure token-based authentication:
 - 7-day refresh tokens
 - Automatic token refresh
 - Secure password hashing (bcrypt)
+- **Access and refresh tokens are delivered as HttpOnly, Secure cookies**; they are not stored in `localStorage` and the frontend uses `credentials: 'include'` for authenticated requests
 
 ### 3. Privacy Controls
 Granular privacy settings:
@@ -67,21 +78,41 @@ Granular privacy settings:
 - Telemetry consent (optional analytics)
 - Data processing consent (required for cloud features)
 
-### 4. GDPR Compliance
+### 4. MFA Support
+Multi-factor authentication using TOTP:
+- `POST /api/v1/auth/mfa/setup` – generate a TOTP secret and backup codes
+- `POST /api/v1/auth/mfa/verify-setup` – verify an initial TOTP code
+- `GET /api/v1/mfa/status` – check MFA status
+- `POST /api/v1/auth/mfa/disable` – disable MFA
+- `POST /api/v1/auth/mfa/backup-codes/regenerate` – regenerate backup codes
+- Backup codes are hashed before storage
+
+### 5. GDPR Compliance
 Full compliance with data protection regulations:
 - Right to access (data export)
 - Right to deletion (complete data removal)
 - Right to portability (JSON/CSV export)
 - Consent management
 - Data minimization
+- Anonymized telemetry with opt-in consent
 
 ## API Endpoints
 
 ### Authentication
-- `POST /api/v1/auth/register` - Register new user
-- `POST /api/v1/auth/login` - Login user
-- `POST /api/v1/auth/refresh` - Refresh access token
+- `POST /api/v1/auth/register` - Register new user (password must be 8+ chars, mixed case, digit, and special)
+- `POST /api/v1/auth/login` - Login user (requires `EmailVerified=true`; locked after 5 failed attempts / 15 minutes)
+- `POST /api/v1/auth/login/mfa` - Login with MFA code (subject to same lockout rules)
+- `POST /api/v1/auth/verify-email` - Verify email with one-time token
+- `POST /api/v1/auth/refresh` - Refresh access token via HttpOnly cookie (rotates refresh token and invalidates previous)
+- `POST /api/v1/auth/logout` - Clear auth cookies
 - `POST /api/v1/auth/anonymous` - Create anonymous session
+
+### MFA
+- `POST /api/v1/auth/mfa/setup` - Setup MFA (returns secret, QR URL, backup codes)
+- `POST /api/v1/auth/mfa/verify-setup` - Verify MFA setup
+- `GET /api/v1/mfa/status` - Get MFA status
+- `POST /api/v1/auth/mfa/disable` - Disable MFA
+- `POST /api/v1/auth/mfa/backup-codes/regenerate` - Regenerate backup codes
 
 ### User Profile
 - `GET /api/v1/profile` - Get user profile
@@ -102,9 +133,15 @@ import { authService } from './services/AuthService';
 const response = await authService.register({
   handle: 'johndoe',
   email: 'john@example.com',
-  password: 'securepassword123',
+  password: 'SecurePassword123!',
   telemetryConsent: true,
   dataProcessingConsent: true
+});
+
+// Email must be verified before login is allowed
+await authService.verifyEmail({
+  email: 'john@example.com',
+  token: 'verification-token-from-email'
 });
 ```
 
@@ -112,16 +149,18 @@ const response = await authService.register({
 ```typescript
 const response = await authService.login({
   email: 'john@example.com',
-  password: 'securepassword123'
+  password: 'SecurePassword123!'
 });
 ```
 
 ### Create Anonymous Session
 ```typescript
 const deviceId = localStorage.getItem('device_id') || generateDeviceId();
+localStorage.setItem('device_id', deviceId);
+
 await authService.createAnonymousSession({
-  deviceId,
-  keyboardLayout: 'QWERTY',
+  device_id: deviceId,
+  keyboard_layout: 'qwerty',
   locale: 'en-US'
 });
 ```
@@ -187,17 +226,24 @@ localStorageService.saveResult({
 1. **Password Security**
    - Bcrypt hashing with cost factor 12
    - Minimum 8 characters required
+   - Must contain uppercase, lowercase, digit, and special character
    - Never exposed in API responses
 
 2. **Token Security**
    - HMAC-SHA256 signing
    - Short-lived access tokens (15 min)
-   - Secure refresh mechanism
+   - Secure refresh mechanism; each refresh rotates the refresh token and invalidates the previous one
    - Automatic cleanup on logout
 
-3. **Data Protection**
+3. **Account Protection**
+   - Account lockout after 5 failed login/MFA attempts within a 15-minute window
+   - Email verification required before login is permitted
+   - Session ownership enforced on `PUT /api/v1/sessions/:id` and `POST /api/v1/sessions/:id/finalize`
+
+4. **Data Protection**
    - All passwords hashed before storage
-   - Tokens stored securely in localStorage
+   - Access/refresh tokens delivered as **HttpOnly, Secure cookies** (not stored in `localStorage`)
+   - Frontend uses `credentials: 'include'` so cookies are sent with API requests
    - HTTPS required in production
    - PII anonymization in telemetry
 
@@ -208,11 +254,11 @@ To test the implementation:
 1. **Registration Flow**
    ```bash
    # Start backend
-   cd backend
-   go run main.go
+   cd apps/api
+   go run ./cmd/server
    
    # Start frontend
-   cd typing-master
+   cd apps/web
    npm start
    ```
 
@@ -236,15 +282,19 @@ To test the implementation:
 ## Environment Setup
 
 ### Backend
-Add to `.env`:
+Add to `.env` (all required values must be set before startup):
 ```env
-JWT_SECRET=your-secret-key-change-in-production
+JWT_SECRET=<replace-with-a-strong-secret>
+ALLOWED_ORIGINS=http://localhost:3000
+DATABASE_URL=postgres://user:password@localhost:5432/typing_master?sslmode=disable
+REDIS_URL=redis://localhost:6379
 ```
 
 ### Frontend
 Add to `.env`:
 ```env
 REACT_APP_API_URL=http://localhost:8080/api/v1
+REACT_APP_ENVIRONMENT=development
 ```
 
 ## Dependencies
@@ -258,14 +308,27 @@ No additional dependencies required (uses built-in browser APIs)
 
 ## Next Steps
 
-1. **Email Verification** - Add email verification flow
+1. ~~**Email Verification** - Add email verification flow~~ **IMPLEMENTED**: Registration generates a verification token; `POST /api/v1/auth/verify-email` verifies it and `Login`/`LoginWithMFA` require `EmailVerified=true`
 2. **Password Reset** - Implement forgot password functionality
 3. **OAuth Integration** - Add social login (Google, GitHub)
-4. **2FA** - Implement two-factor authentication
-5. **Session Management** - Add device/session management UI
-6. **Rate Limiting** - Add rate limiting to auth endpoints
-7. **Audit Logging** - Log authentication and privacy events
-8. **Testing** - Add comprehensive unit and integration tests
+4. **Device/Session Management** - Add device/session management UI
+5. ~~**Rate Limiting** - Add rate limiting to auth endpoints~~ **IMPLEMENTED**: Cache-backed rate limiting is now applied globally via `RateLimitMiddleware`; account lockout is enforced in `Login` and `LoginWithMFA`
+6. **Audit Logging** - Log authentication and privacy events
+7. ~~**Testing** - Add comprehensive unit and integration tests~~ **IMPLEMENTED**: Password complexity, email verification, lockout, refresh token rotation/reuse, and session ownership tests are in `internal/handlers`
+
+## Current Status
+
+- ✅ Anonymous mode with backend anonymous sessions
+- ✅ JWT authentication with HttpOnly, Secure cookies
+- ✅ Password complexity validation and email verification
+- ✅ Account lockout for failed login/MFA attempts
+- ✅ Refresh token rotation and reuse detection
+- ✅ TOTP-based MFA with backup codes
+- ✅ Privacy controls and GDPR data export/deletion
+- ✅ `AuthContext` no longer polls `localStorage` for token state
+- ✅ Cache-backed rate limiting and double-submit CSRF protection
+- ✅ Session ownership verification in `UpdateSession` and `FinalizeSession`
+- ✅ Backend `go test ./...` passes
 
 ## Requirements Satisfied
 
@@ -304,5 +367,5 @@ For questions or issues:
 ---
 
 **Status**: ✅ Complete and Ready for Testing
-**Last Updated**: 2024
-**Version**: 1.0.0
+**Last Updated**: 2026-07-14
+**Version**: 1.1.0

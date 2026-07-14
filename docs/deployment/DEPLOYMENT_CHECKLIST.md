@@ -33,34 +33,36 @@ This checklist ensures a smooth deployment of the Typing Master application to p
 - [ ] Billing enabled
 - [ ] APIs enabled:
   - [ ] App Engine Admin API
-  - [ ] Cloud Datastore API
+  - [ ] Cloud SQL Admin API
   - [ ] Cloud Storage API
   - [ ] Cloud CDN API
   - [ ] Cloud Monitoring API
   - [ ] Cloud Logging API
   - [ ] Secret Manager API
+  - [ ] Cloud Memorystore for Redis API
 
 ### Environment Configuration
-- [ ] `backend/app.prod.yaml` configured
+- [ ] `apps/api/Dockerfile` / `app.prod.yaml` configured
 - [ ] JWT_SECRET set in Secret Manager
 - [ ] Environment variables configured
 - [ ] ALLOWED_ORIGINS set correctly
 - [ ] Database connection tested
 
 ### Database Setup
-- [ ] Datastore indexes deployed: `gcloud datastore indexes create index.yaml`
-- [ ] Indexes built (check status)
+- [ ] PostgreSQL database provisioned (e.g., Cloud SQL or Docker)
+- [ ] `DATABASE_URL` configured and migrations applied
+- [ ] Redis instance provisioned (optional; used for caching when `REDIS_URL` is set)
 - [ ] Test data loaded (if needed)
 - [ ] Backup strategy configured
 
 ### Backend Deployment Steps
 ```bash
 # 1. Test locally
-cd backend
+cd apps/api
 go test ./...
 
 # 2. Build
-go build -o typing-master-backend
+go build -o typing-master-backend ./cmd/server
 
 # 3. Deploy to App Engine
 gcloud app deploy app.prod.yaml --project=typing-master-prod
@@ -92,7 +94,7 @@ curl https://typing-master-prod.appspot.com/health
 
 ### Build and Test
 ```bash
-cd typing-master
+cd apps/web
 
 # 1. Install dependencies
 npm ci
@@ -117,7 +119,7 @@ npm run analyze
 ### CDN Setup
 ```bash
 # 1. Run CDN deployment script
-cd backend
+cd apps/api
 chmod +x deploy-cdn.sh
 ./deploy-cdn.sh
 
@@ -248,10 +250,16 @@ BASE_URL=https://typing-master.app ./run-load-tests.sh
 - [ ] Referrer-Policy set
 
 ### Authentication
-- [ ] JWT secret secure
-- [ ] Token expiration configured
-- [ ] Refresh token rotation enabled
-- [ ] Rate limiting enabled
+- [ ] JWT_SECRET set in Secret Manager (required - application will not start without this)
+- [ ] ALLOWED_ORIGINS configured correctly (required - application will not start without this)
+- [ ] Token expiration configured (15 min access, 7 days refresh)
+- [ ] HttpOnly, Secure cookies enabled
+- [ ] CSRF protection enabled (double-submit cookie with `X-CSRF-Token` header)
+- [ ] Rate limiting enabled (Redis-backed when `REDIS_URL` is set; in-memory fallback)
+- [ ] Password complexity policy enforced (8+ chars, mixed case, digit, special)
+- [ ] Email verification enabled for new registrations
+- [ ] Account lockout configured (5 failed attempts / 15-minute window)
+- [ ] Refresh token rotation and reuse detection enabled
 - [ ] CORS configured correctly
 
 ### Data Protection

@@ -328,7 +328,25 @@ A desktop-first, web-enabled application to help developers practice typing real
 
 * Anonymous mode; only device‑local storage unless user opts in.
 
-* End‑to‑end TLS; JWT short‑lived tokens; CSRF protection.
+* End‑to‑end TLS; JWT short‑lived tokens in HttpOnly, Secure cookies.
+
+* Password complexity enforcement for registration (8+ characters, mixed case, digit, and special character).
+
+* Email verification flow with one-time token; `Login` and `LoginWithMFA` require `EmailVerified=true`.
+
+* Account lockout and login rate limiting via cache-backed `LoginAttemptTracker` (5 failed attempts / 15-minute window).
+
+* Refresh token rotation and reuse detection: `RefreshToken` validates the token against the user's stored `RefreshTokenHash`, issues a new pair, and invalidates the used token.
+
+* Session ownership verification: `UpdateSession` and `FinalizeSession` verify the authenticated `user_id` matches `session.UserID`.
+
+* CSRF protection via double‑submit cookie (`csrf_token` + `X-CSRF-Token` header, `SameSite=Strict`).
+
+* Rate limiting backed by Redis cache (`IncrWithTTL`) with in‑memory fallback when `REDIS_URL` is not configured.
+
+* OAuth state stored in cache with TTL and bound to a session `oauth_state` cookie.
+
+* Request size limits and secure headers; ineffective regex blacklist XSS/SQL checks removed.
 
 * GDPR‑friendly data export & deletion; event minimization.
 

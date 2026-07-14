@@ -14,13 +14,13 @@ This guide covers all testing strategies implemented for the Typing Master appli
 
 ### Frontend Testing
 ```bash
-cd typing-master
+cd apps/web
 npm install
 ```
 
 ### E2E Testing
 ```bash
-cd e2e
+cd tests
 npm install
 npx playwright install
 ```
@@ -41,12 +41,55 @@ sudo apt-get update
 sudo apt-get install k6
 ```
 
+## Current Test Status
+
+As of the latest test run in `apps/web`:
+
+- **Total test suites**: 14
+- **Passing suites**: 13
+- **Failing suites**: 1 (`CppRustParserIntegration`)
+- **Total tests**: 145
+- **Passing tests**: 131
+- **Failing tests**: 14
+
+Recent fixes completed:
+- `SessionManager.ts` event ordering corrected (`SESSION_CREATED` emitted before `AUTHENTICATION_CHOICE_REQUIRED`).
+- `TimedDrillMode.tsx` no longer uses a hard-coded target text and stays in a loading state until the session is ready.
+- `App.test.tsx`, `ZenMode.test.tsx`, `TimedDrillMode.test.tsx`, `SessionManager.test.ts`, `MetricsCalculator.test.ts`, `MetricsCalculator.property.test.ts`, and `ParserManager.property.test.ts` all pass.
+- `MetricsCalculator` now exposes the missing convenience methods required by property tests.
+- `ParserManager` now exposes `parseCode` and `compareStructure`, resolves WASM paths correctly for tests, and uses the correct `TreeCursor`/`SyntaxNode` property access.
+- `IndexedDBManager` now falls back to an in-memory store when `indexedDB` is unavailable, allowing `ContentService` tests to work offline.
+
+Remaining blocker:
+- `CppRustParserIntegration.test.ts` cannot load `cpp`/`rust` Tree-sitter WASM binaries in the Jest/jsdom environment due to `web-tree-sitter` requiring `--experimental-vm-modules` for dynamic `.wasm` imports. `ParserManager.property` (`python`/`javascript`/`yaml`) passes.
+
+### Backend Test Status
+
+- `go test ./...` passes for all packages with tests.
+- Tested packages: `internal/auth`, `internal/handlers`, `internal/scoring`, `internal/security`.
+
+### Security Tests
+
+The `internal/security` package tests cover:
+- Request size limit enforcement (`OVERSIZED_REQUEST` detection)
+- Secure headers middleware (`X-Content-Type-Options`, `X-Frame-Options`, `Strict-Transport-Security`, etc.)
+- Double-submit CSRF protection (`csrf_token` cookie + `X-CSRF-Token` header verification)
+- Missing, mismatched, and valid CSRF token scenarios
+- Vulnerability scanner no longer blocks requests based on regex XSS/SQL blacklists
+
+The `internal/handlers` package tests cover:
+- Password complexity validation (`TestRegister` rejects weak passwords)
+- Email verification requirement and `POST /api/v1/auth/verify-email` flow
+- Account lockout after repeated failed `Login` and `LoginWithMFA` attempts
+- Refresh token rotation and reuse detection in `RefreshToken`
+- Session ownership verification in `UpdateSession` and `FinalizeSession`
+
 ## Unit Tests
 
 ### Running Unit Tests
 
 ```bash
-cd typing-master
+cd apps/web
 
 # Run all tests
 npm test
@@ -84,7 +127,7 @@ Property-based tests use `fast-check` to validate algorithmic invariants.
 ### Running Property-Based Tests
 
 ```bash
-cd typing-master
+cd apps/web
 
 # Run only property-based tests
 npm run test:property
@@ -136,7 +179,7 @@ E2E tests use Playwright to test complete user workflows.
 ### Running E2E Tests
 
 ```bash
-cd e2e
+cd tests
 
 # Run all E2E tests
 npm test
@@ -163,6 +206,8 @@ npm run report
 ```
 
 ### Test Scenarios
+
+> **Note:** `tests/e2e` currently contains no spec files. The Playwright configuration and `tests/package.json` scripts exist, but E2E tests must be added before these commands will run.
 
 1. **Typing Session Tests** (`typing-session.spec.ts`)
    - Homepage loading
@@ -202,7 +247,7 @@ Accessibility tests ensure WCAG 2.2 AA compliance using axe-core.
 ### Running Accessibility Tests
 
 ```bash
-cd e2e
+cd tests
 
 # Run all accessibility tests
 npm test tests/accessibility.spec.ts
@@ -228,15 +273,16 @@ npm run test:headed tests/accessibility.spec.ts
 
 ### Accessibility Checklist
 
-- [ ] All interactive elements are keyboard accessible
-- [ ] Focus indicators are visible
+- [x] All interactive elements are keyboard accessible (mode cards now use `role="button"`, `tabIndex={0}`, `aria-label`, and `Enter`/`Space` handlers)
+- [x] Focus indicators are visible (`:focus` styles in `App.css`)
 - [ ] Color contrast meets WCAG AA standards
 - [ ] All images have alt text
 - [ ] Form inputs have labels
 - [ ] Headings are in logical order
 - [ ] Page has main landmark
-- [ ] Screen reader announcements work
-- [ ] Reduced motion is respected
+- [x] Screen reader announcements work (`MonacoTypingInterface` has `role="status"` live region and gated announcements)
+- [x] Reduced motion is respected (`reduced-motion` class + `prefers-reduced-motion` listener)
+- [x] High contrast mode works (`high-contrast` class + `prefers-contrast: more` listener)
 - [ ] Skip navigation link is present
 
 ## Load Tests
@@ -246,7 +292,7 @@ Load tests verify the application can handle production traffic.
 ### Running Load Tests
 
 ```bash
-cd load-tests
+cd tests
 
 # Run all load test scenarios
 ./run-load-tests.sh
@@ -296,21 +342,20 @@ cat results/load_*.json | jq '.root_group.checks'
 
 ```bash
 # 1. Frontend unit tests
-cd typing-master
+cd apps/web
 npm test
 
 # 2. Property-based tests
 npm run test:property
 
 # 3. E2E tests
-cd ../e2e
+cd ../../tests
 npm test
 
 # 4. Accessibility tests
 npm test tests/accessibility.spec.ts
 
 # 5. Load tests (requires running backend)
-cd ../load-tests
 ./run-load-tests.sh
 ```
 
@@ -350,23 +395,23 @@ jobs:
       
       - name: Install dependencies
         run: |
-          cd typing-master && npm ci
-          cd ../e2e && npm ci
+          cd apps/web && npm ci
+          cd ../../tests && npm ci
       
       - name: Run unit tests
-        run: cd typing-master && npm test -- --coverage
+        run: cd apps/web && npm test -- --coverage
       
       - name: Run property tests
-        run: cd typing-master && npm run test:property
+        run: cd apps/web && npm run test:property
       
       - name: Build application
-        run: cd typing-master && npm run build
+        run: cd apps/web && npm run build
       
       - name: Install Playwright
-        run: cd e2e && npx playwright install --with-deps
+        run: cd tests && npx playwright install --with-deps
       
       - name: Run E2E tests
-        run: cd e2e && npm test
+        run: cd tests && npm test
       
       - name: Upload test results
         if: always()
@@ -374,9 +419,9 @@ jobs:
         with:
           name: test-results
           path: |
-            typing-master/coverage/
-            e2e/playwright-report/
-            e2e/test-results/
+            apps/web/coverage/
+            tests/playwright-report/
+            tests/test-results/
 ```
 
 ## Test Data Management
@@ -384,8 +429,8 @@ jobs:
 ### Test Fixtures
 
 Test fixtures are located in:
-- `typing-master/src/services/__tests__/fixtures/`
-- `e2e/fixtures/`
+- `apps/web/src/services/__tests__/fixtures/`
+- `tests/e2e/fixtures/`
 
 ### Mock Data
 

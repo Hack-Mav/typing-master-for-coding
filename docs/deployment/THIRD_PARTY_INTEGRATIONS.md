@@ -262,10 +262,14 @@ Content-Type: application/json
 - Tokens have configurable expiration times
 
 ### Authentication
-- JWT tokens for API authentication
-- OAuth2 flow for third-party integrations
-- Secure token storage and transmission
-- Rate limiting to prevent abuse
+- JWT tokens for API authentication via HttpOnly, Secure cookies
+- OAuth2 flow for third-party integrations with state stored in cache and bound to a session `oauth_state` cookie
+- Secure token storage and transmission; refresh tokens are rotated and single-use
+- CSRF protection: state-changing requests must include the `X-CSRF-Token` header matching the `csrf_token` cookie
+- Rate limiting to prevent abuse (Redis-backed when `REDIS_URL` is configured, in-memory fallback)
+- Account lockout after 5 failed login/MFA attempts within a 15-minute window
+- Email verification required before login is permitted
+- Password complexity enforced (8+ chars, mixed case, digit, and special character)
 
 ### Data Privacy
 - Temporary embedded sessions expire after 24 hours
@@ -279,11 +283,11 @@ Content-Type: application/json
 
 1. **Backend Setup**
    ```bash
-   cd backend
+   cd apps/api
    go mod download
    cp .env.example .env
    # Configure environment variables
-   go run main.go
+   go run ./cmd/server
    ```
 
 2. **VS Code Extension Setup**
@@ -297,7 +301,7 @@ Content-Type: application/json
 3. **Testing**
    ```bash
    # Backend tests
-   cd backend
+   cd apps/api
    go test ./internal/handlers/...
    
    # Extension tests
@@ -307,9 +311,9 @@ Content-Type: application/json
 
 ### Adding New Integrations
 
-1. **Create Service**: Implement service in `backend/internal/services/`
-2. **Add Handlers**: Create handlers in `backend/internal/handlers/`
-3. **Update Router**: Add routes in `backend/internal/api/router.go`
+1. **Create Service**: Implement service in `apps/api/internal/services/`
+2. **Add Handlers**: Create handlers in `apps/api/internal/handlers/`
+3. **Update Router**: Add routes in `apps/api/internal/api/router.go`
 4. **Add Tests**: Create comprehensive test coverage
 5. **Update Documentation**: Document new integration features
 

@@ -8,26 +8,38 @@ Welcome to the Typing Master for Coding documentation hub.
 - **Admin CMS Implementation Summary** - Complete CMS implementation guide
 - **Admin CMS Quick Start** - Quick start for administrators
 - **User Management Summary** - User management features overview
+- **API Overview** - Authentication flow, security requirements, and key services
 
 ### [🚀 Deployment Guides](./deployment/)
 - **Deployment Checklist** - Production deployment checklist
 - **Third Party Integrations** - External service integrations
+- **Deployment Overview** - Environment configuration, Docker setup, CI/CD pipeline
 
 ### [💻 Development Guides](./development/)
-- **Implementation Guides** - Various implementation summaries
+- **Implementation Complete** - Overall implementation status and summary
+- **Codebase Critique** - Critical review of current codebase state and recent fixes
+- **Restructure Plan** - Information about the recent project restructuring
 - **Testing Guide** - Comprehensive testing strategies
 - **Traceability Matrix** - Requirements traceability
 - **Integration Setup** - Development environment setup
-- **Restructure Plan** - Recent project restructuring info
+- **Development Overview** - Code organization, tools, and current status
 
 ### [🏗️ Architecture Documentation](./architecture/)
 - **Technical Specification** - Complete technical requirements and design
+- **Architecture Overview** - System architecture, technology stack, data flow, and security considerations
 
 ## Quick Links
 
 - [Project README](../README.md) - Main project documentation
-- [Technical Specification](../Typing%20Master%20for%20Coding%20%E2%80%94%20Technical%20Specification.md) - Detailed technical requirements
-- [Restructure Plan](../RESTRUCTURE_PLAN.md) - Information about the recent project restructuring
+- [Technical Specification](./architecture/Typing%20Master%20for%20Coding%20%E2%80%94%20Technical%20Specification.md) - Detailed technical requirements
+
+## Current Status
+
+- **Frontend (`apps/web`)**: 13 of 14 test suites passing, 131 of 145 tests passing. The remaining failing suite is `CppRustParserIntegration.test.ts` (blocked by `web-tree-sitter` WASM dynamic import in Jest). `SessionManager`, `TimedDrillMode`, `ZenMode`, `App`, `MetricsCalculator`, and `ParserManager` property tests have been fixed and pass.
+- **Backend (`apps/api`)**: `go test ./...` passes for all packages with tests.
+- **Recent changes**: Authentication now uses HttpOnly, Secure cookies; MFA/TOTP (RFC 6238 compliant) is implemented; scoring helper functions are implemented; Docker/CI paths use `apps/api` and `apps/web`; `JWT_SECRET` and `ALLOWED_ORIGINS` are required at startup; cache-backed rate limiting, double-submit CSRF protection, cache-backed OAuth state, password complexity validation, email verification, account lockout, refresh token rotation/reuse detection, and session ownership verification are implemented; PostgreSQL (pgx + sqlx) and Redis (go-redis) integration complete with in-memory fallback; anonymous session support with authentication choice flow implemented.
+
+See [Testing Guide](./development/TESTING_GUIDE.md) and [Codebase Critique](./development/CODEBASE_CRITIQUE.md) for details.
 
 ## Getting Started
 
@@ -35,6 +47,7 @@ Welcome to the Typing Master for Coding documentation hub.
 2. Check [Development Guides](./development/) for detailed development setup
 3. Review [API Documentation](./api/) for backend integration
 4. Consult [Deployment Guides](./deployment/) for production setup
+5. Review [Architecture Documentation](./architecture/) for system design and technical specifications
 
 ## Contributing to Documentation
 

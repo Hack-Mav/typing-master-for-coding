@@ -301,7 +301,7 @@ For custom workflow platforms:
 
 1. **Create Platform Handler**:
    ```go
-   // backend/internal/services/custom_platform.go
+   // apps/api/internal/services/custom_platform.go
    func (s *CustomPlatformService) GenerateConfig(config map[string]interface{}) (*CIConfig, error) {
        // Custom configuration generation
    }
@@ -309,7 +309,7 @@ For custom workflow platforms:
 
 2. **Add Platform Support**:
    ```go
-   // backend/internal/services/workflow_embedding.go
+   // apps/api/internal/services/workflow_embedding.go
    func (s *WorkflowEmbeddingService) GetSupportedPlatforms() []WorkflowPlatform {
        return []WorkflowPlatform{
            // ... existing platforms
@@ -324,7 +324,7 @@ For custom workflow platforms:
 
 3. **Add API Routes**:
    ```go
-   // backend/internal/api/router.go
+   // apps/api/internal/api/router.go
    embed.POST("/ci/custom-platform", handlers.GenerateCIConfig(db))
    ```
 
@@ -332,9 +332,13 @@ For custom workflow platforms:
 
 ```bash
 # Backend Configuration
-TYPING_MASTER_API_URL=https://api.typing-master-for-coding.com
-JWT_SECRET=your_jwt_secret
-DATABASE_URL=your_database_url
+PORT=8080
+JWT_SECRET=<replace-with-a-strong-secret>
+ALLOWED_ORIGINS=https://app.typing-master-for-coding.com,http://localhost:3000
+DATABASE_URL=postgres://user:password@localhost:5432/typing_master?sslmode=disable
+REDIS_URL=redis://localhost:6379
+
+# Note: JWT_SECRET and ALLOWED_ORIGINS are required at startup. The application will not start without them.
 
 # GitHub Integration
 GITHUB_CLIENT_ID=your_github_client_id
@@ -364,18 +368,27 @@ TYPING_MASTER_DEBUG=true
    - Use short-lived tokens when possible
    - Rotate tokens regularly
    - Store tokens securely (never in code)
+   - Refresh tokens are single-use: a successful `POST /api/v1/auth/refresh` invalidates the previously stored refresh token
 
 2. **Access Control**:
    - Use principle of least privilege
    - Regularly review integration permissions
    - Revoke unused integrations
+   - OAuth state is bound to a session cookie; ensure cookies are sent and received by the same browser session
+   - `POST /api/v1/auth/login` and `POST /api/v1/auth/login/mfa` enforce account lockout after 5 failed attempts within a 15-minute window
+   - `PUT /api/v1/sessions/:id` and `POST /api/v1/sessions/:id/finalize` verify the caller owns the session
 
 3. **Network Security**:
    - Use HTTPS for all API calls
    - Validate SSL certificates
-   - Implement rate limiting
+   - Rate limiting is configured via `RateLimitMiddleware` and uses Redis when `REDIS_URL` is set (in-memory fallback otherwise)
+   - State-changing API requests must include the `X-CSRF-Token` header matching the `csrf_token` cookie
 
-4. **Data Protection**:
+4. **User Authentication**:
+   - New accounts must be created with a password meeting complexity rules (8+ characters, uppercase, lowercase, digit, and special character)
+   - New registrations receive an `email_verified` flag of `false`; call `POST /api/v1/auth/verify-email` with the verification token to enable login
+
+5. **Data Protection**:
    - Encrypt sensitive data at rest
    - Use secure communication channels
    - Regular security audits

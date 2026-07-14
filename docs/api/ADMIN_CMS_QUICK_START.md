@@ -357,56 +357,57 @@ Each snippet card shows:
 
 ### Authentication
 All admin endpoints require:
-- Valid JWT token in `Authorization: Bearer <token>` header
+- Valid JWT token delivered as an HttpOnly, Secure cookie (`credentials: 'include'`)
 - Admin or moderator role
+- The backend routes are under `/api/v1/` and are protected by role middleware; there is no `/api/v1/admin/` prefix
 
 ### Dashboard
 ```
-GET /api/v1/admin/dashboard
+GET /api/v1/dashboard
 ```
 
 ### Languages
 ```
-GET    /api/v1/admin/languages
-POST   /api/v1/admin/languages
-PUT    /api/v1/admin/languages/:id
-DELETE /api/v1/admin/languages/:id
+GET    /api/v1/languages
+POST   /api/v1/languages
+PUT    /api/v1/languages/:id
+DELETE /api/v1/languages/:id
 ```
 
 ### Lessons
 ```
-GET    /api/v1/admin/lessons
-POST   /api/v1/admin/lessons
-PUT    /api/v1/admin/lessons/:id
-DELETE /api/v1/admin/lessons/:id
+GET    /api/v1/lessons
+POST   /api/v1/lessons
+PUT    /api/v1/lessons/:id
+DELETE /api/v1/lessons/:id
 ```
 
 ### Snippets
 ```
-GET    /api/v1/admin/snippets
-POST   /api/v1/admin/snippets
-PUT    /api/v1/admin/snippets/:id
-DELETE /api/v1/admin/snippets/:id
+GET    /api/v1/snippets
+POST   /api/v1/snippets
+PUT    /api/v1/snippets/:id
+DELETE /api/v1/snippets/:id
 ```
 
 ### Content Versioning
 ```
-GET  /api/v1/admin/content/versions/:contentType/:contentId
-POST /api/v1/admin/content/versions/:contentType/:contentId/restore/:version
+GET  /api/v1/content/versions/:contentType/:contentId
+POST /api/v1/content/versions/:contentType/:contentId/restore/:version
 ```
 
 ### Content Validation
 ```
-POST /api/v1/admin/content/validate
+POST /api/v1/content/validate
 ```
 
 ### A/B Testing
 ```
-GET    /api/v1/admin/ab-tests
-POST   /api/v1/admin/ab-tests
-PUT    /api/v1/admin/ab-tests/:id
-DELETE /api/v1/admin/ab-tests/:id
-GET    /api/v1/admin/ab-tests/:id/results
+GET    /api/v1/ab-tests
+POST   /api/v1/ab-tests
+PUT    /api/v1/ab-tests/:id
+DELETE /api/v1/ab-tests/:id
+GET    /api/v1/ab-tests/:id/results
 ```
 
 ## Troubleshooting
@@ -475,11 +476,16 @@ GET    /api/v1/admin/ab-tests/:id/results
 5. **Implement Winners:** Apply successful variants
 
 ### Security
-1. **Protect Credentials:** Never share admin passwords
+1. **Protect Credentials:** Never share admin passwords; use passwords with 8+ characters, mixed case, a digit, and a special character
 2. **Regular Audits:** Review admin actions
 3. **Least Privilege:** Grant admin access sparingly
 4. **Monitor Activity:** Check recent activity regularly
 5. **Logout:** Always logout when finished
+6. **CSRF Protection:** Admin POST/PUT/DELETE requests must include the `X-CSRF-Token` header matching the `csrf_token` cookie
+7. **Rate Limiting:** API requests are rate-limited per IP; Redis-backed when `REDIS_URL` is configured, otherwise in-memory
+8. **Account Lockout:** Repeated failed login/MFA attempts (5 within 15 minutes) lock the account
+9. **Email Verification:** Admin account emails must be verified before login is permitted
+10. **Token Rotation:** Refresh tokens are single-use; a successful refresh invalidates the previous refresh token
 
 ## Support
 

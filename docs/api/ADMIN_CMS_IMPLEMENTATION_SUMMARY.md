@@ -4,11 +4,13 @@
 
 The Admin CMS and Content Management system for the Typing Master for Coding application has been **fully implemented**. This document provides a comprehensive summary of all implemented features for tasks 8.1 and 8.2.
 
+> **Backend routing note:** The current backend routes are mounted under `/api/v1/` and protected by role-based middleware (`admin` or `content_creator`) instead of a `/api/v1/admin/` prefix. The `database.DatastoreClient` type is a Postgres adapter that preserves the old name for backwards compatibility. For the exact current route table, see `apps/api/internal/api/router.go`.
+
 ## Task 8.1: Admin Content Management Interface ✅
 
 ### 8.1.1 Lesson Builder with Token Coverage Checklist ✅
 
-**Frontend Component:** `typing-master/src/components/Admin/LessonBuilder.tsx`
+**Frontend Component:** `apps/web/src/components/Admin/LessonBuilder.tsx`
 
 **Features Implemented:**
 - ✅ Complete lesson creation and editing interface
@@ -23,10 +25,10 @@ The Admin CMS and Content Management system for the Typing Master for Coding app
 - ✅ Snippet ID association
 
 **Backend Endpoints:**
-- `GET /api/v1/admin/lessons` - Fetch all lessons
-- `POST /api/v1/admin/lessons` - Create new lesson
-- `PUT /api/v1/admin/lessons/:id` - Update lesson
-- `DELETE /api/v1/admin/lessons/:id` - Delete lesson
+- `GET /api/v1/lessons` - Fetch all lessons
+- `POST /api/v1/lessons` - Create new lesson
+- `PUT /api/v1/lessons/:id` - Update lesson
+- `DELETE /api/v1/lessons/:id` - Delete lesson
 
 **Key Features:**
 ```typescript
@@ -46,7 +48,7 @@ The Admin CMS and Content Management system for the Typing Master for Coding app
 
 ### 8.1.2 YAML Validator and Schema Validation Tools ✅
 
-**Frontend Component:** `typing-master/src/components/Admin/YAMLValidator.tsx`
+**Frontend Component:** `apps/web/src/components/Admin/YAMLValidator.tsx`
 
 **Features Implemented:**
 - ✅ Real-time YAML content editor with syntax highlighting
@@ -59,7 +61,7 @@ The Admin CMS and Content Management system for the Typing Master for Coding app
 - ✅ Error list with detailed messages
 
 **Backend Validation:**
-- `POST /api/v1/admin/content/validate` - Validate content
+- `POST /api/v1/content/validate` - Validate content
 - YAML-specific validation in `handlers/admin.go`:
   * Empty content check
   * Syntax validation
@@ -76,7 +78,7 @@ The Admin CMS and Content Management system for the Typing Master for Coding app
 
 ### 8.1.3 Snippet Curation Interface with Tagging and Categorization ✅
 
-**Frontend Component:** `typing-master/src/components/Admin/SnippetCuration.tsx`
+**Frontend Component:** `apps/web/src/components/Admin/SnippetCuration.tsx`
 
 **Features Implemented:**
 - ✅ Grid view of all snippets with preview
@@ -104,10 +106,10 @@ The Admin CMS and Content Management system for the Typing Master for Coding app
   * Tag list
 
 **Backend Endpoints:**
-- `GET /api/v1/admin/snippets` - Fetch all snippets
-- `POST /api/v1/admin/snippets` - Create snippet
-- `PUT /api/v1/admin/snippets/:id` - Update snippet
-- `DELETE /api/v1/admin/snippets/:id` - Delete snippet
+- `GET /api/v1/snippets` - Fetch all snippets
+- `POST /api/v1/snippets` - Create snippet
+- `PUT /api/v1/snippets/:id` - Update snippet
+- `DELETE /api/v1/snippets/:id` - Delete snippet
 
 **Categorization Features:**
 ```typescript
@@ -121,7 +123,7 @@ The Admin CMS and Content Management system for the Typing Master for Coding app
 
 ### 8.1.4 A/B Testing Framework for Scoring Weights and UI Variants ✅
 
-**Frontend Component:** `typing-master/src/components/Admin/ABTestingFramework.tsx`
+**Frontend Component:** `apps/web/src/components/Admin/ABTestingFramework.tsx`
 
 **Features Implemented:**
 - ✅ A/B test creation interface
@@ -151,11 +153,11 @@ The Admin CMS and Content Management system for the Typing Master for Coding app
   * Start/Stop tests
 
 **Backend Endpoints:**
-- `GET /api/v1/admin/ab-tests` - Fetch all A/B tests
-- `POST /api/v1/admin/ab-tests` - Create A/B test
-- `PUT /api/v1/admin/ab-tests/:id` - Update A/B test
-- `DELETE /api/v1/admin/ab-tests/:id` - Delete A/B test
-- `GET /api/v1/admin/ab-tests/:id/results` - Get test results
+- `GET /api/v1/ab-tests` - Fetch all A/B tests
+- `POST /api/v1/ab-tests` - Create A/B test
+- `PUT /api/v1/ab-tests/:id` - Update A/B test
+- `DELETE /api/v1/ab-tests/:id` - Delete A/B test
+- `GET /api/v1/ab-tests/:id/results` - Get test results
 
 **A/B Test Configuration:**
 ```typescript
@@ -181,7 +183,7 @@ interface ABTest {
 
 ### 8.2.1 Content Versioning System with Deprecation Support ✅
 
-**Frontend Component:** `typing-master/src/components/Admin/ContentVersioning.tsx`
+**Frontend Component:** `apps/web/src/components/Admin/ContentVersioning.tsx`
 
 **Features Implemented:**
 - ✅ Version history display for all content types:
@@ -207,8 +209,8 @@ interface ABTest {
 **Backend Implementation:**
 - **Model:** `ContentVersion` entity in `models/models.go`
 - **Endpoints:**
-  * `GET /api/v1/admin/content/versions/:contentType/:contentId` - Get version history
-  * `POST /api/v1/admin/content/versions/:contentType/:contentId/restore/:version` - Restore version
+  * `GET /api/v1/content/versions/:contentType/:contentId` - Get version history
+  * `POST /api/v1/content/versions/:contentType/:contentId/restore/:version` - Restore version
 - **Auto-versioning:** Automatic version creation on content updates
 - **Audit trail:** Complete history with user attribution
 
@@ -266,7 +268,7 @@ func RestoreAdminContentVersion(db *database.DatastoreClient)
 
 ### 8.2.3 Content Validation and Quality Assurance Workflows ✅
 
-**Frontend Component:** `typing-master/src/components/Admin/ContentValidationQA.tsx`
+**Frontend Component:** `apps/web/src/components/Admin/ContentValidationQA.tsx`
 
 **Features Implemented:**
 - ✅ Validation tools for all content types:
@@ -286,7 +288,7 @@ func RestoreAdminContentVersion(db *database.DatastoreClient)
 - ✅ Batch validation support
 
 **Backend Validation:**
-- `POST /api/v1/admin/content/validate` - Validate content
+- `POST /api/v1/content/validate` - Validate content
 - **Validation checks:**
   * Schema validation
   * Required fields
@@ -322,7 +324,7 @@ Snippet Validation:
 
 ### 8.2.4 Content Analytics and Usage Tracking for Optimization ✅
 
-**Frontend Component:** `typing-master/src/components/Admin/ContentAnalytics.tsx`
+**Frontend Component:** `apps/web/src/components/Admin/ContentAnalytics.tsx`
 
 **Features Implemented:**
 - ✅ Usage overview dashboard:
@@ -392,7 +394,7 @@ interface UsageMetrics {
 
 ### Admin Dashboard ✅
 
-**Component:** `typing-master/src/components/Admin/AdminDashboard.tsx`
+**Component:** `apps/web/src/components/Admin/AdminDashboard.tsx`
 
 **Features:**
 - ✅ Overview statistics:
@@ -412,13 +414,13 @@ interface UsageMetrics {
 - ✅ Navigation to all admin tools
 
 **Backend Endpoint:**
-- `GET /api/v1/admin/dashboard` - Dashboard statistics
+- `GET /api/v1/dashboard` - Dashboard statistics
 
 ## Backend Architecture
 
 ### Data Models
 
-All required models are implemented in `backend/internal/models/models.go`:
+All required models are implemented in `apps/api/internal/models/models.go`:
 
 1. **ContentVersion** - Version tracking
 2. **ContentValidation** - Validation results
@@ -430,7 +432,7 @@ All required models are implemented in `backend/internal/models/models.go`:
 
 ### API Routes
 
-All admin routes are properly configured in `backend/internal/api/router.go`:
+All admin routes are properly configured in `apps/api/internal/api/router.go`:
 
 ```go
 admin := v1.Group("/admin")
@@ -464,7 +466,7 @@ admin.Use(middleware.AdminAuthMiddleware())
 
 ### Handler Functions
 
-All handlers are implemented in `backend/internal/handlers/admin.go`:
+All handlers are implemented in `apps/api/internal/handlers/admin.go`:
 
 - ✅ Dashboard: `GetAdminDashboard`
 - ✅ Languages: `GetAdminLanguages`, `CreateAdminLanguage`, `UpdateAdminLanguage`, `DeleteAdminLanguage`
@@ -486,6 +488,10 @@ All handlers are implemented in `backend/internal/handlers/admin.go`:
 
 - ✅ JWT-based authentication
 - ✅ Admin role verification via `AdminAuthMiddleware`
+- ✅ Password complexity enforcement (8+ characters, mixed case, digit, and special character)
+- ✅ Email verification required before login
+- ✅ Account lockout after 5 failed login/MFA attempts within a 15-minute window
+- ✅ Refresh token rotation and reuse detection
 - ✅ User attribution for all content changes
 - ✅ Audit trail for all admin actions
 
@@ -495,6 +501,7 @@ All handlers are implemented in `backend/internal/handlers/admin.go`:
 - ✅ Version history for rollback capability
 - ✅ Validation before content updates
 - ✅ GDPR-compliant data handling
+- ✅ Session ownership verification for `UpdateSession` and `FinalizeSession`
 
 ## Requirements Coverage
 

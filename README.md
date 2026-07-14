@@ -16,7 +16,7 @@ A desktop-first, web-enabled application designed to help developers practice ty
 ### Prerequisites
 
 - Node.js 18+
-- Go 1.21+
+- Go 1.25+
 - Docker and Docker Compose
 - Git
 
@@ -95,18 +95,26 @@ typing-master-for-coding/
 ├── apps/                               # Main applications
 │   ├── web/                            # React frontend
 │   │   ├── src/
-│   │   │   ├── components/             # Reusable UI components
-│   │   │   ├── features/               # Feature-based modules
-│   │   │   ├── hooks/                  # Custom React hooks
-│   │   │   ├── services/               # API and external services
-│   │   │   ├── store/                  # State management (Zustand)
-│   │   │   └── utils/                  # Frontend utilities
+│   │   │   ├── components/             # Reusable UI components (practice modes, MonacoTypingInterface)
+│   │   │   ├── services/               # API and business logic services (AuthService, SessionManager, ParserManager)
+│   │   │   ├── types/                  # TypeScript type definitions
+│   │   │   ├── utils/                  # Utility functions and helpers
+│   │   │   ├── workers/                # Web Workers for background processing
+│   │   │   └── routes/                 # Route configuration and lazy loading
 │   │   └── package.json
 │   │
 │   └── api/                            # Go backend
-│       ├── cmd/server/                 # Application entry point
+│       ├── cmd/                        # Application entry point
 │       ├── internal/                   # Private application code
-│       ├── pkg/                        # Public library code
+│       │   ├── handlers/               # HTTP request handlers (auth, content, scoring, analytics)
+│       │   ├── services/               # Business logic layer
+│       │   ├── models/                 # Data models and entities
+│       │   ├── database/               # Database operations (PostgreSQL integration)
+│       │   ├── middleware/             # HTTP middleware (auth, rate limiting, CSRF)
+│       │   ├── security/               # Security utilities (CSRF, vulnerability scanning)
+│       │   ├── scoring/                # Metrics calculation and anti-cheat detection
+│       │   ├── auth/                   # Authentication and authorization logic
+│       │   └── cache/                  # Caching layer (Redis with in-memory fallback)
 │       └── go.mod
 │
 ├── infrastructure/                     # Infrastructure and deployment
@@ -225,7 +233,7 @@ cd apps/api
 go test -v -race -coverprofile=coverage.out ./...
 
 # End-to-end tests
-cd tests/e2e
+cd tests
 npm test
 ```
 
@@ -243,6 +251,17 @@ The project uses GitHub Actions for continuous integration and deployment:
   - Pushes to GitHub Container Registry
   - Deploys to production environment
 
+## Current Status
+
+- Frontend `apps/web`: 13 of 14 suites passing, 131 of 145 tests passing. The remaining failure is `CppRustParserIntegration.test.ts` (WASM dynamic import issue in Jest).
+- Backend `apps/api`: `go test ./...` passes.
+- Authentication uses HttpOnly, Secure cookies; MFA/TOTP (RFC 6238 compliant) and backup codes are implemented.
+- Scoring helper functions are implemented; Docker/CI paths use `apps/api` and `apps/web`.
+- Cache-backed rate limiting, double-submit CSRF protection, and cache-backed OAuth state are implemented.
+- Password complexity validation, email verification, account lockout, refresh token rotation/reuse detection, and session ownership verification are implemented.
+- Anonymous session support with authentication choice flow implemented.
+- PostgreSQL (pgx + sqlx) and Redis (go-redis) integration complete with in-memory fallback.
+
 ## Environment Variables
 
 ### Backend (.env)
@@ -250,9 +269,9 @@ The project uses GitHub Actions for continuous integration and deployment:
 ENVIRONMENT=development
 DATABASE_URL=postgres://user:password@localhost:5432/typing_master?sslmode=disable
 REDIS_URL=redis://localhost:6379
-JWT_SECRET=your-secret-key
+JWT_SECRET=<replace-with-a-strong-secret>  # required - application will not start without this
+ALLOWED_ORIGINS=http://localhost:3000  # required - application will not start without this
 PORT=8080
-FRONTEND_URL=http://localhost:3000
 ```
 
 ### Frontend

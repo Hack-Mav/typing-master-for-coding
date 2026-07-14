@@ -3,6 +3,12 @@
 ## Overview
 This document provides comprehensive traceability between functional requirements, implementation tasks, and verification criteria for the Typing Master for Coding project.
 
+## Current Verification Status
+
+Frontend `apps/web` test suite has been updated and now shows **13 of 14 suites passing** and **131 of 145 tests passing**. The remaining failure is `CppRustParserIntegration.test.ts`, which is blocked by `web-tree-sitter` requiring `--experimental-vm-modules` to load `cpp`/`rust` WASM binaries in the Jest/jsdom environment. `ParserManager` property tests (`python`/`javascript`/`yaml`) now pass.
+
+Backend `apps/api` test suite status: `go test ./...` passes for all packages with tests (`internal/auth`, `internal/handlers`, `internal/scoring`, `internal/security`).
+
 ## Legend
 - ✅ **Implemented** - Feature has been completed and tested
 - 🟡 **In Progress** - Feature is currently being implemented
@@ -128,9 +134,14 @@ This document provides comprehensive traceability between functional requirement
 |-------------|-------------------|--------|--------------|---------------|
 | **SEC-1**: Multi-factor authentication (MFA) | 11.1 MFA integration | ✅ | TOTP-based authentication | 🧪 |
 | **SEC-2**: Role-based access control (RBAC) | 11.2 RBAC implementation | ✅ | Granular permissions system | 🧪 |
-| **SEC-3**: Vulnerability management | 11.3 Security enhancements | ✅ | OWASP compliance, security scanning | 🧪 |
+| **SEC-3**: Vulnerability management | 11.3 Security enhancements | ✅ | Request-size validation, secure headers, security scanning; ineffective regex XSS/SQL blacklist checks removed | 🧪 |
 | **SEC-4**: JWT-based authentication | 6.1 Authentication system | ✅ | Short-lived token system | 🧪 |
-| **SEC-5**: CSRF and XSS protection | 11.3 Security enhancements | ✅ | Input validation and sanitization | 🧪 |
+| **SEC-5**: CSRF and XSS protection | 11.3 Security enhancements | ✅ | Double-submit CSRF cookie (`csrf_token` + `X-CSRF-Token` header), `SameSite=Strict`, secure token storage; XSS no longer relies on regex blacklists | 🧪 |
+| **SEC-6**: Password complexity enforcement | 11.3 Security enhancements | ✅ | `Register` validates 8+ characters, mixed case, digit, and special character | 🧪 |
+| **SEC-7**: Email verification | 11.3 Security enhancements | ✅ | `Register` creates an `EmailVerificationToken`; `POST /api/v1/auth/verify-email` verifies it; `Login` requires `EmailVerified=true` | 🧪 |
+| **SEC-8**: Account lockout and login rate limiting | 11.3 Security enhancements | ✅ | `Login` and `LoginWithMFA` use a cache-backed `LoginAttemptTracker` (5 attempts / 15-minute lockout) | 🧪 |
+| **SEC-9**: Refresh token rotation and reuse detection | 11.3 Security enhancements | ✅ | `RefreshToken` validates against `RefreshTokenHash`, issues a new token pair, and invalidates the used token | 🧪 |
+| **SEC-10**: Session ownership verification | 11.3 Security enhancements | ✅ | `UpdateSession` and `FinalizeSession` verify `session.UserID == c.GetString("user_id")` | 🧪 |
 
 ---
 
