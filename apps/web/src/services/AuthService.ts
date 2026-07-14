@@ -113,75 +113,12 @@ export interface AnonymousUserResponse {
 
 class AuthService {
   private apiBaseUrl: string;
-  private accessToken: string | null = null;
-  private refreshToken: string | null = null;
   private currentUser: User | null = null;
-  private tokenRefreshTimeout: NodeJS.Timeout | null = null;
+  private accessToken: string | null = null;
 
   constructor() {
     this.apiBaseUrl =
       process.env.REACT_APP_API_URL || 'http://localhost:8080/api/v1';
-    this.loadFromStorage();
-  }
-
-  /**
-   * Load authentication state from localStorage
-   */
-  private loadFromStorage(): void {
-    try {
-      const accessToken = localStorage.getItem('access_token');
-      const refreshToken = localStorage.getItem('refresh_token');
-      const userJson = localStorage.getItem('user');
-
-      if (accessToken && refreshToken && userJson) {
-        this.accessToken = accessToken;
-        this.refreshToken = refreshToken;
-        this.currentUser = JSON.parse(userJson);
-        this.scheduleTokenRefresh();
-      }
-    } catch (error) {
-      console.error('Failed to load auth state from storage:', error);
-      this.clearStorage();
-    }
-  }
-
-  /**
-   * Save authentication state to localStorage
-   */
-  private saveToStorage(user: User, tokens: TokenPair): void {
-    localStorage.setItem('access_token', tokens.access_token);
-    localStorage.setItem('refresh_token', tokens.refresh_token);
-    localStorage.setItem('user', JSON.stringify(user));
-  }
-
-  /**
-   * Clear authentication state from localStorage
-   */
-  private clearStorage(): void {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-  }
-
-  /**
-   * Schedule automatic token refresh before expiration
-   */
-  private scheduleTokenRefresh(): void {
-    if (this.tokenRefreshTimeout) {
-      clearTimeout(this.tokenRefreshTimeout);
-    }
-
-    // Refresh token 1 minute before expiration (default 15 min - 1 min = 14 min)
-    const refreshTime = 14 * 60 * 1000; // 14 minutes in milliseconds
-
-    this.tokenRefreshTimeout = setTimeout(async () => {
-      try {
-        await this.refreshAccessToken();
-      } catch (error) {
-        console.error('Failed to refresh token:', error);
-        this.logout();
-      }
-    }, refreshTime);
   }
 
   /**
@@ -193,6 +130,7 @@ class AuthService {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify(request),
     });
 
@@ -202,12 +140,8 @@ class AuthService {
     }
 
     const data: AuthResponse = await response.json();
-    this.accessToken = data.tokens.access_token;
-    this.refreshToken = data.tokens.refresh_token;
     this.currentUser = data.user;
-
-    this.saveToStorage(data.user, data.tokens);
-    this.scheduleTokenRefresh();
+    this.accessToken = data.tokens?.access_token || null;
 
     return data;
   }
@@ -221,6 +155,7 @@ class AuthService {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify(request),
     });
 
@@ -237,12 +172,8 @@ class AuthService {
     }
 
     // MFA not required - complete login
-    this.accessToken = data.tokens.access_token;
-    this.refreshToken = data.tokens.refresh_token;
     this.currentUser = data.user;
-
-    this.saveToStorage(data.user, data.tokens);
-    this.scheduleTokenRefresh();
+    this.accessToken = data.tokens?.access_token || null;
 
     return data;
   }
@@ -258,6 +189,7 @@ class AuthService {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify(request),
     });
 
@@ -266,8 +198,12 @@ class AuthService {
       throw new Error(error.error || 'Failed to create anonymous session');
     }
 
-    const data = await response.json() as { user: AnonymousUserResponse, tokens: TokenPair, requires_mfa?: boolean };
-    
+    const data = (await response.json()) as {
+      user: AnonymousUserResponse;
+      tokens: TokenPair;
+      requires_mfa?: boolean;
+    };
+
     // Convert the response to match our User interface
     const user: User = {
       id: data.user.id,
@@ -286,19 +222,9 @@ class AuthService {
       mfaEnabled: false, // Anonymous users don't have MFA
     };
 
-    // Set current user and tokens
+    // Set current user and token
     this.currentUser = user;
-    this.accessToken = data.tokens.access_token;
-    this.refreshToken = data.tokens.refresh_token;
-
-    // Save to localStorage for persistence
-    this.saveToStorage(user, data.tokens);
-
-    // No need to schedule token refresh for anonymous users (tokens last 24 hours)
-    if (this.tokenRefreshTimeout) {
-      clearTimeout(this.tokenRefreshTimeout);
-      this.tokenRefreshTimeout = null;
-    }
+    this.accessToken = data.tokens?.access_token || null;
 
     return {
       user: user,
@@ -308,63 +234,23 @@ class AuthService {
   }
 
   /**
-   * Refresh the access token using the refresh token
+   * Logout and clear authentication state
    */
-  async refreshAccessToken(): Promise<TokenPair> {
-    if (!this.refreshToken) {
-      throw new Error('No refresh token available');
-    }
-
-    // Anonymous users don't need to refresh tokens
-    if (this.currentUser?.isAnonymous) {
-      // Just return the current mock tokens
-      return {
-        access_token: this.accessToken!,
-        refresh_token: this.refreshToken,
-        expires_in: 86400,
-        token_type: 'Bearer',
-      };
-    }
-
-    const response = await fetch(`${this.apiBaseUrl}/auth/refresh`, {
+  async logout(): Promise<void> {
+    const response = await fetch(`${this.apiBaseUrl}/auth/logout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ refresh_token: this.refreshToken }),
+      credentials: 'include',
     });
 
     if (!response.ok) {
-      throw new Error('Failed to refresh token');
+      console.error('Logout request failed');
     }
 
-    const tokens: TokenPair = await response.json();
-    this.accessToken = tokens.access_token;
-    this.refreshToken = tokens.refresh_token;
-
-    if (this.currentUser) {
-      this.saveToStorage(this.currentUser, tokens);
-    }
-
-    this.scheduleTokenRefresh();
-
-    return tokens;
-  }
-
-  /**
-   * Logout and clear authentication state
-   */
-  logout(): void {
-    this.accessToken = null;
-    this.refreshToken = null;
     this.currentUser = null;
-
-    if (this.tokenRefreshTimeout) {
-      clearTimeout(this.tokenRefreshTimeout);
-      this.tokenRefreshTimeout = null;
-    }
-
-    this.clearStorage();
+    this.accessToken = null;
   }
 
   /**
@@ -378,7 +264,7 @@ class AuthService {
    * Check if user is authenticated
    */
   isAuthenticated(): boolean {
-    return this.accessToken !== null && this.currentUser !== null;
+    return this.currentUser !== null;
   }
 
   /**
@@ -389,22 +275,20 @@ class AuthService {
   }
 
   /**
-   * Get the current access token
-   */
-  getAccessToken(): string | null {
-    return this.accessToken;
-  }
-
-  /**
-   * Get authorization header for API requests
+   * Get authorization headers for authenticated API requests
    */
   getAuthHeader(): Record<string, string> {
     if (!this.accessToken) {
       return {};
     }
-    return {
-      Authorization: `Bearer ${this.accessToken}`,
-    };
+    return { Authorization: `Bearer ${this.accessToken}` };
+  }
+
+  /**
+   * Get the current access token
+   */
+  getToken(): string | null {
+    return this.accessToken;
   }
 
   /**
@@ -421,39 +305,19 @@ class AuthService {
 
     const headers = {
       'Content-Type': 'application/json',
-      ...this.getAuthHeader(),
       ...options.headers,
     };
 
     const response = await fetch(`${this.apiBaseUrl}${endpoint}`, {
       ...options,
       headers,
+      credentials: 'include',
     });
 
-    // Handle token expiration
+    // Handle token expiration - HttpOnly cookies are managed by browser
     if (response.status === 401) {
-      try {
-        await this.refreshAccessToken();
-        // Retry the request with new token
-        const retryHeaders = {
-          'Content-Type': 'application/json',
-          ...this.getAuthHeader(),
-          ...options.headers,
-        };
-        const retryResponse = await fetch(`${this.apiBaseUrl}${endpoint}`, {
-          ...options,
-          headers: retryHeaders,
-        });
-
-        if (!retryResponse.ok) {
-          throw new Error('Request failed after token refresh');
-        }
-
-        return await retryResponse.json();
-      } catch (error) {
-        this.logout();
-        throw new Error('Authentication expired. Please login again.');
-      }
+      await this.logout();
+      throw new Error('Authentication expired. Please login again.');
     }
 
     if (!response.ok) {
@@ -477,9 +341,6 @@ class AuthService {
       method: 'GET',
     });
     this.currentUser = user;
-    if (this.refreshToken && this.accessToken) {
-      localStorage.setItem('user', JSON.stringify(user));
-    }
     return user;
   }
 
@@ -497,9 +358,6 @@ class AuthService {
       body: JSON.stringify(updates),
     });
     this.currentUser = user;
-    if (this.refreshToken && this.accessToken) {
-      localStorage.setItem('user', JSON.stringify(user));
-    }
     return user;
   }
 
@@ -512,6 +370,7 @@ class AuthService {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify(request),
     });
 
@@ -521,12 +380,8 @@ class AuthService {
     }
 
     const data: AuthResponse = await response.json();
-    this.accessToken = data.tokens.access_token;
-    this.refreshToken = data.tokens.refresh_token;
     this.currentUser = data.user;
-
-    this.saveToStorage(data.user, data.tokens);
-    this.scheduleTokenRefresh();
+    this.accessToken = data.tokens?.access_token || null;
 
     return data;
   }

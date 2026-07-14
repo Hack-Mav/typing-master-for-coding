@@ -80,6 +80,12 @@ export class SessionManager {
     this.activeSessions.set(sessionId, session);
     this.eventBatches.set(sessionId, []);
 
+    // Notify consumers that the session is created before any auth/backend events
+    this.emitEvent({
+      type: 'SESSION_CREATED',
+      payload: session,
+    });
+
     // Try to create session on backend if online
     if (navigator.onLine) {
       try {
@@ -109,7 +115,8 @@ export class SessionManager {
             // Now create the session with the anonymous token
             await this.createAnonymousSessionOnBackend(session);
           } else if (authChoice === 'authenticate') {
-            // User chose to authenticate - emit event to show login
+            // User chose to authenticate - persist and emit event to show login
+            await this.persistSession(session);
             this.emitEvent({
               type: 'AUTHENTICATION_REQUIRED',
               payload: { sessionId, reason: 'user_chose_authenticate' },
@@ -117,7 +124,8 @@ export class SessionManager {
             // Return the session without backend sync - will be synced after authentication
             return session;
           } else {
-            // User hasn't made a choice - emit event to show choice dialog
+            // User hasn't made a choice - persist and emit event to show choice dialog
+            await this.persistSession(session);
             this.emitEvent({
               type: 'AUTHENTICATION_CHOICE_REQUIRED',
               payload: { sessionId, options: ['anonymous', 'authenticate'] },
@@ -143,11 +151,6 @@ export class SessionManager {
 
     // Save to IndexedDB for persistence
     await this.persistSession(session);
-
-    this.emitEvent({
-      type: 'SESSION_CREATED',
-      payload: session,
-    });
 
     return session;
   }

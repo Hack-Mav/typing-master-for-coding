@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { authService, LoginRequest } from '../../services/AuthService';
+import { useAuth } from '../../services/AuthContext';
 import { MFAVerification } from './MFAVerification';
 import { MFABackupCode } from './MFABackupCode';
 import './Auth.css';
@@ -17,6 +18,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   onSwitchToRegister,
   onAnonymousMode,
 }) => {
+  const { anonymousLogin } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -65,11 +67,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       const deviceId = localStorage.getItem('device_id') || generateDeviceId();
       localStorage.setItem('device_id', deviceId);
 
-      await authService.createAnonymousSession({
-        device_id: deviceId,
-        keyboard_layout: 'QWERTY',
-        locale: navigator.language,
-      });
+      await anonymousLogin(deviceId, 'QWERTY', navigator.language);
 
       onAnonymousMode?.();
     } catch (err) {

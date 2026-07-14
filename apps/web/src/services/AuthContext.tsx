@@ -1,19 +1,18 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { authService, User } from './AuthService';
 
 export interface AuthContextType {
-  token: string | null;
   user: User | null;
+  token: string | null;
   isAuthenticated: boolean;
   isAnonymous: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (handle: string, email: string, password: string) => Promise<void>;
+  anonymousLogin: (
+    deviceId: string,
+    keyboardLayout: string,
+    locale: string
+  ) => Promise<void>;
   logout: () => void;
   loading: boolean;
 
@@ -42,18 +41,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Listen for auth state changes (e.g., when tokens are refreshed)
-    const handleStorageChange = () => {
-      setCurrentUser(authService.getCurrentUser());
-    };
-
-    // Check for auth state changes periodically
-    const interval = setInterval(handleStorageChange, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   const login = async (email: string, password: string) => {
     setLoading(true);
     try {
@@ -74,9 +61,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    authService.logout();
-    setCurrentUser(null);
+  const anonymousLogin = async (
+    deviceId: string,
+    keyboardLayout: string,
+    locale: string
+  ) => {
+    setLoading(true);
+    try {
+      await authService.createAnonymousSession({
+        device_id: deviceId,
+        keyboard_layout: keyboardLayout,
+        locale,
+      });
+      setCurrentUser(authService.getCurrentUser());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    setLoading(true);
+    try {
+      await authService.logout();
+      setCurrentUser(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loginWithMFA = async (
@@ -131,12 +141,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const value: AuthContextType = {
-    token: authService.getAccessToken(),
     user,
+    token: authService.getToken(),
     isAuthenticated: authService.isAuthenticated(),
     isAnonymous: authService.isAnonymous(),
     login,
     register,
+    anonymousLogin,
     logout,
     loading,
 

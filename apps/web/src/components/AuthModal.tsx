@@ -8,7 +8,7 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialMode?: AuthMode;
-  onAuthenticated: () => void;
+  onAuthenticated: (isAnonymous?: boolean) => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -22,17 +22,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   if (!isOpen) return null;
 
   const handleLoginSuccess = () => {
-    onAuthenticated();
+    onAuthenticated(false);
     onClose();
   };
 
   const handleRegisterSuccess = () => {
-    onAuthenticated();
+    onAuthenticated(false);
     onClose();
   };
 
   const handleAnonymousSuccess = () => {
-    onAuthenticated();
+    onAuthenticated(true);
     onClose();
   };
 
