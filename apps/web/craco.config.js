@@ -21,6 +21,9 @@ module.exports = {
       // Use faster source maps in development
       if (!isProduction) {
         webpackConfig.devtool = 'eval-cheap-module-source-map';
+      } else {
+        // Generate proper source maps for production bundle analysis
+        webpackConfig.devtool = 'source-map';
       }
 
       // Optimize bundle splitting (only in production)

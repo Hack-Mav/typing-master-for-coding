@@ -1,7 +1,7 @@
 module.exports = {
   globDirectory: 'build/',
   globPatterns: [
-    '**/*.{js,css,html,png,jpg,jpeg,svg,ico,woff,woff2,ttf,eot}'
+    '**/*.{js,css,html,png,jpg,jpeg,svg,ico,woff,woff2,ttf,eot,wasm}'
   ],
   swDest: 'build/service-worker.js',
   clientsClaim: true,
@@ -41,6 +41,17 @@ module.exports = {
       handler: 'StaleWhileRevalidate',
       options: {
         cacheName: 'lessons-cache',
+      },
+    },
+    {
+      urlPattern: /\.wasm$/,
+      handler: 'CacheFirst',
+      options: {
+        cacheName: 'wasm-cache',
+        expiration: {
+          maxEntries: 10,
+          maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+        },
       },
     },
   ],
