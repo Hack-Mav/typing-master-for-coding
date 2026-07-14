@@ -421,12 +421,23 @@ export class ParserManager {
     return this.initPromise;
   }
 
+  private getWasmPath(wasmPath: string): string {
+    // In Node-based test environments (Jest/jsdom) process.cwd is available and
+    // points to the project root. Point to the public/ WASM files so the tests
+    // can find them instead of resolving absolute paths to the drive root.
+    if (typeof process !== 'undefined' && typeof process.cwd === 'function') {
+      const cwd = process.cwd().replace(/\\/g, '/');
+      const scriptName = wasmPath.replace(/^\//, '');
+      return `${cwd}/public/${scriptName}`;
+    }
+    return wasmPath.startsWith('/') ? wasmPath : `/${wasmPath}`;
+  }
+
   private async doInitialize(): Promise<void> {
     try {
       await Parser.init({
-        locateFile(scriptName: string, _scriptDirectory: string) {
-          return `/${scriptName}`;
-        },
+        locateFile: (scriptName: string, _scriptDirectory: string) =>
+          this.getWasmPath(scriptName),
       });
       this.isInitialized = true;
     } catch (error) {
@@ -455,7 +466,24 @@ export class ParserManager {
       const parser = new Parser();
 
       // Load language grammar from WASM file
-      const languageGrammar = await TreeSitterLanguage.load(config.wasmPath);
+      let wasmInput: string | Uint8Array = this.getWasmPath(config.wasmPath);
+
+      // In Node-based test environments, read the WASM file directly and pass
+      // it as a Uint8Array. This avoids web-tree-sitter's dynamic import of
+      // fs/promises, which Jest cannot execute without --experimental-vm-modules.
+      if (
+        typeof process !== 'undefined' &&
+        process.versions &&
+        process.versions.node
+      ) {
+        const fs = require('fs');
+        // Convert to a plain Uint8Array; in some test contexts (jsdom/vm) a
+        // Node Buffer is not an instance of the realm's Uint8Array, which
+        // causes web-tree-sitter's Language.load to fall back to dynamic import.
+        wasmInput = new Uint8Array(fs.readFileSync(wasmInput));
+      }
+
+      const languageGrammar = await TreeSitterLanguage.load(wasmInput);
       parser.setLanguage(languageGrammar);
 
       // Cache the parser for reuse
@@ -476,40 +504,65 @@ export class ParserManager {
     const tree = parser.parse(code);
 
     const tokens: Token[] = [];
-
-    // Walk the syntax tree to extract tokens
-    const cursor = tree.walk();
-
-    const visitNode = () => {
-      const node = cursor.currentNode();
-
-      // Only include leaf nodes as tokens (nodes without children)
-      if (node.childCount === 0 && node.text.trim()) {
-        tokens.push({
-          type: node.type,
-          value: node.text,
-          startIndex: node.startIndex,
-          endIndex: node.endIndex,
-          startPosition: node.startPosition,
-          endPosition: node.endPosition,
-        });
-      }
-
-      // Recursively visit children
-      if (cursor.gotoFirstChild()) {
-        do {
-          visitNode();
-        } while (cursor.gotoNextSibling());
-        cursor.gotoParent();
-      }
-    };
-
-    visitNode();
+    this.extractTokens(tree.rootNode, tokens);
 
     // Sort tokens by position
     tokens.sort((a, b) => a.startIndex - b.startIndex);
 
     return tokens;
+  }
+
+  private extractTokens(node: any, tokens: Token[]): void {
+    // Only include leaf nodes as tokens (nodes without children)
+    if (node.childCount === 0 && node.text.trim()) {
+      tokens.push({
+        type: node.type,
+        value: node.text,
+        startIndex: node.startIndex,
+        endIndex: node.endIndex,
+        startPosition: node.startPosition,
+        endPosition: node.endPosition,
+      });
+      return;
+    }
+
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i);
+      const next = node.child(i + 1);
+
+      if (this.shouldMergeTokens(child, next)) {
+        tokens.push({
+          type: child.type,
+          value: child.text + next.text,
+          startIndex: child.startIndex,
+          endIndex: next.endIndex,
+          startPosition: child.startPosition,
+          endPosition: next.endPosition,
+        });
+        i++; // skip the merged token
+      } else {
+        this.extractTokens(child, tokens);
+      }
+    }
+  }
+
+  private shouldMergeTokens(child: any, next: any): boolean {
+    if (!child || !next) return false;
+
+    if (child.type === 'identifier' && next.text === '!') {
+      return true;
+    }
+
+    if (
+      child.text === "'" &&
+      child.parent?.type === 'lifetime' &&
+      next.childCount === 0 &&
+      next.text.trim()
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -538,6 +591,44 @@ export class ParserManager {
       ast,
       errors,
     };
+  }
+
+  /**
+   * Parse code and return AST result with error flag.
+   * Convenience method used by property-based tests.
+   */
+  public async parseCode(
+    code: string,
+    language: Language
+  ): Promise<{ rootNode: ASTNode; hasError: boolean }> {
+    const result = await this.parse(code, language);
+    return {
+      rootNode: result.ast,
+      hasError: result.errors.length > 0,
+    };
+  }
+
+  /**
+   * Compare two AST structures and return the number of differences.
+   */
+  public compareStructure(
+    node1: ASTNode,
+    node2: ASTNode
+  ): { differences: number } {
+    let differences = 0;
+
+    const compare = (a: ASTNode, b: ASTNode): void => {
+      if (a.type !== b.type) differences++;
+      if (a.children.length !== b.children.length) differences++;
+
+      const minChildren = Math.min(a.children.length, b.children.length);
+      for (let i = 0; i < minChildren; i++) {
+        compare(a.children[i], b.children[i]);
+      }
+    };
+
+    compare(node1, node2);
+    return { differences };
   }
 
   /**
@@ -590,9 +681,9 @@ export class ParserManager {
 
     const visitNode = (currentNode: any) => {
       // Check if node has errors or is missing
-      if (currentNode.hasError() || currentNode.isMissing()) {
+      if (currentNode.hasError || currentNode.isMissing) {
         errors.push({
-          message: currentNode.isMissing() ? 'Missing node' : 'Syntax error',
+          message: currentNode.isMissing ? 'Missing node' : 'Syntax error',
           startIndex: currentNode.startIndex,
           endIndex: currentNode.endIndex,
           startPosition: currentNode.startPosition,

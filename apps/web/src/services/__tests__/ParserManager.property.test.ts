@@ -7,7 +7,7 @@ import * as fc from 'fast-check';
 import { ParserManager } from '../ParserManager';
 
 describe('ParserManager - Property-based Tests', () => {
-  const parserManager = new ParserManager();
+  const parserManager = ParserManager.getInstance();
 
   // Code generators for different languages
   const pythonCodeGen = fc.oneof(

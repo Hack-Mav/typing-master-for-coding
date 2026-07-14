@@ -1,6 +1,46 @@
 // IndexedDB utilities for offline data storage
 import { openDB, IDBPDatabase } from 'idb';
 
+/**
+ * In-memory fallback for IndexedDB used in test environments or when
+ * IndexedDB is not available. Exposes the same API surface as idb's IDBPDatabase.
+ */
+class MemoryDatabase {
+  private stores: Map<string, Map<string, any>> = new Map();
+
+  private getStore(name: string): Map<string, any> {
+    if (!this.stores.has(name)) {
+      this.stores.set(name, new Map());
+    }
+    return this.stores.get(name)!;
+  }
+
+  private getKey(value: any, key?: any): string {
+    if (key !== undefined) return String(key);
+    return String(value.id ?? value.key ?? Date.now());
+  }
+
+  async get(storeName: string, key: any): Promise<any> {
+    return this.getStore(storeName).get(String(key));
+  }
+
+  async put(storeName: string, value: any, key?: any): Promise<void> {
+    this.getStore(storeName).set(this.getKey(value, key), value);
+  }
+
+  async getAll(storeName: string): Promise<any[]> {
+    return Array.from(this.getStore(storeName).values());
+  }
+
+  async delete(storeName: string, key: any): Promise<void> {
+    this.getStore(storeName).delete(String(key));
+  }
+
+  async clear(storeName: string): Promise<void> {
+    this.getStore(storeName).clear();
+  }
+}
+
 interface SessionEvent {
   timestampMs: number;
   keyPressed: string;
@@ -53,25 +93,34 @@ class IndexedDBManager {
   async init(): Promise<void> {
     if (this.db) return;
 
-    this.db = await openDB(this.DB_NAME, this.DB_VERSION, {
-      upgrade(db) {
-        // Sessions store
-        const sessionsStore = db.createObjectStore('sessions', {
-          keyPath: 'id',
-        });
-        sessionsStore.createIndex('by-user', 'userId');
-        sessionsStore.createIndex('by-sync-status', 'synced');
+    try {
+      if (typeof indexedDB === 'undefined') {
+        throw new Error('IndexedDB is not available');
+      }
 
-        // Lessons store
-        db.createObjectStore('lessons', { keyPath: 'id' });
+      this.db = await openDB(this.DB_NAME, this.DB_VERSION, {
+        upgrade(db) {
+          // Sessions store
+          const sessionsStore = db.createObjectStore('sessions', {
+            keyPath: 'id',
+          });
+          sessionsStore.createIndex('by-user', 'userId');
+          sessionsStore.createIndex('by-sync-status', 'synced');
 
-        // Snippets store
-        db.createObjectStore('snippets', { keyPath: 'id' });
+          // Lessons store
+          db.createObjectStore('lessons', { keyPath: 'id' });
 
-        // User settings store
-        db.createObjectStore('userSettings', { keyPath: 'key' });
-      },
-    });
+          // Snippets store
+          db.createObjectStore('snippets', { keyPath: 'id' });
+
+          // User settings store
+          db.createObjectStore('userSettings', { keyPath: 'key' });
+        },
+      });
+    } catch (error) {
+      console.warn('IndexedDB unavailable, using in-memory fallback:', error);
+      this.db = new MemoryDatabase() as unknown as IDBPDatabase;
+    }
   }
 
   // Session management

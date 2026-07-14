@@ -106,21 +106,15 @@ export class ContentService {
    * Get languages from API
    */
   private async getLanguagesFromAPI(): Promise<LanguageEntity[]> {
-    try {
-      const response = await fetch(`${this.apiBaseUrl}/languages`, {
-        headers: authService.getAuthHeader(),
-      });
+    const response = await fetch(`${this.apiBaseUrl}/languages`, {
+      headers: authService.getAuthHeader(),
+    });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch languages: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error fetching languages from API:', error);
-      // Return empty array to fall back to default content
-      return [];
+    if (!response.ok) {
+      throw new Error(`Failed to fetch languages: ${response.statusText}`);
     }
+
+    return await response.json();
   }
 
   /**

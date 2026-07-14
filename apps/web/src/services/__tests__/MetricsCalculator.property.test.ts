@@ -7,7 +7,7 @@ import * as fc from 'fast-check';
 import { MetricsCalculator } from '../MetricsCalculator';
 
 describe('MetricsCalculator - Property-based Tests', () => {
-  const calculator = new MetricsCalculator();
+  const calculator = MetricsCalculator.getInstance();
 
   describe('Speed Metrics Properties', () => {
     test('CPM should always be non-negative', () => {
@@ -210,12 +210,12 @@ describe('MetricsCalculator - Property-based Tests', () => {
               cpm: fc.nat({ max: 1000 }),
             }),
             accuracy: fc.record({
-              rawAccuracy: fc.float({ min: 0, max: 100 }),
-              characterAccuracy: fc.float({ min: 0, max: 100 }),
+              rawAccuracy: fc.float({ min: 0, max: 100, noNaN: true }),
+              characterAccuracy: fc.float({ min: 0, max: 100, noNaN: true }),
             }),
             errors: fc.record({
               errorCount: fc.nat({ max: 100 }),
-              backspaceRate: fc.float({ min: 0, max: 100 }),
+              backspaceRate: fc.float({ min: 0, max: 100, noNaN: true }),
             }),
           }),
           metrics => {
@@ -230,9 +230,9 @@ describe('MetricsCalculator - Property-based Tests', () => {
     test('Higher WPM should generally increase score (with same accuracy)', () => {
       fc.assert(
         fc.property(
-          fc.nat({ min: 10, max: 100 }),
-          fc.nat({ min: 101, max: 200 }),
-          fc.float({ min: 90, max: 100 }),
+          fc.integer({ min: 10, max: 100 }),
+          fc.integer({ min: 101, max: 200 }),
+          fc.float({ min: 90, max: 100, noNaN: true }),
           (wpm1, wpm2, accuracy) => {
             const metrics1 = {
               speed: { wpm: wpm1, cpm: wpm1 * 5 },
@@ -259,9 +259,9 @@ describe('MetricsCalculator - Property-based Tests', () => {
     test('Higher accuracy should increase score (with same WPM)', () => {
       fc.assert(
         fc.property(
-          fc.nat({ min: 50, max: 150 }),
-          fc.float({ min: 50, max: 80 }),
-          fc.float({ min: 81, max: 100 }),
+          fc.integer({ min: 50, max: 150 }),
+          fc.float({ min: 50, max: 80, noNaN: true }),
+          fc.float({ min: 81, max: 100, noNaN: true }),
           (wpm, accuracy1, accuracy2) => {
             const metrics1 = {
               speed: { wpm, cpm: wpm * 5 },

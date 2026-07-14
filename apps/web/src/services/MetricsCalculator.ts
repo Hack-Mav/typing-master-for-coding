@@ -365,13 +365,47 @@ export class MetricsCalculator {
   /**
    * Calculate composite score using configurable weights
    */
+  public calculateCompositeScore(metrics: {
+    speed: { wpm: number; cpm?: number };
+    accuracy: { rawAccuracy: number; characterAccuracy?: number };
+    errors: { errorCount: number; backspaceRate?: number };
+  }): number;
   public calculateCompositeScore(
     speed: SpeedMetrics,
     accuracy: AccuracyMetrics,
     errors: ErrorMetrics,
     timing: TimingMetrics,
     weights: ScoreWeights
-  ): CompositeScore {
+  ): CompositeScore;
+  public calculateCompositeScore(
+    arg1: any,
+    arg2?: any,
+    arg3?: any,
+    arg4?: any,
+    arg5?: any
+  ): any {
+    if (arg2 === undefined) {
+      const metrics = arg1;
+      const wpm = metrics.speed?.wpm ?? 0;
+      const accuracyPercent =
+        metrics.accuracy?.characterAccuracy ??
+        metrics.accuracy?.rawAccuracy ??
+        0;
+      const errorCount = metrics.errors?.errorCount ?? 0;
+      const backspaceRate = metrics.errors?.backspaceRate ?? 0;
+      const score = Math.max(
+        0,
+        (wpm * accuracyPercent) / 100 - errorCount - backspaceRate
+      );
+      return score;
+    }
+
+    const speed: SpeedMetrics = arg1;
+    const accuracy: AccuracyMetrics = arg2;
+    const errors: ErrorMetrics = arg3;
+    const timing: TimingMetrics = arg4;
+    const weights: ScoreWeights = arg5;
+
     // Base components (0-1000 scale)
     const speedComponent = speed.twpm * 10; // tWPM * 10 for scale
     const accuracyComponent = accuracy.rawAccuracy * 1000;
@@ -816,6 +850,101 @@ export class MetricsCalculator {
     // Simple estimation based on current improvement rate
     // In a real implementation, this would use more sophisticated modeling
     return 30; // Default 30 minutes of practice
+  }
+
+  /**
+   * Calculate basic speed metrics from keystroke events and a fixed duration.
+   * Convenience method used by property-based tests.
+   */
+  public calculateSpeed(
+    events: { timestamp: number; key: string; action: string }[],
+    durationMs: number
+  ): SpeedMetrics {
+    if (durationMs === 0 || events.length === 0) {
+      return { cpm: 0, wpm: 0, twpm: 0, kps: 0, netWpm: 0, burstSpeed: 0 };
+    }
+
+    const durationMinutes = durationMs / (1000 * 60);
+    const durationSeconds = durationMs / 1000;
+    const chars = events.filter(
+      e => e.action === 'down' && e.key.length === 1
+    ).length;
+    const totalKeystrokes = events.filter(e => e.action === 'down').length;
+
+    const cpm = chars / durationMinutes;
+    const wpm = cpm / this.AVERAGE_WORD_LENGTH;
+    const kps = totalKeystrokes / durationSeconds;
+
+    return {
+      cpm: Math.round(cpm * 100) / 100,
+      wpm: Math.round(wpm * 100) / 100,
+      twpm: 0,
+      kps: Math.round(kps * 100) / 100,
+      netWpm: Math.round(wpm * 100) / 100,
+      burstSpeed: 0,
+    };
+  }
+
+  /**
+   * Calculate accuracy metrics for two strings.
+   * Returns percentage-based values for compatibility with property tests.
+   */
+  public calculateAccuracy(
+    input: string,
+    expected: string
+  ): AccuracyMetrics & { characterAccuracy: number } {
+    const metrics = this.calculateAccuracyMetrics(expected, input, [], []);
+    return {
+      ...metrics,
+      rawAccuracy: metrics.rawAccuracy * 100,
+      characterAccuracy: metrics.rawAccuracy * 100,
+    };
+  }
+
+  /**
+   * Analyze keystroke events for errors and backspace usage.
+   * Convenience wrapper used by property tests.
+   */
+  public analyzeErrors(
+    events: {
+      timestamp: number;
+      key: string;
+      action: string;
+      errorFlag?: boolean;
+    }[]
+  ): ErrorMetrics & { errorCount: number } {
+    const backspaceCount = events.filter(e => e.key === 'Backspace').length;
+    const errorCount = events.filter(e => e.errorFlag).length;
+    const totalEvents = events.length || 1;
+    const backspaceRate = (backspaceCount / totalEvents) * 100;
+
+    return {
+      totalErrors: errorCount,
+      errorCount,
+      errorRate: 0,
+      backspaceRate: Math.min(100, backspaceRate),
+      correctionLatency: 0,
+      errorTypes: {},
+      errorClusters: [],
+    };
+  }
+
+  /**
+   * Calculate burst consistency from keystroke events.
+   * Returns a percentage value used by property-based tests.
+   */
+  public calculateBurstConsistency(
+    events: { timestamp: number; key: string; action: string }[]
+  ): { burstConsistency: number } {
+    const normalizedEvents = events.map(e => ({
+      ...e,
+      action: 'keydown' as const,
+    })) as unknown as KeystrokeEvent[];
+    const analysis = this.analyzeBursts(normalizedEvents);
+    const consistency = analysis.burstConsistency * 100;
+    return {
+      burstConsistency: Number.isNaN(consistency) ? 0 : consistency,
+    };
   }
 }
 
