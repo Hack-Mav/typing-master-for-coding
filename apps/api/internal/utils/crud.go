@@ -5,11 +5,9 @@ import (
 	"context"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/typing-master-for-coding-backend/internal/database"
 	"github.com/typing-master-for-coding-backend/internal/models"
-
-	"cloud.google.com/go/datastore"
-	"github.com/gin-gonic/gin"
 )
 
 // Generic CRUD operation helpers
@@ -29,7 +27,7 @@ func GetEntityByID[T any](c *gin.Context, db *database.DatastoreClient, kind, id
 }
 
 // CreateEntity creates a new entity with standardized key generation and error handling
-func CreateEntity[T any](c *gin.Context, db *database.DatastoreClient, kind string, entity *T, setTimestamps func(*T)) (*datastore.Key, error) {
+func CreateEntity[T any](c *gin.Context, db *database.DatastoreClient, kind string, entity *T, setTimestamps func(*T)) (*database.Key, error) {
 	ctx := context.Background()
 
 	// Set timestamps if function provided
@@ -39,7 +37,7 @@ func CreateEntity[T any](c *gin.Context, db *database.DatastoreClient, kind stri
 
 	// For now, use a simple key generation - in a real implementation,
 	// you'd need to determine the key structure based on the entity type
-	key := datastore.IncompleteKey(kind, nil)
+	key := database.IncompleteKey(kind, nil)
 
 	key, err := db.Put(ctx, key, entity)
 	if err != nil {
@@ -87,7 +85,7 @@ func DeleteEntity(c *gin.Context, db *database.DatastoreClient, kind, id string)
 // GetEntities retrieves all entities of a kind with standardized error handling
 func GetEntities[T any](c *gin.Context, db *database.DatastoreClient, kind string, entities *[]T) error {
 	ctx := context.Background()
-	query := datastore.NewQuery(kind)
+	query := database.NewQuery(kind)
 
 	keys, err := db.GetAll(ctx, query, entities)
 	if err != nil {

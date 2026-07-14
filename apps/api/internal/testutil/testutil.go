@@ -65,13 +65,18 @@ func MakeRequest(router *gin.Engine, method, path string, body interface{}, head
 	return w
 }
 
-// GenerateTestToken generates a JWT token for testing
+// GenerateTestToken generates a JWT access token for testing
 func GenerateTestToken(userID, handle, email string, isAnonymous bool) (string, error) {
 	tokens, err := auth.GenerateTokenPair(userID, handle, email, "user", isAnonymous, "test-secret-key-for-testing-only")
 	if err != nil {
 		return "", err
 	}
 	return tokens.AccessToken, nil
+}
+
+// GenerateTestTokenPair generates a JWT access/refresh token pair for testing
+func GenerateTestTokenPair(userID, handle, email string, isAnonymous bool) (*auth.TokenPair, error) {
+	return auth.GenerateTokenPair(userID, handle, email, "user", isAnonymous, "test-secret-key-for-testing-only")
 }
 
 // AssertJSONResponse asserts that the response matches expected JSON
@@ -93,7 +98,7 @@ func AssertJSONResponse(t *testing.T, w *httptest.ResponseRecorder, expectedStat
 
 // CreateTestUser creates a test user in the mock database
 func CreateTestUser(mockDB *database.DatastoreClient, userID, handle, email string) *models.User {
-	passwordHash, _ := auth.HashPassword("password123")
+	passwordHash, _ := auth.HashPassword("Password123!")
 	now := time.Now().UTC()
 
 	user := &models.User{
@@ -112,9 +117,10 @@ func CreateTestUser(mockDB *database.DatastoreClient, userID, handle, email stri
 		CreatedAt:             now,
 		UpdatedAt:             now,
 		LastLoginAt:           &now,
+		EmailVerified:         true,
 	}
 
-	mockDB.Put(context.Background(), nil, user)
+	mockDB.Put(context.Background(), mockDB.NameKey("User", userID, nil), user)
 	return user
 }
 
@@ -123,7 +129,7 @@ func CreateTestLanguage(mockDB *database.DatastoreClient, id, name string) *mode
 	language := &models.Language{
 		ID:       id,
 		Name:     name,
-		Version:  1,
+		Version:  "1",
 		ParserID: "tree-sitter-" + id,
 		GrammarConfig: map[string]interface{}{
 			"enabled": true,
@@ -135,7 +141,7 @@ func CreateTestLanguage(mockDB *database.DatastoreClient, id, name string) *mode
 		CreatedAt: time.Now().UTC(),
 	}
 
-	mockDB.Put(context.Background(), nil, language)
+	mockDB.Put(context.Background(), mockDB.NameKey("Language", id, nil), language)
 	return language
 }
 
@@ -156,7 +162,7 @@ func CreateTestLesson(mockDB *database.DatastoreClient, id, languageID, title st
 		CreatedAt:        time.Now().UTC(),
 	}
 
-	mockDB.Put(context.Background(), nil, lesson)
+	mockDB.Put(context.Background(), mockDB.NameKey("Lesson", id, nil), lesson)
 	return lesson
 }
 
@@ -179,7 +185,7 @@ func CreateTestSnippet(mockDB *database.DatastoreClient, id, languageID, title, 
 		CreatedAt: time.Now().UTC(),
 	}
 
-	mockDB.Put(context.Background(), nil, snippet)
+	mockDB.Put(context.Background(), mockDB.NameKey("Snippet", id, nil), snippet)
 	return snippet
 }
 
@@ -195,7 +201,7 @@ func CreateTestSession(mockDB *database.DatastoreClient, id, userID, mode, langu
 		CreatedAt:  time.Now().UTC(),
 	}
 
-	mockDB.Put(context.Background(), nil, session)
+	mockDB.Put(context.Background(), mockDB.NameKey("Session", id, nil), session)
 	return session
 }
 

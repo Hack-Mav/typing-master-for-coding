@@ -280,7 +280,7 @@ func (s *GitHubService) CreateGitHubIntegration(ctx context.Context, userID, acc
 		Filter("Provider =", "github")
 
 	var integrations []*models.Integration
-	keys, err := s.db.Client.GetAll(ctx, q, &integrations)
+	keys, err := s.db.GetAll(ctx, q, &integrations)
 	if err != nil {
 		return fmt.Errorf("failed to query existing integrations: %v", err)
 	}
@@ -307,7 +307,7 @@ func (s *GitHubService) CreateGitHubIntegration(ctx context.Context, userID, acc
 		integration.Status = "active"
 		integration.UpdatedAt = time.Now()
 
-		_, err = s.db.Client.Put(ctx, keys[0], integration)
+		_, err = s.db.Put(ctx, keys[0], integration)
 		if err != nil {
 			return fmt.Errorf("failed to update integration: %v", err)
 		}
@@ -323,7 +323,7 @@ func (s *GitHubService) CreateGitHubIntegration(ctx context.Context, userID, acc
 			UpdatedAt: time.Now(),
 		}
 
-		_, err = s.db.Client.Put(ctx, keys[0], integration)
+		_, err = s.db.Put(ctx, keys[0], integration)
 		if err != nil {
 			return fmt.Errorf("failed to create integration: %v", err)
 		}
@@ -340,7 +340,7 @@ func (s *GitHubService) GetGitHubIntegration(ctx context.Context, userID string)
 		Filter("Status =", "active")
 
 	var integrations []*models.Integration
-	keys, err := s.db.Client.GetAll(ctx, q, &integrations)
+	keys, err := s.db.GetAll(ctx, q, &integrations)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get GitHub integration: %v", err)
 	}
@@ -361,7 +361,7 @@ func (s *GitHubService) DeleteGitHubIntegration(ctx context.Context, userID stri
 		Filter("Provider =", "github")
 
 	var integrations []*models.Integration
-	keys, err := s.db.Client.GetAll(ctx, q, &integrations)
+	keys, err := s.db.GetAll(ctx, q, &integrations)
 	if err != nil {
 		return fmt.Errorf("failed to find GitHub integration: %v", err)
 	}
@@ -372,7 +372,7 @@ func (s *GitHubService) DeleteGitHubIntegration(ctx context.Context, userID stri
 
 	// Delete the integration
 	for _, key := range keys {
-		err = s.db.Client.Delete(ctx, key)
+		err = s.db.Delete(ctx, key)
 		if err != nil {
 			return fmt.Errorf("failed to delete integration: %v", err)
 		}

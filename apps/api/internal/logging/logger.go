@@ -9,10 +9,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/typing-master-for-coding-backend/internal/database"
-
-	"cloud.google.com/go/datastore"
 	"github.com/google/uuid"
+	"github.com/typing-master-for-coding-backend/internal/database"
 )
 
 // LogLevel represents the severity level of a log entry
@@ -356,7 +354,7 @@ func (l *Logger) logToConsole(entry LogEntry) {
 // storeLogEntry stores the log entry in the database
 func (l *Logger) storeLogEntry(ctx context.Context, entry LogEntry) error {
 	entryID := uuid.New().String()
-	key := datastore.NameKey("LogEntry", entryID, nil)
+	key := database.NameKey("LogEntry", entryID, nil)
 
 	_, err := l.db.Put(ctx, key, &entry)
 	if err != nil {
@@ -369,7 +367,7 @@ func (l *Logger) storeLogEntry(ctx context.Context, entry LogEntry) error {
 // storePerformanceMetric stores the performance metric in the database
 func (l *Logger) storePerformanceMetric(ctx context.Context, metric PerformanceMetric) error {
 	metricID := uuid.New().String()
-	key := datastore.NameKey("PerformanceMetric", metricID, nil)
+	key := database.NameKey("PerformanceMetric", metricID, nil)
 
 	_, err := l.db.Put(ctx, key, &metric)
 	if err != nil {
@@ -404,7 +402,7 @@ func (l *Logger) checkAndCreateAlert(ctx context.Context, entry LogEntry) error 
 // createOrUpdateAlert creates or updates an error alert
 func (l *Logger) createOrUpdateAlert(ctx context.Context, entry LogEntry, errorCount int) error {
 	// Check for existing unresolved alert
-	query := datastore.NewQuery("ErrorAlert").
+	query := database.NewQuery("ErrorAlert").
 		Filter("type =", entry.Level).
 		Filter("service =", entry.Service).
 		Filter("component =", entry.Component).
@@ -449,7 +447,7 @@ func (l *Logger) createOrUpdateAlert(ctx context.Context, entry LogEntry, errorC
 		}
 
 		alertID := uuid.New().String()
-		key := datastore.NameKey("ErrorAlert", alertID, nil)
+		key := database.NameKey("ErrorAlert", alertID, nil)
 		_, err = l.db.Put(ctx, key, &alert)
 		if err != nil {
 			return fmt.Errorf("failed to create error alert: %w", err)
@@ -485,7 +483,7 @@ func (l *Logger) getStackTrace() string {
 
 // GetLogEntries retrieves log entries with filtering
 func (l *Logger) GetLogEntries(ctx context.Context, filters LogFilters) ([]LogEntry, error) {
-	query := datastore.NewQuery("LogEntry")
+	query := database.NewQuery("LogEntry")
 
 	// Apply filters
 	if filters.Level != "" {
@@ -533,7 +531,7 @@ func (l *Logger) GetLogEntries(ctx context.Context, filters LogFilters) ([]LogEn
 
 // GetErrorAlerts retrieves error alerts
 func (l *Logger) GetErrorAlerts(ctx context.Context, includeResolved bool) ([]ErrorAlert, error) {
-	query := datastore.NewQuery("ErrorAlert")
+	query := database.NewQuery("ErrorAlert")
 
 	if !includeResolved {
 		query = query.Filter("resolved =", false)
@@ -556,7 +554,7 @@ func (l *Logger) GetErrorAlerts(ctx context.Context, includeResolved bool) ([]Er
 
 // ResolveAlert marks an error alert as resolved
 func (l *Logger) ResolveAlert(ctx context.Context, alertID, resolvedBy string) error {
-	key := datastore.NameKey("ErrorAlert", alertID, nil)
+	key := database.NameKey("ErrorAlert", alertID, nil)
 	var alert ErrorAlert
 	err := l.db.Get(ctx, key, &alert)
 	if err != nil {
@@ -592,7 +590,7 @@ type LogFilters struct {
 func (l *Logger) CleanupOldLogs(ctx context.Context) error {
 	cutoffDate := time.Now().UTC().AddDate(0, 0, -l.config.MaxRetentionDays)
 
-	query := datastore.NewQuery("LogEntry").
+	query := database.NewQuery("LogEntry").
 		Filter("timestamp <", cutoffDate).
 		KeysOnly()
 

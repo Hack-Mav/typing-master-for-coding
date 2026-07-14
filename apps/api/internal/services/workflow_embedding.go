@@ -108,8 +108,8 @@ func (s *WorkflowEmbeddingService) CreateEmbed(ctx context.Context, req *EmbedRe
 	}
 
 	// Save temporary snippet
-	snippetKey := database.NameKey("Snippet", tempSnippet.ID)
-	_, err := s.db.Client.Put(ctx, snippetKey, tempSnippet)
+	snippetKey := database.NameKey("Snippet", tempSnippet.ID, nil)
+	_, err := s.db.Put(ctx, snippetKey, tempSnippet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary snippet: %v", err)
 	}
@@ -133,8 +133,8 @@ func (s *WorkflowEmbeddingService) CreateEmbed(ctx context.Context, req *EmbedRe
 	}
 
 	// Save session
-	sessionKey := database.NameKey("Session", session.ID)
-	_, err = s.db.Client.Put(ctx, sessionKey, session)
+	sessionKey := database.NameKey("Session", session.ID, nil)
+	_, err = s.db.Put(ctx, sessionKey, session)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %v", err)
 	}
@@ -175,9 +175,9 @@ func (s *WorkflowEmbeddingService) CreateEmbed(ctx context.Context, req *EmbedRe
 // GetEmbed retrieves an embedded session configuration
 func (s *WorkflowEmbeddingService) GetEmbed(ctx context.Context, embedID string) (*EmbedResponse, error) {
 	// Get session
-	sessionKey := database.NameKey("Session", embedID)
+	sessionKey := database.NameKey("Session", embedID, nil)
 	var session models.Session
-	if err := s.db.Client.Get(ctx, sessionKey, &session); err != nil {
+	if err := s.db.Get(ctx, sessionKey, &session); err != nil {
 		return nil, fmt.Errorf("session not found: %v", err)
 	}
 
@@ -187,9 +187,9 @@ func (s *WorkflowEmbeddingService) GetEmbed(ctx context.Context, embedID string)
 	}
 
 	// Get snippet
-	snippetKey := database.NameKey("Snippet", session.SnippetID)
+	snippetKey := database.NameKey("Snippet", session.SnippetID, nil)
 	var snippet models.Snippet
-	if err := s.db.Client.Get(ctx, snippetKey, &snippet); err != nil {
+	if err := s.db.Get(ctx, snippetKey, &snippet); err != nil {
 		return nil, fmt.Errorf("snippet not found: %v", err)
 	}
 
