@@ -2,14 +2,13 @@ package scoring
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"testing"
 	"time"
 
-	"cloud.google.com/go/datastore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/typing-master-for-coding-backend/internal/database"
 	"google.golang.org/api/iterator"
 )
 
@@ -18,24 +17,28 @@ type MockDatastoreClient struct {
 	mock.Mock
 }
 
-func (m *MockDatastoreClient) Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error) {
+func (m *MockDatastoreClient) Put(ctx context.Context, key *database.Key, src interface{}) (*database.Key, error) {
 	args := m.Called(ctx, key, src)
-	return args.Get(0).(*datastore.Key), args.Error(1)
+	return args.Get(0).(*database.Key), args.Error(1)
 }
 
-func (m *MockDatastoreClient) Get(ctx context.Context, key *datastore.Key, dst interface{}) error {
+func (m *MockDatastoreClient) Get(ctx context.Context, key *database.Key, dst interface{}) error {
 	args := m.Called(ctx, key, dst)
 	return args.Error(0)
 }
 
-func (m *MockDatastoreClient) Run(ctx context.Context, q *datastore.Query) Iterator {
+func (m *MockDatastoreClient) Run(ctx context.Context, q *database.Query) database.Iterator {
 	args := m.Called(ctx, q)
-	return args.Get(0).(Iterator)
+	val := args.Get(0)
+	if fn, ok := val.(func(context.Context, *database.Query) database.Iterator); ok {
+		return fn(ctx, q)
+	}
+	return val.(database.Iterator)
 }
 
-func (m *MockDatastoreClient) GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error) {
+func (m *MockDatastoreClient) GetAll(ctx context.Context, q *database.Query, dst interface{}) ([]*database.Key, error) {
 	args := m.Called(ctx, q, dst)
-	return args.Get(0).([]*datastore.Key), args.Error(1)
+	return args.Get(0).([]*database.Key), args.Error(1)
 }
 
 // MockIterator is a mock implementation of Iterator for testing.
@@ -43,13 +46,16 @@ type MockIterator struct {
 	mock.Mock
 }
 
-func (m *MockIterator) Next(dst interface{}) (*datastore.Key, error) {
+func (m *MockIterator) Next(dst interface{}) (*database.Key, error) {
 	args := m.Called(dst)
 	val := args.Get(0)
 	if val == nil {
 		return nil, args.Error(1)
 	}
-	return val.(*datastore.Key), args.Error(1)
+	if fn, ok := val.(func(interface{}) (*database.Key, error)); ok {
+		return fn(dst)
+	}
+	return val.(*database.Key), args.Error(1)
 }
 
 func TestNewService(t *testing.T) {
@@ -73,7 +79,8 @@ func TestProcessEvent(t *testing.T) {
 	dsClient.On("Run", mock.Anything, mock.Anything).Return(mockIter)
 
 	service := NewService(dsClient)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
 
 	event := &ScoringEvent{
 		SessionID:  "test-session-1",
@@ -96,6 +103,7 @@ func TestProcessEvent(t *testing.T) {
 		cache:       &sync.Map{},
 		eventQueue:  make(chan *ScoringEvent, 1), // Only 1 item buffer
 		workerCount: 0,                           // No workers to avoid processing
+		processSem:  make(chan struct{}, defaultMaxConcurrentSessions),
 		config:      service.getDefaultConfig(),
 	}
 
@@ -103,10 +111,10 @@ func TestProcessEvent(t *testing.T) {
 	err = smallQueueService.ProcessEvent(ctx, event)
 	assert.NoError(t, err)
 
-	// Try to add another - should fail
+	// Try to add another - should block until the context deadline is reached
 	err = smallQueueService.ProcessEvent(ctx, event)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "event queue full")
+	assert.Contains(t, err.Error(), "context deadline exceeded")
 }
 
 func TestAnalyzeSession(t *testing.T) {
@@ -122,21 +130,21 @@ func TestAnalyzeSession(t *testing.T) {
 		{UserID: "user1", Timestamp: 1300, EventType: "keystroke", KeyPressed: "f", Action: "down", ErrorFlag: false},
 	}
 
-	dsClient.On("Run", mock.Anything, mock.Anything).Return(func(ctx context.Context, q *datastore.Query) Iterator {
+	dsClient.On("Run", mock.Anything, mock.Anything).Return(func(ctx context.Context, q *database.Query) database.Iterator {
 		iter := new(MockIterator)
 		callCount := 0
-		iter.On("Next", mock.Anything).Return(func(dst interface{}) (*datastore.Key, error) {
+		iter.On("Next", mock.Anything).Return(func(dst interface{}) (*database.Key, error) {
 			if callCount < len(events) {
 				*dst.(*ScoringEvent) = *events[callCount]
 				callCount++
-				return datastore.IncompleteKey("ScoringEvent", nil), nil
+				return database.IncompleteKey("ScoringEvent", nil), nil
 			}
-			return nil, errors.New("done")
+			return nil, iterator.Done
 		}).Times(len(events) + 1)
 		return iter
 	}).Once()
 
-	dsClient.On("Put", mock.Anything, mock.Anything, mock.Anything).Return(datastore.IncompleteKey("AntiCheatReport", nil), nil).Once()
+	dsClient.On("Put", mock.Anything, mock.Anything, mock.Anything).Return(database.IncompleteKey("AntiCheatReport", nil), nil).Once()
 
 	report, err := service.AnalyzeSession(ctx, "session123")
 	assert.NoError(t, err)
@@ -379,7 +387,7 @@ func TestCalculateIntervalVariance(t *testing.T) {
 		{Timestamp: 1700, EventType: "keystroke"},
 	}
 	variance = service.calculateIntervalVariance(eventsWithVariance)
-	assert.InDelta(t, 0.75, variance, 0.01)
+	assert.InDelta(t, 0.474, variance, 0.01)
 }
 
 func TestCalculatePauseRatio(t *testing.T) {

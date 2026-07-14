@@ -4,11 +4,16 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
-	"cloud.google.com/go/datastore"
+	"github.com/typing-master-for-coding-backend/internal/database"
 	"google.golang.org/api/iterator"
+
+	"github.com/typing-master-for-coding-backend/internal/models"
 )
 
 // Service handles scoring computation and metrics processing
@@ -18,7 +23,11 @@ type Service struct {
 	config      *ScoringConfig
 	eventQueue  chan *ScoringEvent
 	workerCount int
+	processSem  chan struct{}
 }
+
+// defaultMaxConcurrentSessions limits the number of sessions scored at the same time.
+const defaultMaxConcurrentSessions = 100
 
 // ScoringEvent represents a typing event for processing
 type ScoringEvent struct {
@@ -95,15 +104,10 @@ type ScoringConfig struct {
 
 // DatastoreClient defines the interface for the Datastore client operations used in this package.
 type DatastoreClient interface {
-	Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error)
-	Get(ctx context.Context, key *datastore.Key, dst interface{}) error
-	Run(ctx context.Context, q *datastore.Query) Iterator
-	GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error)
-}
-
-// Iterator defines the interface for iterating over Datastore query results.
-type Iterator interface {
-	Next(dst interface{}) (*datastore.Key, error)
+	Put(ctx context.Context, key *database.Key, src interface{}) (*database.Key, error)
+	Get(ctx context.Context, key *database.Key, dst interface{}) error
+	Run(ctx context.Context, q *database.Query) database.Iterator
+	GetAll(ctx context.Context, q *database.Query, dst interface{}) ([]*database.Key, error)
 }
 
 // Service provides scoring and anti-cheat functionalities.
@@ -115,6 +119,7 @@ func NewService(dsClient DatastoreClient) *Service {
 		cache:       &sync.Map{},
 		eventQueue:  make(chan *ScoringEvent, 10000), // Buffer for 10k events
 		workerCount: 4,
+		processSem:  make(chan struct{}, defaultMaxConcurrentSessions),
 	}
 
 	// Load default configuration
@@ -126,18 +131,28 @@ func NewService(dsClient DatastoreClient) *Service {
 	return service
 }
 
-// ProcessEvent processes a single scoring event
+// ProcessEvent processes a single scoring event. If the queue is full it blocks
+// until the event is accepted or the provided context is cancelled.
+// Returns an error if the context is cancelled before the event can be queued.
 func (s *Service) ProcessEvent(ctx context.Context, event *ScoringEvent) error {
 	select {
 	case s.eventQueue <- event:
 		return nil
-	default:
-		return fmt.Errorf("event queue full")
+	case <-ctx.Done():
+		return fmt.Errorf("event queue full, context cancelled: %w", ctx.Err())
 	}
 }
 
-// ProcessSession processes all events for a session and computes final metrics
+// ProcessSession processes all events for a session and computes final metrics.
+// It limits the number of concurrent scoring sessions to prevent resource exhaustion.
 func (s *Service) ProcessSession(ctx context.Context, sessionID string) (*SessionMetrics, error) {
+	select {
+	case s.processSem <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	defer func() { <-s.processSem }()
+
 	// Get all events for the session
 	events, err := s.getSessionEvents(ctx, sessionID)
 	if err != nil {
@@ -148,8 +163,21 @@ func (s *Service) ProcessSession(ctx context.Context, sessionID string) (*Sessio
 		return nil, fmt.Errorf("no events found for session %s", sessionID)
 	}
 
+	// Load session metadata
+	session, err := s.getSession(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session metadata: %w", err)
+	}
+
+	// Ensure events have user info
+	for _, event := range events {
+		if event.UserID == "" {
+			event.UserID = session.UserID
+		}
+	}
+
 	// Compute metrics from events
-	metrics := s.computeMetrics(events)
+	metrics := s.computeMetrics(session, events)
 
 	// Apply anti-cheat analysis
 	antiCheatReport := s.analyzeAntiCheat(events)
@@ -256,36 +284,52 @@ func (s *Service) processEventBatch(ctx context.Context, events []*ScoringEvent)
 		sessionEvents[event.SessionID] = append(sessionEvents[event.SessionID], event)
 	}
 
-	// Process each session asynchronously
+	// Process each session through the bounded scoring pipeline.
+	// Process sequentially to avoid unbounded goroutine spawning.
 	for sessionID, sessionEventList := range sessionEvents {
-		// Check if session is complete
-		if s.isSessionComplete(sessionEventList) {
-			go func(sessionID string) {
-				// Use a background context to ensure the goroutine can complete
-				// even if the original request context is cancelled.
-				processingCtx := context.WithoutCancel(ctx)
-				_, err := s.ProcessSession(processingCtx, sessionID)
-				if err != nil {
-					log.Printf("Failed to process session %s: %v", sessionID, err)
-				}
-			}(sessionID)
+		if !s.isSessionComplete(sessionEventList) {
+			continue
 		}
+
+		processingCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		
+		metrics, err := s.ProcessSession(processingCtx, sessionID)
+		cancel()
+		
+		if err != nil {
+			log.Printf("Failed to process session %s: %v", sessionID, err)
+			continue
+		}
+
+		if err := s.UpdateLeaderboard(processingCtx, sessionID); err != nil {
+			log.Printf("Failed to update leaderboards for %s: %v", sessionID, err)
+		}
+
+		log.Printf("Session %s processed: Score=%d, CPM=%.2f, TWPM=%.2f",
+			sessionID, metrics.CompositeScore, metrics.CPM, metrics.TWPM)
 	}
 }
 
 // computeMetrics calculates all metrics from session events
-func (s *Service) computeMetrics(events []*ScoringEvent) *SessionMetrics {
+func (s *Service) computeMetrics(session *models.Session, events []*ScoringEvent) *SessionMetrics {
 	if len(events) == 0 {
 		return &SessionMetrics{}
 	}
 
-	// Extract session info from first event
+	// Extract session info from the session entity and first event
 	sessionID := events[0].SessionID
-	userID := events[0].UserID
-
-	// Get session metadata (would need to query session entity)
-	languageID := "unknown" // TODO: Get from session
-	mode := "unknown"       // TODO: Get from session
+	userID := session.UserID
+	if userID == "" {
+		userID = events[0].UserID
+	}
+	languageID := session.LanguageID
+	if languageID == "" {
+		languageID = "unknown"
+	}
+	mode := session.Mode
+	if mode == "" {
+		mode = "unknown"
+	}
 
 	// Calculate basic metrics
 	duration := s.calculateDuration(events)
@@ -463,13 +507,64 @@ func (s *Service) calculateTokenAccuracy(events []*ScoringEvent) float64 {
 }
 
 func (s *Service) calculateSyntaxAccuracy(events []*ScoringEvent) float64 {
-	// TODO: Implement syntax accuracy calculation based on structural correctness
-	return s.calculateRawAccuracy(events) // Placeholder
+	correct := 0
+	total := 0
+
+	for _, event := range events {
+		if event.EventType != "keystroke" || event.Action != "down" {
+			continue
+		}
+
+		if event.ExpectedToken != "" {
+			if isWhitespaceEvent(event.ExpectedToken, event.KeyPressed) {
+				continue
+			}
+			total++
+			if !event.ErrorFlag {
+				correct++
+			}
+			continue
+		}
+
+		if len(event.KeyPressed) == 1 && !isWhitespaceKey(event.KeyPressed) {
+			total++
+			if !event.ErrorFlag {
+				correct++
+			}
+		}
+	}
+
+	if total == 0 {
+		return 1.0
+	}
+
+	return float64(correct) / float64(total)
 }
 
 func (s *Service) calculateWhitespaceAccuracy(events []*ScoringEvent) float64 {
-	// TODO: Implement whitespace accuracy calculation
-	return s.calculateRawAccuracy(events) // Placeholder
+	correct := 0
+	total := 0
+
+	for _, event := range events {
+		if event.EventType != "keystroke" || event.Action != "down" {
+			continue
+		}
+
+		if !isWhitespaceEvent(event.ExpectedToken, event.KeyPressed) {
+			continue
+		}
+
+		total++
+		if !event.ErrorFlag {
+			correct++
+		}
+	}
+
+	if total == 0 {
+		return 1.0
+	}
+
+	return float64(correct) / float64(total)
 }
 
 func (s *Service) calculateBackspaceRate(events []*ScoringEvent) float64 {
@@ -493,17 +588,67 @@ func (s *Service) calculateBackspaceRate(events []*ScoringEvent) float64 {
 }
 
 func (s *Service) calculateCorrectionRate(events []*ScoringEvent) float64 {
-	// TODO: Implement correction rate calculation
-	return 0.0 // Placeholder
+	backspaces := 0
+	errors := 0
+
+	for _, event := range events {
+		if event.EventType != "keystroke" {
+			continue
+		}
+		if event.Action == "down" && event.KeyPressed == "Backspace" {
+			backspaces++
+			continue
+		}
+		if event.Action == "down" && event.ErrorFlag {
+			errors++
+		}
+	}
+
+	if errors == 0 {
+		return 0.0
+	}
+	if backspaces >= errors {
+		return 1.0
+	}
+	return float64(backspaces) / float64(errors)
 }
 
 func (s *Service) calculateIdleTimePercent(events []*ScoringEvent) float64 {
-	// TODO: Implement idle time calculation based on timing gaps
-	return 0.0 // Placeholder
+	if len(events) < 2 {
+		return 0.0
+	}
+
+	totalDuration := events[len(events)-1].Timestamp - events[0].Timestamp
+	if totalDuration == 0 {
+		return 0.0
+	}
+
+	const idleThresholdMs = int64(1000)
+	idleTime := int64(0)
+	for i := 1; i < len(events); i++ {
+		gap := events[i].Timestamp - events[i-1].Timestamp
+		if gap > idleThresholdMs {
+			idleTime += gap
+		}
+	}
+
+	if idleTime > totalDuration {
+		return 1.0
+	}
+	return float64(idleTime) / float64(totalDuration)
 }
 
 func (s *Service) calculateCompositeScore(twpm, rawAccuracy, syntaxAccuracy, backspaceRate, idleTimePercent float64) int {
-	score := s.config.TWPMWeight * twpm
+	// Normalize TWPM to a 0-100 percentage scale so all components are on the same scale.
+	normalizedTWPM := twpm
+	if normalizedTWPM > 100.0 {
+		normalizedTWPM = 100.0
+	}
+	if normalizedTWPM < 0.0 {
+		normalizedTWPM = 0.0
+	}
+
+	score := s.config.TWPMWeight * normalizedTWPM
 	score += s.config.RawAccuracyWeight * rawAccuracy * 100
 	score += s.config.SyntaxAccuracyWeight * syntaxAccuracy * 100
 	score -= s.config.BackspacePenalty * backspaceRate * 100
@@ -512,39 +657,271 @@ func (s *Service) calculateCompositeScore(twpm, rawAccuracy, syntaxAccuracy, bac
 	if score < 0 {
 		score = 0
 	}
+	if score > 100 {
+		score = 100
+	}
 
 	return int(score)
 }
 
 func (s *Service) calculateConsistencyScore(events []*ScoringEvent) float64 {
-	// TODO: Implement consistency calculation based on typing rhythm
-	return 1.0 // Placeholder
+	if len(events) < 2 {
+		return 1.0
+	}
+
+	intervals := []float64{}
+	for i := 1; i < len(events); i++ {
+		if events[i].EventType == "keystroke" && events[i-1].EventType == "keystroke" {
+			intervals = append(intervals, float64(events[i].Timestamp-events[i-1].Timestamp))
+		}
+	}
+
+	if len(intervals) < 2 {
+		return 1.0
+	}
+
+	sum := 0.0
+	for _, interval := range intervals {
+		sum += interval
+	}
+	mean := sum / float64(len(intervals))
+	if mean == 0 {
+		return 1.0
+	}
+
+	variance := 0.0
+	for _, interval := range intervals {
+		diff := interval - mean
+		variance += diff * diff
+	}
+	variance /= float64(len(intervals))
+
+	stddev := math.Sqrt(variance)
+	cv := stddev / mean
+	consistency := 1.0 / (1.0 + cv)
+	if consistency < 0 {
+		return 0
+	}
+	if consistency > 1 {
+		return 1
+	}
+	return consistency
 }
 
 func (s *Service) calculateEfficiencyScore(events []*ScoringEvent) float64 {
-	// TODO: Implement efficiency calculation
-	return 1.0 // Placeholder
+	rawAccuracy := s.calculateRawAccuracy(events)
+	backspaceRate := s.calculateBackspaceRate(events)
+	idleTimePercent := s.calculateIdleTimePercent(events)
+	if idleTimePercent > 1.0 {
+		idleTimePercent = 1.0
+	}
+
+	efficiency := (rawAccuracy + (1.0 - backspaceRate) + (1.0 - idleTimePercent)) / 3.0
+	if efficiency < 0 {
+		return 0
+	}
+	if efficiency > 1 {
+		return 1
+	}
+	return efficiency
 }
 
 func (s *Service) analyzeErrorClusters(events []*ScoringEvent) map[string]interface{} {
-	// TODO: Implement error clustering analysis
-	return make(map[string]interface{})
+	totalErrors := 0
+	errorsByToken := make(map[string]int)
+	errorsByKey := make(map[string]int)
+	consecutiveClusters := 0
+	largestCluster := 0
+	currentCluster := 0
+	prevError := false
+	totalKeystrokes := 0
+
+	for _, event := range events {
+		if event.EventType != "keystroke" || event.Action != "down" {
+			continue
+		}
+		totalKeystrokes++
+		if event.ErrorFlag {
+			totalErrors++
+			errorsByToken[event.ExpectedToken]++
+			errorsByKey[event.KeyPressed]++
+			if !prevError {
+				consecutiveClusters++
+				currentCluster = 0
+			}
+			currentCluster++
+			if currentCluster > largestCluster {
+				largestCluster = currentCluster
+			}
+			prevError = true
+		} else {
+			prevError = false
+			currentCluster = 0
+		}
+	}
+
+	errorRate := 0.0
+	if totalKeystrokes > 0 {
+		errorRate = float64(totalErrors) / float64(totalKeystrokes)
+	}
+
+	return map[string]interface{}{
+		"total_errors":         totalErrors,
+		"error_rate":           errorRate,
+		"consecutive_clusters": consecutiveClusters,
+		"largest_cluster":      largestCluster,
+		"errors_by_token":      errorsByToken,
+		"errors_by_key":        errorsByKey,
+	}
 }
 
 func (s *Service) analyzePerformanceInsights(events []*ScoringEvent) map[string]interface{} {
-	// TODO: Implement performance insights generation
-	return make(map[string]interface{})
+	if len(events) == 0 {
+		return map[string]interface{}{}
+	}
+
+	duration := s.calculateDuration(events)
+	cpm := s.calculateCPM(events, duration)
+	rawAccuracy := s.calculateRawAccuracy(events)
+	backspaceRate := s.calculateBackspaceRate(events)
+	consistency := s.calculateConsistencyScore(events)
+
+	recommendations := []string{}
+	if rawAccuracy < 0.85 {
+		recommendations = append(recommendations, "Focus on accuracy before speed")
+	}
+	if backspaceRate > 0.1 {
+		recommendations = append(recommendations, "Reduce backspacing by reading ahead")
+	}
+	if consistency < 0.5 {
+		recommendations = append(recommendations, "Practice a consistent typing rhythm")
+	}
+	if cpm < 100 {
+		recommendations = append(recommendations, "Build speed with easier exercises")
+	}
+	if len(recommendations) == 0 {
+		recommendations = append(recommendations, "Great performance — keep challenging yourself")
+	}
+
+	return map[string]interface{}{
+		"recommendations": recommendations,
+		"metrics": map[string]interface{}{
+			"cpm":               cpm,
+			"raw_accuracy":      rawAccuracy,
+			"backspace_rate":    backspaceRate,
+			"consistency_score": consistency,
+		},
+	}
 }
 
 func (s *Service) analyzeTypingPatterns(events []*ScoringEvent) map[string]interface{} {
-	// TODO: Implement typing pattern analysis
-	return make(map[string]interface{})
+	if len(events) < 2 {
+		return map[string]interface{}{}
+	}
+
+	intervals := []float64{}
+	for i := 1; i < len(events); i++ {
+		if events[i].EventType == "keystroke" && events[i-1].EventType == "keystroke" {
+			intervals = append(intervals, float64(events[i].Timestamp-events[i-1].Timestamp))
+		}
+	}
+
+	if len(intervals) == 0 {
+		return map[string]interface{}{}
+	}
+
+	sum := 0.0
+	minInterval := intervals[0]
+	maxInterval := intervals[0]
+	for _, interval := range intervals {
+		sum += interval
+		if interval < minInterval {
+			minInterval = interval
+		}
+		if interval > maxInterval {
+			maxInterval = interval
+		}
+	}
+	mean := sum / float64(len(intervals))
+
+	variance := 0.0
+	for _, interval := range intervals {
+		diff := interval - mean
+		variance += diff * diff
+	}
+	variance /= float64(len(intervals))
+
+	totalDuration := events[len(events)-1].Timestamp - events[0].Timestamp
+	pauseTime := int64(0)
+	for i := 1; i < len(events); i++ {
+		gap := events[i].Timestamp - events[i-1].Timestamp
+		if gap > 200 {
+			pauseTime += gap
+		}
+	}
+	pauseRatio := 0.0
+	if totalDuration > 0 {
+		pauseRatio = float64(pauseTime) / float64(totalDuration)
+	}
+
+	consistency := s.calculateConsistencyScore(events)
+	rhythm := "variable"
+	if consistency > 0.7 {
+		rhythm = "consistent"
+	} else if consistency < 0.3 {
+		rhythm = "erratic"
+	}
+
+	keyFreq := make(map[string]int)
+	for _, event := range events {
+		if event.EventType == "keystroke" && event.Action == "down" {
+			keyFreq[event.KeyPressed]++
+		}
+	}
+	dominantKey := ""
+	dominantCount := 0
+	for key, count := range keyFreq {
+		if count > dominantCount {
+			dominantCount = count
+			dominantKey = key
+		}
+	}
+
+	return map[string]interface{}{
+		"average_interval_ms": mean,
+		"min_interval_ms":     minInterval,
+		"max_interval_ms":     maxInterval,
+		"interval_variance":   variance,
+		"pause_ratio":         pauseRatio,
+		"rhythm":              rhythm,
+		"consistency_score":   consistency,
+		"dominant_key":        dominantKey,
+		"dominant_key_count":  dominantCount,
+	}
+}
+
+func isWhitespaceKey(key string) bool {
+	if key == " " || key == "\t" || key == "\n" || key == "\r" ||
+		key == "Space" || key == "Enter" || key == "Return" || key == "Tab" {
+		return true
+	}
+	if len(key) == 1 {
+		return unicode.IsSpace(rune(key[0]))
+	}
+	return false
+}
+
+func isWhitespaceEvent(expectedToken, key string) bool {
+	if expectedToken != "" {
+		return strings.TrimSpace(expectedToken) == ""
+	}
+	return isWhitespaceKey(key)
 }
 
 // Database operations
 func (s *Service) getSessionEvents(ctx context.Context, sessionID string) ([]*ScoringEvent, error) {
 	// Query SessionEvent entities from Datastore
-	query := datastore.NewQuery("SessionEvent").
+	query := database.NewQuery("SessionEvent").
 		FilterField("SessionID", "=", sessionID).
 		Order("TimestampMs")
 
@@ -589,9 +966,18 @@ func (s *Service) getSessionEvents(ctx context.Context, sessionID string) ([]*Sc
 	return events, nil
 }
 
+func (s *Service) getSession(ctx context.Context, sessionID string) (*models.Session, error) {
+	key := database.NameKey("Session", sessionID, nil)
+	var session models.Session
+	if err := s.dsClient.Get(ctx, key, &session); err != nil {
+		return nil, fmt.Errorf("failed to get session: %w", err)
+	}
+	return &session, nil
+}
+
 func (s *Service) storeMetrics(ctx context.Context, metrics *SessionMetrics) error {
 	// Store ScoringMetrics in Datastore
-	key := datastore.NameKey("ScoringMetrics", metrics.SessionID, nil)
+	key := database.NameKey("ScoringMetrics", metrics.SessionID, nil)
 
 	_, err := s.dsClient.Put(ctx, key, metrics)
 	if err != nil {
@@ -627,7 +1013,7 @@ func (s *Service) storeMetrics(ctx context.Context, metrics *SessionMetrics) err
 		CreatedAt: metrics.CalculatedAt,
 	}
 
-	resultKey := datastore.NameKey("Result", metrics.SessionID, nil)
+	resultKey := database.NameKey("Result", metrics.SessionID, nil)
 	_, err = s.dsClient.Put(ctx, resultKey, result)
 	if err != nil {
 		return fmt.Errorf("failed to store result: %w", err)
@@ -638,12 +1024,12 @@ func (s *Service) storeMetrics(ctx context.Context, metrics *SessionMetrics) err
 
 func (s *Service) getStoredMetrics(ctx context.Context, sessionID string) (*SessionMetrics, error) {
 	// Retrieve ScoringMetrics from Datastore
-	key := datastore.NameKey("ScoringMetrics", sessionID, nil)
+	key := database.NameKey("ScoringMetrics", sessionID, nil)
 
 	var metrics SessionMetrics
 	err := s.dsClient.Get(ctx, key, &metrics)
 	if err != nil {
-		if err == datastore.ErrNoSuchEntity {
+		if err == database.ErrNoSuchEntity {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get metrics: %w", err)
@@ -655,7 +1041,7 @@ func (s *Service) getStoredMetrics(ctx context.Context, sessionID string) (*Sess
 func (s *Service) storeAntiCheatReport(ctx context.Context, report *AntiCheatReport) error {
 	// Store AntiCheatReport in Datastore
 	reportID := fmt.Sprintf("%s_%d", report.SessionID, time.Now().Unix())
-	key := datastore.NameKey("AntiCheatReport", reportID, nil)
+	key := database.NameKey("AntiCheatReport", reportID, nil)
 
 	_, err := s.dsClient.Put(ctx, key, report)
 	if err != nil {
@@ -759,7 +1145,7 @@ func (s *Service) queryLeaderboard(ctx context.Context, languageID, mode, scope,
 	windowStart, windowEnd := s.calculateTimeWindow(timeWindow)
 
 	// Query leaderboard entities
-	query := datastore.NewQuery("Leaderboard").
+	query := database.NewQuery("Leaderboard").
 		FilterField("LanguageID", "=", languageID).
 		FilterField("Mode", "=", mode).
 		FilterField("Scope", "=", scope).
@@ -865,7 +1251,7 @@ func (s *Service) updateLeaderboardEntry(ctx context.Context, metrics *SessionMe
 		WindowEnd:          windowEnd,
 	}
 
-	key := datastore.NameKey("Leaderboard", entryID, nil)
+	key := database.NameKey("Leaderboard", entryID, nil)
 	_, err := s.dsClient.Put(ctx, key, &entry)
 	if err != nil {
 		return fmt.Errorf("failed to update leaderboard entry: %w", err)

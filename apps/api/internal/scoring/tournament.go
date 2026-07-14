@@ -9,7 +9,7 @@ import (
 
 	"github.com/typing-master-for-coding-backend/internal/models"
 
-	"cloud.google.com/go/datastore"
+	"github.com/typing-master-for-coding-backend/internal/database"
 )
 
 // TournamentService handles tournament creation, management, and results
@@ -63,7 +63,7 @@ func (s *TournamentService) CreateTournament(ctx context.Context, req *CreateTou
 	}
 
 	// Store tournament
-	key := datastore.NameKey("Tournament", tournament.ID, nil)
+	key := database.NameKey("Tournament", tournament.ID, nil)
 	_, err = s.datastoreClient.Put(ctx, key, tournament)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store tournament: %w", err)
@@ -306,7 +306,7 @@ func (s *TournamentService) GetTournamentLeaderboard(ctx context.Context, tourna
 // GetUserTournaments retrieves tournaments for a specific user
 func (s *TournamentService) GetUserTournaments(ctx context.Context, userID string, status string) ([]*models.Tournament, error) {
 	// Query tournaments where user is a participant
-	query := datastore.NewQuery("TournamentParticipant").
+	query := database.NewQuery("TournamentParticipant").
 		FilterField("UserID", "=", userID)
 
 	var participants []*models.TournamentParticipant
@@ -433,7 +433,7 @@ func (s *TournamentService) updateTournamentLeaderboard(ctx context.Context, tou
 // Database operations
 
 func (s *TournamentService) getTournament(ctx context.Context, tournamentID string) (*models.Tournament, error) {
-	key := datastore.NameKey("Tournament", tournamentID, nil)
+	key := database.NameKey("Tournament", tournamentID, nil)
 	var tournament models.Tournament
 	err := s.datastoreClient.Get(ctx, key, &tournament)
 	if err != nil {
@@ -443,13 +443,13 @@ func (s *TournamentService) getTournament(ctx context.Context, tournamentID stri
 }
 
 func (s *TournamentService) updateTournament(ctx context.Context, tournament *models.Tournament) error {
-	key := datastore.NameKey("Tournament", tournament.ID, nil)
+	key := database.NameKey("Tournament", tournament.ID, nil)
 	_, err := s.datastoreClient.Put(ctx, key, tournament)
 	return err
 }
 
 func (s *TournamentService) getParticipant(ctx context.Context, tournamentID, userID string) (*models.TournamentParticipant, error) {
-	query := datastore.NewQuery("TournamentParticipant").
+	query := database.NewQuery("TournamentParticipant").
 		FilterField("TournamentID", "=", tournamentID).
 		FilterField("UserID", "=", userID)
 
@@ -467,21 +467,21 @@ func (s *TournamentService) getParticipant(ctx context.Context, tournamentID, us
 }
 
 func (s *TournamentService) storeParticipant(ctx context.Context, participant *models.TournamentParticipant) error {
-	key := datastore.NameKey("TournamentParticipant",
+	key := database.NameKey("TournamentParticipant",
 		fmt.Sprintf("%s_%s", participant.TournamentID, participant.UserID), nil)
 	_, err := s.datastoreClient.Put(ctx, key, participant)
 	return err
 }
 
 func (s *TournamentService) updateParticipant(ctx context.Context, participant *models.TournamentParticipant) error {
-	key := datastore.NameKey("TournamentParticipant",
+	key := database.NameKey("TournamentParticipant",
 		fmt.Sprintf("%s_%s", participant.TournamentID, participant.UserID), nil)
 	_, err := s.datastoreClient.Put(ctx, key, participant)
 	return err
 }
 
 func (s *TournamentService) getTournamentParticipants(ctx context.Context, tournamentID string) ([]*models.TournamentParticipant, error) {
-	query := datastore.NewQuery("TournamentParticipant").
+	query := database.NewQuery("TournamentParticipant").
 		FilterField("TournamentID", "=", tournamentID)
 
 	var participants []*models.TournamentParticipant

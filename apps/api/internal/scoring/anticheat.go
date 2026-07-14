@@ -7,7 +7,8 @@ import (
 	"math"
 	"time"
 
-	"cloud.google.com/go/datastore"
+	"github.com/typing-master-for-coding-backend/internal/database"
+	"google.golang.org/api/iterator"
 )
 
 // AntiCheatReport represents the results of anti-cheat analysis
@@ -58,14 +59,26 @@ type AntiCheatConfig struct {
 
 // DetectionThresholds holds threshold values for various cheat detection methods
 type DetectionThresholds struct {
-	MaxKPS               float64 `json:"max_kps"`
-	MinBurstConsistency  float64 `json:"min_burst_consistency"`
-	MaxErrorRate         float64 `json:"max_error_rate"`
-	MinIdleTimePercent   float64 `json:"min_idle_time_percent"`
-	MaxPasteEventRate    float64 `json:"max_paste_event_rate"`
-	MinConfidenceScore   float64 `json:"min_confidence_score"`
-	MaxAnomalousEvents   int     `json:"max_anomalous_events"`
-	StatisticalThreshold float64 `json:"statistical_threshold"`
+	MaxKPS                         float64 `json:"max_kps"`
+	MinBurstConsistency            float64 `json:"min_burst_consistency"`
+	MaxErrorRate                   float64 `json:"max_error_rate"`
+	MinIdleTimePercent             float64 `json:"min_idle_time_percent"`
+	MaxPasteEventRate              float64 `json:"max_paste_event_rate"`
+	MinConfidenceScore             float64 `json:"min_confidence_score"`
+	MaxAnomalousEvents             int     `json:"max_anomalous_events"`
+	StatisticalThreshold           float64 `json:"statistical_threshold"`
+	ExpectedKPS                    float64 `json:"expected_kps"`
+	ExpectedAccuracy               float64 `json:"expected_accuracy"`
+	ExpectedErrorRate              float64 `json:"expected_error_rate"`
+	AccuracyDeviationThreshold     float64 `json:"accuracy_deviation_threshold"`
+	ErrorRateDeviationThreshold    float64 `json:"error_rate_deviation_threshold"`
+	ExpectedBurstConsistency       float64 `json:"expected_burst_consistency"`
+	StatisticalAnomalyThreshold    float64 `json:"statistical_anomaly_threshold"`
+	WindowFocusLostGapMs           int64   `json:"window_focus_lost_gap_ms"`
+	WindowFocusLostMinCount        int     `json:"window_focus_lost_min_count"`
+	PasteKPSMultiplier             float64 `json:"paste_kps_multiplier"`
+	PasteMinSequenceLength         int     `json:"paste_min_sequence_length"`
+	PasteIntervalVarianceThreshold float64 `json:"paste_interval_variance_threshold"`
 }
 
 // AntiCheatService handles anti-cheat detection and analysis
@@ -77,19 +90,11 @@ type AntiCheatService struct {
 
 // NewAntiCheatService creates a new anti-cheat service
 func NewAntiCheatService(dsClient DatastoreClient) *AntiCheatService {
+	config := getDefaultAntiCheatConfig()
 	service := &AntiCheatService{
-		dsClient: dsClient,
-		config:   getDefaultAntiCheatConfig(),
-		thresholds: &DetectionThresholds{
-			MaxKPS:               12.0,
-			MinBurstConsistency:  0.7,
-			MaxErrorRate:         0.15,
-			MinIdleTimePercent:   0.05,
-			MaxPasteEventRate:    0.02,
-			MinConfidenceScore:   0.6,
-			MaxAnomalousEvents:   3,
-			StatisticalThreshold: 2.5,
-		},
+		dsClient:   dsClient,
+		config:     config,
+		thresholds: config.Thresholds,
 	}
 
 	return service
@@ -112,8 +117,9 @@ func (s *AntiCheatService) AnalyzeSession(ctx context.Context, sessionID string)
 
 	// Perform all detection methods
 	report := &AntiCheatReport{
-		SessionID: sessionID,
-		UserID:    events[0].UserID,
+		SessionID:       sessionID,
+		UserID:          events[0].UserID,
+		EvidenceDetails: make(map[string]interface{}),
 	}
 
 	// 1. Paste event detection
@@ -125,7 +131,7 @@ func (s *AntiCheatService) AnalyzeSession(ctx context.Context, sessionID string)
 
 	// 2. Unrealistic KPS detection
 	kps := s.calculateKPS(events)
-	report.UnrealisticKPS = kps > s.thresholds.MaxKPS
+	report.UnrealisticKPS = len(events) >= 10 && kps > s.thresholds.MaxKPS
 	if report.UnrealisticKPS {
 		report.SuspiciousEvents = append(report.SuspiciousEvents, "unrealistic_kps")
 		report.EvidenceDetails["kps"] = kps
@@ -168,12 +174,9 @@ func (s *AntiCheatService) AnalyzeSession(ctx context.Context, sessionID string)
 	// Determine actions based on risk level
 	s.determineActions(report)
 
-	// Store report if suspicious
-	if report.SuspiciousActivity || len(report.SuspiciousEvents) > 0 {
-		err = s.storeReport(ctx, report)
-		if err != nil {
-			log.Printf("Failed to store anti-cheat report: %v", err)
-		}
+	// Store report for audit
+	if err := s.storeReport(ctx, report); err != nil {
+		log.Printf("Failed to store anti-cheat report: %v", err)
 	}
 
 	return report, nil
@@ -181,26 +184,30 @@ func (s *AntiCheatService) AnalyzeSession(ctx context.Context, sessionID string)
 
 // DetectPasteEvents identifies potential paste events in typing sessions
 func (s *AntiCheatService) detectPasteEvents(events []*ScoringEvent) bool {
-	if len(events) < 10 {
+	minSeqLen := s.thresholds.PasteMinSequenceLength
+	if len(events) < minSeqLen {
 		return false
 	}
 
-	// Look for rapid consecutive keystrokes that are too fast for normal typing
-	rapidBursts := 0
-	windowSize := 5 // Check last 5 events
+	pasteKPS := s.thresholds.MaxKPS * s.thresholds.PasteKPSMultiplier
+	if pasteKPS <= 0 {
+		return false
+	}
 
-	for i := len(events) - windowSize; i < len(events); i++ {
-		if i >= windowSize {
-			// Check burst speed in this window
-			burstKPS := s.calculateBurstKPS(events[i-windowSize : i+1])
-			if burstKPS > s.thresholds.MaxKPS*1.5 { // 50% faster than max normal speed
-				rapidBursts++
-			}
+	// Look for a contiguous sequence of keystrokes that are both extremely fast
+	// and have machine-like consistency (near-zero timing variance). This avoids
+	// flagging skilled typists who may produce short, fast bursts with natural jitter.
+	for i := 0; i <= len(events)-minSeqLen; i++ {
+		window := events[i : i+minSeqLen]
+		if s.calculateBurstKPS(window) < pasteKPS {
+			continue
+		}
+		if s.calculateIntervalVariance(window) <= s.thresholds.PasteIntervalVarianceThreshold {
+			return true
 		}
 	}
 
-	// If multiple rapid bursts detected, likely paste event
-	return rapidBursts >= 2
+	return false
 }
 
 // DetectAutoTypePattern identifies bot-like typing patterns
@@ -209,17 +216,20 @@ func (s *AntiCheatService) detectAutoTypePattern(events []*ScoringEvent) bool {
 		return false
 	}
 
+	kps := s.calculateKPS(events)
+	autoTypeKPS := s.thresholds.MaxKPS * 0.75
+
 	// Check for perfect rhythm consistency (bots often have exact timing)
 	intervalVariance := s.calculateIntervalVariance(events)
 
-	// Too perfect rhythm is suspicious
-	if intervalVariance < 0.1 { // Less than 10% variance
+	// Too perfect rhythm at high speed is suspicious
+	if intervalVariance < 0.1 && kps > autoTypeKPS { // Less than 10% variance
 		return true
 	}
 
-	// Check for lack of natural typing pauses
+	// Check for lack of natural typing pauses at high speed
 	pauseRatio := s.calculatePauseRatio(events)
-	if pauseRatio < 0.05 { // Less than 5% pauses
+	if pauseRatio < 0.05 && kps > autoTypeKPS { // Less than 5% pauses
 		return true
 	}
 
@@ -228,20 +238,30 @@ func (s *AntiCheatService) detectAutoTypePattern(events []*ScoringEvent) bool {
 
 // DetectWindowFocusLoss detects if user switched away from typing window
 func (s *AntiCheatService) detectWindowFocusLoss(events []*ScoringEvent) bool {
-	// TODO: Implement window focus detection using metadata
-	// This would require client-side focus/blur event tracking
+	// Prefer explicit client-side focus/blur metadata when available.
+	for _, event := range events {
+		if event.Metadata == nil {
+			continue
+		}
+		if focused, ok := event.Metadata["window_focused"].(bool); ok && !focused {
+			return true
+		}
+		if blurred, ok := event.Metadata["window_blurred"].(bool); ok && blurred {
+			return true
+		}
+	}
 
-	// For now, detect long gaps in typing that suggest window switching
+	// Fall back to detecting multiple long gaps in typing.
 	longGaps := 0
+	gapMs := s.thresholds.WindowFocusLostGapMs
 	for i := 1; i < len(events); i++ {
 		gap := events[i].Timestamp - events[i-1].Timestamp
-		if gap > 5000 { // Gap longer than 5 seconds
+		if gap > gapMs {
 			longGaps++
 		}
 	}
 
-	// Multiple long gaps suggest window focus loss
-	return longGaps >= 3
+	return longGaps >= s.thresholds.WindowFocusLostMinCount
 }
 
 // DetectStatisticalAnomalies uses statistical analysis to find outliers
@@ -256,27 +276,29 @@ func (s *AntiCheatService) detectStatisticalAnomalies(events []*ScoringEvent) bo
 	errorRate := s.calculateErrorRate(events)
 	burstConsistency := s.calculateBurstConsistency(events)
 
-	// Compare against historical baselines (would need user/session history)
-	// For now, use hardcoded statistical thresholds
 	deviations := 0
 
-	if math.Abs(kps-6.0) > s.thresholds.StatisticalThreshold { // Average KPS around 6
+	if math.Abs(kps-s.thresholds.ExpectedKPS) > s.thresholds.StatisticalThreshold {
 		deviations++
 	}
 
-	if math.Abs(accuracy-0.95) > 0.1 { // Average accuracy around 95%
+	if math.Abs(accuracy-s.thresholds.ExpectedAccuracy) > s.thresholds.AccuracyDeviationThreshold {
 		deviations++
 	}
 
-	if math.Abs(errorRate-0.05) > 0.05 { // Average error rate around 5%
+	if math.Abs(errorRate-s.thresholds.ExpectedErrorRate) > s.thresholds.ErrorRateDeviationThreshold {
 		deviations++
 	}
 
-	if burstConsistency < 0.8 { // Should have reasonable consistency
+	if burstConsistency < s.thresholds.ExpectedBurstConsistency {
 		deviations++
 	}
 
-	return deviations >= 2
+	if kps > s.thresholds.MaxKPS {
+		deviations++
+	}
+
+	return deviations >= int(s.thresholds.StatisticalAnomalyThreshold)
 }
 
 // Helper calculation methods
@@ -311,7 +333,7 @@ func (s *AntiCheatService) calculateAccuracy(events []*ScoringEvent) float64 {
 	total := 0
 
 	for _, event := range events {
-		if event.EventType == "keystroke" && event.Action == "down" {
+		if event.EventType == "keystroke" && (event.Action == "down" || event.Action == "") {
 			total++
 			if !event.ErrorFlag {
 				correct++
@@ -331,7 +353,7 @@ func (s *AntiCheatService) calculateErrorRate(events []*ScoringEvent) float64 {
 	total := 0
 
 	for _, event := range events {
-		if event.EventType == "keystroke" && event.Action == "down" {
+		if event.EventType == "keystroke" && (event.Action == "down" || event.Action == "") {
 			total++
 			if event.ErrorFlag {
 				errors++
@@ -401,7 +423,12 @@ func (s *AntiCheatService) calculateIntervalVariance(events []*ScoringEvent) flo
 	}
 	variance /= float64(len(intervals))
 
-	return variance / (mean * mean) // Coefficient of variation
+	if mean == 0 {
+		return 0
+	}
+
+	// Return coefficient of variation (std dev / mean)
+	return math.Sqrt(variance) / mean
 }
 
 func (s *AntiCheatService) calculatePauseRatio(events []*ScoringEvent) float64 {
@@ -436,18 +463,14 @@ func (s *AntiCheatService) calculateErrorPatternScore(events []*ScoringEvent) fl
 
 func (s *AntiCheatService) calculateStatisticalScore(events []*ScoringEvent) float64 {
 	// Calculate overall statistical anomaly score
-	deviations := 0.0
-
 	kps := s.calculateKPS(events)
 	accuracy := s.calculateAccuracy(events)
 
-	// Z-score like calculation against expected values
-	kpsDeviation := math.Abs(kps-6.0) / 2.0            // Expected KPS around 6
-	accuracyDeviation := math.Abs(accuracy-0.95) / 0.1 // Expected accuracy around 95%
+	// Z-score like calculation against configured expected values
+	kpsDeviation := math.Abs(kps-s.thresholds.ExpectedKPS) / s.thresholds.StatisticalThreshold
+	accuracyDeviation := math.Abs(accuracy-s.thresholds.ExpectedAccuracy) / s.thresholds.AccuracyDeviationThreshold
 
-	deviations += kpsDeviation + accuracyDeviation
-
-	return deviations
+	return kpsDeviation + accuracyDeviation
 }
 
 func (s *AntiCheatService) calculateOverallStatisticalAnomaly(events []*ScoringEvent) float64 {
@@ -455,7 +478,7 @@ func (s *AntiCheatService) calculateOverallStatisticalAnomaly(events []*ScoringE
 
 	// Check for multiple anomalies
 	anomalies := 0
-	if score > 2.0 {
+	if score > s.thresholds.StatisticalAnomalyThreshold {
 		anomalies++
 	}
 
@@ -534,16 +557,21 @@ func (s *AntiCheatService) determineActions(report *AntiCheatReport) {
 
 func (s *AntiCheatService) getPasteEventEvidence(events []*ScoringEvent) interface{} {
 	// Return evidence of paste events
-	rapidBursts := 0
-	for i := 0; i <= len(events)-5; i++ {
-		burstKPS := s.calculateBurstKPS(events[i : i+5])
-		if burstKPS > s.thresholds.MaxKPS*1.5 {
-			rapidBursts++
+	pasteSequences := 0
+	minSeqLen := s.thresholds.PasteMinSequenceLength
+	pasteKPS := s.thresholds.MaxKPS * s.thresholds.PasteKPSMultiplier
+	for i := 0; i <= len(events)-minSeqLen; i++ {
+		window := events[i : i+minSeqLen]
+		if s.calculateBurstKPS(window) < pasteKPS {
+			continue
+		}
+		if s.calculateIntervalVariance(window) <= s.thresholds.PasteIntervalVarianceThreshold {
+			pasteSequences++
 		}
 	}
 	return map[string]interface{}{
-		"rapid_bursts": rapidBursts,
-		"threshold":    s.thresholds.MaxKPS * 1.5,
+		"paste_sequences": pasteSequences,
+		"threshold":       pasteKPS,
 	}
 }
 
@@ -567,9 +595,26 @@ func (s *AntiCheatService) calculatePatternScore(events []*ScoringEvent) float64
 
 // Database operations
 func (s *AntiCheatService) getSessionEvents(ctx context.Context, sessionID string) ([]*ScoringEvent, error) {
-	// TODO: Query SessionEvent entities from Datastore
-	// For now, return empty slice
-	return []*ScoringEvent{}, nil
+	query := database.NewQuery("SessionEvent").
+		FilterField("SessionID", "=", sessionID).
+		Order("TimestampMs")
+
+	var events []*ScoringEvent
+	iter := s.dsClient.Run(ctx, query)
+
+	for {
+		var event ScoringEvent
+		_, err := iter.Next(&event)
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to iterate events: %w", err)
+		}
+		events = append(events, &event)
+	}
+
+	return events, nil
 }
 
 func (s *AntiCheatService) storeReport(ctx context.Context, report *AntiCheatReport) error {
@@ -577,7 +622,7 @@ func (s *AntiCheatService) storeReport(ctx context.Context, report *AntiCheatRep
 	report.DetectedAt = time.Now()
 
 	// TODO: Store AntiCheatReport in Datastore
-	key := datastore.NameKey("AntiCheatReport", fmt.Sprintf("%s_%d", report.SessionID, time.Now().Unix()), nil)
+	key := database.NameKey("AntiCheatReport", fmt.Sprintf("%s_%d", report.SessionID, time.Now().Unix()), nil)
 
 	_, err := s.dsClient.Put(ctx, key, report)
 	return err
@@ -656,14 +701,26 @@ func getDefaultAntiCheatConfig() *AntiCheatConfig {
 		VerificationRequired: false,
 		VerificationMethods:  []string{"webcam", "hid"},
 		Thresholds: &DetectionThresholds{
-			MaxKPS:               12.0,
-			MinBurstConsistency:  0.7,
-			MaxErrorRate:         0.15,
-			MinIdleTimePercent:   0.05,
-			MaxPasteEventRate:    0.02,
-			MinConfidenceScore:   0.6,
-			MaxAnomalousEvents:   3,
-			StatisticalThreshold: 2.5,
+			MaxKPS:                         12.0,
+			MinBurstConsistency:            0.7,
+			MaxErrorRate:                   0.15,
+			MinIdleTimePercent:             0.05,
+			MaxPasteEventRate:              0.02,
+			MinConfidenceScore:             0.6,
+			MaxAnomalousEvents:             3,
+			StatisticalThreshold:           2.5,
+			ExpectedKPS:                    6.0,
+			ExpectedAccuracy:               0.95,
+			ExpectedErrorRate:              0.05,
+			AccuracyDeviationThreshold:     0.1,
+			ErrorRateDeviationThreshold:    0.05,
+			ExpectedBurstConsistency:       0.8,
+			StatisticalAnomalyThreshold:    2.0,
+			WindowFocusLostGapMs:           5000,
+			WindowFocusLostMinCount:        3,
+			PasteKPSMultiplier:             3.0,
+			PasteMinSequenceLength:         5,
+			PasteIntervalVarianceThreshold: 0.1,
 		},
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"cloud.google.com/go/datastore"
+	"github.com/typing-master-for-coding-backend/internal/database"
 )
 
 // Leaderboard entity for Datastore
@@ -231,7 +231,7 @@ func (s *leaderboardServiceImpl) queryLeaderboard(ctx context.Context, req *Lead
 	startTime, endTime := s.calculateTimeWindow(req.TimeWindow)
 
 	// Build query based on scope
-	query := datastore.NewQuery("Leaderboard").
+	query := database.NewQuery("Leaderboard").
 		FilterField("LanguageID", "=", req.LanguageID).
 		FilterField("Mode", "=", req.Mode).
 		FilterField("Scope", "=", req.Scope).
