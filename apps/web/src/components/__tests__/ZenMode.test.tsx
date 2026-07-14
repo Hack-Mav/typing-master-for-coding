@@ -70,37 +70,47 @@ describe('ZenMode', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('console.log("Hello, World!");')
-      ).toBeInTheDocument();
+        screen.getByTestId('typing-target-text')
+      ).toHaveTextContent('console.log("Hello, World!");');
     });
 
-    expect(screen.getByText('Type the code above. Press')).toBeInTheDocument();
-    expect(screen.getByText('to exit.')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Type the code above.*to exit/i)
+    ).toBeInTheDocument();
   });
 
   test('handles exit button click', async () => {
+    const { sessionManager } = require('../../services/SessionManager');
+
     render(<ZenMode {...defaultProps} />);
 
     await waitFor(() => {
       expect(
-        screen.getByText('console.log("Hello, World!");')
-      ).toBeInTheDocument();
+        screen.getByTestId('typing-target-text')
+      ).toHaveTextContent('console.log("Hello, World!");');
     });
+    await waitFor(() => expect(sessionManager.startSession).toHaveBeenCalled());
 
     const exitButton = screen.getByTitle('Exit (Esc)');
     fireEvent.click(exitButton);
 
-    expect(defaultProps.onExit).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(defaultProps.onExit).toHaveBeenCalled();
+    });
   });
 
   test('handles escape key press', async () => {
+    const { sessionManager } = require('../../services/SessionManager');
+
     render(<ZenMode {...defaultProps} />);
 
     await waitFor(() => {
       expect(
-        screen.getByText('console.log("Hello, World!");')
-      ).toBeInTheDocument();
+        screen.getByTestId('typing-target-text')
+      ).toHaveTextContent('console.log("Hello, World!");');
     });
+    await waitFor(() => expect(sessionManager.startSession).toHaveBeenCalled());
+    await sessionManager.startSession.mock.results[0].value;
 
     // Find the hidden textarea
     const textarea = screen.getByRole('textbox');
@@ -108,7 +118,9 @@ describe('ZenMode', () => {
 
     fireEvent.keyDown(textarea, { key: 'Escape', code: 'Escape' });
 
-    expect(defaultProps.onExit).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(defaultProps.onExit).toHaveBeenCalled();
+    });
   });
 
   test('handles typing input', async () => {
@@ -118,9 +130,11 @@ describe('ZenMode', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('console.log("Hello, World!");')
-      ).toBeInTheDocument();
+        screen.getByTestId('typing-target-text')
+      ).toHaveTextContent('console.log("Hello, World!");');
     });
+    await waitFor(() => expect(sessionManager.startSession).toHaveBeenCalled());
+    await sessionManager.startSession.mock.results[0].value;
 
     const textarea = screen.getByRole('textbox');
 
@@ -131,14 +145,16 @@ describe('ZenMode', () => {
       timestamp: Date.now(),
     });
 
-    expect(sessionManager.recordKeystroke).toHaveBeenCalledWith(
-      'test-session-id',
-      expect.objectContaining({
-        key: 'c',
-        code: 'KeyC',
-        action: 'keydown',
-      })
-    );
+    await waitFor(() => {
+      expect(sessionManager.recordKeystroke).toHaveBeenCalledWith(
+        'test-session-id',
+        expect.objectContaining({
+          key: 'c',
+          code: 'KeyC',
+          action: 'keydown',
+        })
+      );
+    });
   });
 
   test('handles backspace input', async () => {
@@ -148,9 +164,11 @@ describe('ZenMode', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('console.log("Hello, World!");')
-      ).toBeInTheDocument();
+        screen.getByTestId('typing-target-text')
+      ).toHaveTextContent('console.log("Hello, World!");');
     });
+    await waitFor(() => expect(sessionManager.startSession).toHaveBeenCalled());
+    await sessionManager.startSession.mock.results[0].value;
 
     const textarea = screen.getByRole('textbox');
 
@@ -160,14 +178,16 @@ describe('ZenMode', () => {
       code: 'Backspace',
     });
 
-    expect(sessionManager.recordKeystroke).toHaveBeenCalledWith(
-      'test-session-id',
-      expect.objectContaining({
-        key: 'Backspace',
-        code: 'Backspace',
-        action: 'keydown',
-      })
-    );
+    await waitFor(() => {
+      expect(sessionManager.recordKeystroke).toHaveBeenCalledWith(
+        'test-session-id',
+        expect.objectContaining({
+          key: 'Backspace',
+          code: 'Backspace',
+          action: 'keydown',
+        })
+      );
+    });
   });
 
   test('shows summary when toggle button is clicked after completion', async () => {
@@ -197,21 +217,16 @@ describe('ZenMode', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('console.log("Hello, World!");')
-      ).toBeInTheDocument();
+        screen.getByTestId('typing-target-text')
+      ).toHaveTextContent('console.log("Hello, World!");');
     });
+    await waitFor(() => expect(sessionManager.startSession).toHaveBeenCalled());
+    await sessionManager.startSession.mock.results[0].value;
 
-    // Simulate completing the text by typing the entire target text
+    // Simulate completing the text by setting the input value
     const textarea = screen.getByRole('textbox');
     const targetText = 'console.log("Hello, World!");';
-
-    // Mock the state change that would happen during typing
-    for (let i = 0; i < targetText.length; i++) {
-      fireEvent.keyDown(textarea, {
-        key: targetText[i],
-        code: `Key${targetText[i].toUpperCase()}`,
-      });
-    }
+    fireEvent.change(textarea, { target: { value: targetText } });
 
     // Wait for completion and summary button to appear
     await waitFor(() => {

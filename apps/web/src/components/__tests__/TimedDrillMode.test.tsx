@@ -125,8 +125,8 @@ describe('TimedDrillMode', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('function hello() { return "world"; }')
-      ).toBeInTheDocument();
+        screen.getByTestId('drill-target-text')
+      ).toHaveTextContent('function hello() { return "world"; }');
     });
 
     // Find pause button
@@ -158,8 +158,8 @@ describe('TimedDrillMode', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('function hello() { return "world"; }')
-      ).toBeInTheDocument();
+        screen.getByTestId('drill-target-text')
+      ).toHaveTextContent('function hello() { return "world"; }');
     });
 
     const restartButton = screen.getByTitle('Restart');
@@ -176,14 +176,16 @@ describe('TimedDrillMode', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('function hello() { return "world"; }')
-      ).toBeInTheDocument();
+        screen.getByTestId('drill-target-text')
+      ).toHaveTextContent('function hello() { return "world"; }');
     });
 
     const exitButton = screen.getByTitle('Exit');
     fireEvent.click(exitButton);
 
-    expect(defaultProps.onExit).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(defaultProps.onExit).toHaveBeenCalled();
+    });
   });
 
   test('handles typing input and updates metrics', async () => {
@@ -193,8 +195,8 @@ describe('TimedDrillMode', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('function hello() { return "world"; }')
-      ).toBeInTheDocument();
+        screen.getByTestId('drill-target-text')
+      ).toHaveTextContent('function hello() { return "world"; }');
     });
 
     const textarea = screen.getByRole('textbox');
@@ -206,18 +208,20 @@ describe('TimedDrillMode', () => {
       code: 'KeyF',
     });
 
-    expect(sessionManager.recordKeystroke).toHaveBeenCalledWith(
-      'test-drill-session-id',
-      expect.objectContaining({
-        key: 'f',
-        code: 'KeyF',
-        action: 'keydown',
-      })
-    );
+    await waitFor(() => {
+      expect(sessionManager.recordKeystroke).toHaveBeenCalledWith(
+        'test-drill-session-id',
+        expect.objectContaining({
+          key: 'f',
+          code: 'KeyF',
+          action: 'keydown',
+        })
+      );
 
-    expect(sessionManager.getSession).toHaveBeenCalledWith(
-      'test-drill-session-id'
-    );
+      expect(sessionManager.getSession).toHaveBeenCalledWith(
+        'test-drill-session-id'
+      );
+    });
   });
 
   test('handles escape key for pause', async () => {
@@ -227,8 +231,8 @@ describe('TimedDrillMode', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText('function hello() { return "world"; }')
-      ).toBeInTheDocument();
+        screen.getByTestId('drill-target-text')
+      ).toHaveTextContent('function hello() { return "world"; }');
     });
 
     const textarea = screen.getByRole('textbox');
@@ -248,9 +252,10 @@ describe('TimedDrillMode', () => {
 
     render(<TimedDrillMode {...defaultProps} />);
 
-    // Wait for component to initialize
+    // Wait for component to initialize and start the timer
     await waitFor(() => {
       expect(sessionManager.createSession).toHaveBeenCalled();
+      expect(sessionManager.startSession).toHaveBeenCalled();
     });
 
     // Fast forward time to trigger completion (60 seconds)

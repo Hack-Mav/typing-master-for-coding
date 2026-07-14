@@ -70,7 +70,7 @@ const ZenMode: React.FC<ZenModeProps> = ({
           setState(prev => ({
             ...prev,
             session,
-            targetText: session.targetText || 'console.log("Hello, World!");',
+            targetText: session.targetText || '',
           }));
         }
       } catch (error) {

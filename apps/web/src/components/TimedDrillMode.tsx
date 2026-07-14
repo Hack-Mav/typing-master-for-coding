@@ -89,7 +89,7 @@ const TimedDrillMode: React.FC<TimedDrillModeProps> = ({
           setState(prev => ({
             ...prev,
             session,
-            targetText: session.targetText || 'console.log("Hello, World!");',
+            targetText: session.targetText || '',
             timeRemaining: duration,
           }));
         }
@@ -174,7 +174,6 @@ const TimedDrillMode: React.FC<TimedDrillModeProps> = ({
         try {
           await sessionManager.startSession(state.session!.id);
           setState(prev => ({ ...prev, isActive: true }));
-          startTimer();
 
           // Focus the textarea
           if (textareaRef.current) {
@@ -186,6 +185,13 @@ const TimedDrillMode: React.FC<TimedDrillModeProps> = ({
       };
 
       startSession();
+    }
+  }, [state.session, state.isActive, state.showResults]);
+
+  // Start the timer once the session is active
+  useEffect(() => {
+    if (state.session && state.isActive && !state.showResults) {
+      startTimer();
     }
   }, [state.session, state.isActive, state.showResults, startTimer]);
 
@@ -377,7 +383,7 @@ const TimedDrillMode: React.FC<TimedDrillModeProps> = ({
 
     return (
       <span key={index} className={className}>
-        {char === '\n' ? '↵\n' : char === ' ' ? '·' : char}
+        {char === '\n' ? '↵\n' : char}
       </span>
     );
   };
@@ -520,7 +526,7 @@ const TimedDrillMode: React.FC<TimedDrillModeProps> = ({
 
       {/* Target text display */}
       <div className="drill-content">
-        <div className="drill-target-text">
+        <div className="drill-target-text" data-testid="drill-target-text">
           {state.targetText
             .split('')
             .map((char, index) => renderCharacter(char, index))}
