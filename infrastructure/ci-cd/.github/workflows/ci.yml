@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./typing-master
+        working-directory: ./apps/web
     
     steps:
     - uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
-        cache-dependency-path: typing-master/package-lock.json
+        cache-dependency-path: apps/web/package-lock.json
     
     - name: Install dependencies
       run: npm ci
@@ -45,38 +45,14 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
-        file: ./typing-master/coverage/lcov.info
+        file: ./apps/web/coverage/lcov.info
         flags: frontend
 
   backend-test:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./backend
-    
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: typing_master_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-      
-      redis:
-        image: redis:7
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
+        working-directory: ./apps/api
     
     steps:
     - uses: actions/checkout@v4
@@ -113,12 +89,13 @@ jobs:
         DATABASE_URL: postgres://postgres:postgres@localhost:5432/typing_master_test?sslmode=disable
         REDIS_URL: redis://localhost:6379
         JWT_SECRET: test-secret
+        ENVIRONMENT: test
       run: go test -v -race -coverprofile=coverage.out ./...
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
       with:
-        file: ./backend/coverage.out
+        file: ./apps/api/coverage.out
         flags: backend
 
   security-scan:
@@ -161,7 +138,7 @@ jobs:
     - name: Build and push backend image
       uses: docker/build-push-action@v5
       with:
-        context: ./backend
+        context: ./apps/api
         push: true
         tags: |
           ghcr.io/${{ github.repository }}/backend:latest
@@ -172,7 +149,7 @@ jobs:
     - name: Build and push frontend image
       uses: docker/build-push-action@v5
       with:
-        context: ./typing-master
+        context: ./apps/web
         push: true
         tags: |
           ghcr.io/${{ github.repository }}/frontend:latest

@@ -76,7 +76,7 @@ test-api:
 
 test-e2e:
 	@echo "Running end-to-end tests..."
-	cd tests/e2e && npm test
+	cd tests && npm test
 
 # Code Quality
 lint: lint-web lint-api
