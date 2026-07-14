@@ -5,11 +5,9 @@ import (
 	"time"
 
 	"github.com/typing-master-for-coding-backend/internal/models"
-
-	"cloud.google.com/go/datastore"
 )
 
-// InitializeDefaultAssessments creates the default assessment blueprints in Datastore
+// InitializeDefaultAssessments creates the default assessment blueprints in the database
 func InitializeDefaultAssessments(db *DatastoreClient) error {
 	ctx := context.Background()
 
@@ -151,9 +149,9 @@ func InitializeDefaultAssessments(db *DatastoreClient) error {
 		},
 	}
 
-	// Insert each assessment blueprint into Datastore
+	// Insert each assessment blueprint into the database
 	for _, assessment := range assessments {
-		key := datastore.NameKey("AssessmentBlueprint", assessment.ID, nil)
+		key := NameKey("AssessmentBlueprint", assessment.ID, nil)
 
 		// Check if assessment already exists
 		var existing models.AssessmentBlueprint
@@ -680,9 +678,9 @@ spec:
 		},
 	}
 
-	// Insert each snippet into Datastore
+	// Insert each snippet into the database
 	for _, snippet := range snippets {
-		key := datastore.NameKey("Snippet", snippet.ID, nil)
+		key := NameKey("Snippet", snippet.ID, nil)
 
 		// Check if snippet already exists
 		var existing models.Snippet

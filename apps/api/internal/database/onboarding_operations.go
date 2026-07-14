@@ -2,27 +2,11 @@ package database
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"time"
 
-	"cloud.google.com/go/datastore"
 	"github.com/typing-master-for-coding-backend/internal/models"
 )
-
-// Helper functions for database operations
-func NewQuery(kind string) *datastore.Query {
-	return datastore.NewQuery(kind)
-}
-
-func NameKey(kind, name string) *datastore.Key {
-	return datastore.NameKey(kind, name, nil)
-}
-
-type Query = datastore.Query
-type Key = datastore.Key
-
-var ErrNotFound = errors.New("entity not found")
 
 // Tutorial operations
 func GetAllTutorials(db *DatastoreClient) ([]models.Tutorial, error) {
@@ -34,7 +18,7 @@ func GetAllTutorials(db *DatastoreClient) ([]models.Tutorial, error) {
 	query := NewQuery("Tutorial").Filter("IsActive =", true).Order("CreatedAt")
 
 	var tutorials []models.Tutorial
-	keys, err := db.Client.GetAll(ctx, query, &tutorials)
+	keys, err := db.GetAll(ctx, query, &tutorials)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +39,7 @@ func GetTutorialsByCategory(db *DatastoreClient, category string) ([]models.Tuto
 	query := NewQuery("Tutorial").Filter("IsActive =", true).Filter("Category =", category).Order("CreatedAt")
 
 	var tutorials []models.Tutorial
-	keys, err := db.Client.GetAll(ctx, query, &tutorials)
+	keys, err := db.GetAll(ctx, query, &tutorials)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +60,7 @@ func GetTutorialsByDifficulty(db *DatastoreClient, difficulty string) ([]models.
 	query := NewQuery("Tutorial").Filter("IsActive =", true).Filter("Difficulty =", difficulty).Order("CreatedAt")
 
 	var tutorials []models.Tutorial
-	keys, err := db.Client.GetAll(ctx, query, &tutorials)
+	keys, err := db.GetAll(ctx, query, &tutorials)
 	if err != nil {
 		return nil, err
 	}
@@ -94,10 +78,10 @@ func GetTutorialByID(db *DatastoreClient, tutorialID string) (*models.Tutorial, 
 	}
 
 	ctx := context.Background()
-	key := NameKey("Tutorial", tutorialID)
+	key := NameKey("Tutorial", tutorialID, nil)
 
 	var tutorial models.Tutorial
-	err := db.Client.Get(ctx, key, &tutorial)
+	err := db.Get(ctx, key, &tutorial)
 	if err != nil {
 		return nil, err
 	}
@@ -112,13 +96,13 @@ func GetUserTutorialProgress(db *DatastoreClient, userID, tutorialID string) (*m
 	query := NewQuery("UserTutorialProgress").Filter("UserID =", userID).Filter("TutorialID =", tutorialID)
 
 	var progress []models.UserTutorialProgress
-	keys, err := db.Client.GetAll(ctx, query, &progress)
+	keys, err := db.GetAll(ctx, query, &progress)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(progress) == 0 {
-		return nil, ErrNotFound
+		return nil, ErrNoSuchEntity
 	}
 
 	progress[0].ID = keys[0].Name
@@ -130,7 +114,7 @@ func GetUserAllTutorialProgress(db *DatastoreClient, userID string) ([]models.Us
 	query := NewQuery("UserTutorialProgress").Filter("UserID =", userID).Order("-LastAccessedAt")
 
 	var progress []models.UserTutorialProgress
-	keys, err := db.Client.GetAll(ctx, query, &progress)
+	keys, err := db.GetAll(ctx, query, &progress)
 	if err != nil {
 		return nil, err
 	}
@@ -144,17 +128,17 @@ func GetUserAllTutorialProgress(db *DatastoreClient, userID string) ([]models.Us
 
 func CreateUserTutorialProgress(db *DatastoreClient, progress *models.UserTutorialProgress) error {
 	ctx := context.Background()
-	key := NameKey("UserTutorialProgress", progress.ID)
+	key := NameKey("UserTutorialProgress", progress.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, progress)
+	_, err := db.Put(ctx, key, progress)
 	return err
 }
 
 func UpdateUserTutorialProgress(db *DatastoreClient, progress *models.UserTutorialProgress) error {
 	ctx := context.Background()
-	key := NameKey("UserTutorialProgress", progress.ID)
+	key := NameKey("UserTutorialProgress", progress.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, progress)
+	_, err := db.Put(ctx, key, progress)
 	return err
 }
 
@@ -164,7 +148,7 @@ func GetTooltipsByContext(db *DatastoreClient, pageContext string) ([]models.Too
 	query := NewQuery("Tooltip").Filter("IsActive =", true).Filter("PageContext =", pageContext).Order("CreatedAt")
 
 	var tooltips []models.Tooltip
-	keys, err := db.Client.GetAll(ctx, query, &tooltips)
+	keys, err := db.GetAll(ctx, query, &tooltips)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +179,7 @@ func SearchHelpArticles(db *DatastoreClient, query, category string, limit int) 
 	dsQuery = dsQuery.Order("-SearchRank").Limit(limit)
 
 	var articles []models.HelpArticle
-	keys, err := db.Client.GetAll(ctx, dsQuery, &articles)
+	keys, err := db.GetAll(ctx, dsQuery, &articles)
 	if err != nil {
 		return nil, err
 	}
@@ -209,10 +193,10 @@ func SearchHelpArticles(db *DatastoreClient, query, category string, limit int) 
 
 func GetHelpArticleByID(db *DatastoreClient, articleID string) (*models.HelpArticle, error) {
 	ctx := context.Background()
-	key := NameKey("HelpArticle", articleID)
+	key := NameKey("HelpArticle", articleID, nil)
 
 	var article models.HelpArticle
-	err := db.Client.Get(ctx, key, &article)
+	err := db.Get(ctx, key, &article)
 	if err != nil {
 		return nil, err
 	}
@@ -223,9 +207,9 @@ func GetHelpArticleByID(db *DatastoreClient, articleID string) (*models.HelpArti
 
 func UpdateHelpArticle(db *DatastoreClient, article *models.HelpArticle) error {
 	ctx := context.Background()
-	key := NameKey("HelpArticle", article.ID)
+	key := NameKey("HelpArticle", article.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, article)
+	_, err := db.Put(ctx, key, article)
 	return err
 }
 
@@ -241,7 +225,7 @@ func GetFAQsByCategory(db *DatastoreClient, category string) ([]models.FAQ, erro
 	}
 
 	var faqs []models.FAQ
-	keys, err := db.Client.GetAll(ctx, query, &faqs)
+	keys, err := db.GetAll(ctx, query, &faqs)
 	if err != nil {
 		return nil, err
 	}
@@ -259,13 +243,13 @@ func GetUserOnboardingState(db *DatastoreClient, userID string) (*models.UserOnb
 	query := NewQuery("UserOnboardingState").Filter("UserID =", userID)
 
 	var states []models.UserOnboardingState
-	keys, err := db.Client.GetAll(ctx, query, &states)
+	keys, err := db.GetAll(ctx, query, &states)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(states) == 0 {
-		return nil, ErrNotFound
+		return nil, ErrNoSuchEntity
 	}
 
 	states[0].ID = keys[0].Name
@@ -274,18 +258,18 @@ func GetUserOnboardingState(db *DatastoreClient, userID string) (*models.UserOnb
 
 func UpdateUserOnboardingState(db *DatastoreClient, state *models.UserOnboardingState) error {
 	ctx := context.Background()
-	key := NameKey("UserOnboardingState", state.ID)
+	key := NameKey("UserOnboardingState", state.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, state)
+	_, err := db.Put(ctx, key, state)
 	return err
 }
 
 // Feedback operations
 func CreateFeedback(db *DatastoreClient, feedback *models.Feedback) error {
 	ctx := context.Background()
-	key := NameKey("Feedback", feedback.ID)
+	key := NameKey("Feedback", feedback.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, feedback)
+	_, err := db.Put(ctx, key, feedback)
 	return err
 }
 
@@ -304,7 +288,7 @@ func GetFeedback(db *DatastoreClient, status, category, type_ string) ([]models.
 	}
 
 	var feedbacks []models.Feedback
-	keys, err := db.Client.GetAll(ctx, query, &feedbacks)
+	keys, err := db.GetAll(ctx, query, &feedbacks)
 	if err != nil {
 		return nil, err
 	}
@@ -318,10 +302,10 @@ func GetFeedback(db *DatastoreClient, status, category, type_ string) ([]models.
 
 func GetFeedbackByID(db *DatastoreClient, feedbackID string) (*models.Feedback, error) {
 	ctx := context.Background()
-	key := NameKey("Feedback", feedbackID)
+	key := NameKey("Feedback", feedbackID, nil)
 
 	var feedback models.Feedback
-	err := db.Client.Get(ctx, key, &feedback)
+	err := db.Get(ctx, key, &feedback)
 	if err != nil {
 		return nil, err
 	}
@@ -332,9 +316,9 @@ func GetFeedbackByID(db *DatastoreClient, feedbackID string) (*models.Feedback, 
 
 func UpdateFeedback(db *DatastoreClient, feedback *models.Feedback) error {
 	ctx := context.Background()
-	key := NameKey("Feedback", feedback.ID)
+	key := NameKey("Feedback", feedback.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, feedback)
+	_, err := db.Put(ctx, key, feedback)
 	return err
 }
 
@@ -343,7 +327,7 @@ func GetUserFeedback(db *DatastoreClient, userID string) ([]models.Feedback, err
 	query := NewQuery("Feedback").Filter("UserID =", userID).Order("-CreatedAt")
 
 	var feedbacks []models.Feedback
-	keys, err := db.Client.GetAll(ctx, query, &feedbacks)
+	keys, err := db.GetAll(ctx, query, &feedbacks)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +344,7 @@ func GetFeedbackStats(db *DatastoreClient) (map[string]interface{}, error) {
 
 	// Get total feedback count
 	totalQuery := NewQuery("Feedback")
-	totalCount, err := db.Client.Count(ctx, totalQuery)
+	totalCount, err := db.Count(ctx, totalQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -384,9 +368,9 @@ func GetFeedbackStats(db *DatastoreClient) (map[string]interface{}, error) {
 // Support ticket operations
 func CreateSupportTicket(db *DatastoreClient, ticket *models.SupportTicket) error {
 	ctx := context.Background()
-	key := NameKey("SupportTicket", ticket.ID)
+	key := NameKey("SupportTicket", ticket.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, ticket)
+	_, err := db.Put(ctx, key, ticket)
 	return err
 }
 
@@ -399,7 +383,7 @@ func GetUserSupportTickets(db *DatastoreClient, userID, status string) ([]models
 	}
 
 	var tickets []models.SupportTicket
-	keys, err := db.Client.GetAll(ctx, query, &tickets)
+	keys, err := db.GetAll(ctx, query, &tickets)
 	if err != nil {
 		return nil, err
 	}
@@ -413,10 +397,10 @@ func GetUserSupportTickets(db *DatastoreClient, userID, status string) ([]models
 
 func GetSupportTicketByID(db *DatastoreClient, ticketID string) (*models.SupportTicket, error) {
 	ctx := context.Background()
-	key := NameKey("SupportTicket", ticketID)
+	key := NameKey("SupportTicket", ticketID, nil)
 
 	var ticket models.SupportTicket
-	err := db.Client.Get(ctx, key, &ticket)
+	err := db.Get(ctx, key, &ticket)
 	if err != nil {
 		return nil, err
 	}
@@ -427,17 +411,17 @@ func GetSupportTicketByID(db *DatastoreClient, ticketID string) (*models.Support
 
 func UpdateSupportTicket(db *DatastoreClient, ticket *models.SupportTicket) error {
 	ctx := context.Background()
-	key := NameKey("SupportTicket", ticket.ID)
+	key := NameKey("SupportTicket", ticket.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, ticket)
+	_, err := db.Put(ctx, key, ticket)
 	return err
 }
 
 func AddSupportMessage(db *DatastoreClient, message *models.SupportMessage) error {
 	ctx := context.Background()
-	key := NameKey("SupportMessage", message.ID)
+	key := NameKey("SupportMessage", message.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, message)
+	_, err := db.Put(ctx, key, message)
 	return err
 }
 
@@ -446,7 +430,7 @@ func GetActiveSupportChannels(db *DatastoreClient) ([]models.SupportChannel, err
 	query := NewQuery("SupportChannel").Filter("IsActive =", true).Order("Name")
 
 	var channels []models.SupportChannel
-	keys, err := db.Client.GetAll(ctx, query, &channels)
+	keys, err := db.GetAll(ctx, query, &channels)
 	if err != nil {
 		return nil, err
 	}
@@ -461,9 +445,9 @@ func GetActiveSupportChannels(db *DatastoreClient) ([]models.SupportChannel, err
 // Analytics operations
 func TrackAnalyticsEvent(db *DatastoreClient, event *models.AnalyticsEvent) error {
 	ctx := context.Background()
-	key := NameKey("AnalyticsEvent", event.ID)
+	key := NameKey("AnalyticsEvent", event.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, event)
+	_, err := db.Put(ctx, key, event)
 	return err
 }
 
@@ -472,7 +456,7 @@ func BatchTrackAnalyticsEvents(db *DatastoreClient, events []*models.AnalyticsEv
 
 	var keys []*Key
 	for _, event := range events {
-		keys = append(keys, NameKey("AnalyticsEvent", event.ID))
+		keys = append(keys, NameKey("AnalyticsEvent", event.ID, nil))
 	}
 
 	entities := make([]interface{}, len(events))
@@ -480,7 +464,7 @@ func BatchTrackAnalyticsEvents(db *DatastoreClient, events []*models.AnalyticsEv
 		entities[i] = event
 	}
 
-	_, err := db.Client.PutMulti(ctx, keys, entities)
+	_, err := db.PutMulti(ctx, keys, entities)
 	return err
 }
 
@@ -489,13 +473,13 @@ func GetUserAnalyticsConsent(db *DatastoreClient, userID string) (*models.Analyt
 	query := NewQuery("AnalyticsConsent").Filter("UserID =", userID)
 
 	var consents []models.AnalyticsConsent
-	keys, err := db.Client.GetAll(ctx, query, &consents)
+	keys, err := db.GetAll(ctx, query, &consents)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(consents) == 0 {
-		return nil, ErrNotFound
+		return nil, ErrNoSuchEntity
 	}
 
 	consents[0].ID = keys[0].Name
@@ -504,9 +488,9 @@ func GetUserAnalyticsConsent(db *DatastoreClient, userID string) (*models.Analyt
 
 func UpdateAnalyticsConsent(db *DatastoreClient, consent *models.AnalyticsConsent) error {
 	ctx := context.Background()
-	key := NameKey("AnalyticsConsent", consent.ID)
+	key := NameKey("AnalyticsConsent", consent.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, consent)
+	_, err := db.Put(ctx, key, consent)
 	return err
 }
 
@@ -537,7 +521,7 @@ func GetAnalyticsEvents(db *DatastoreClient, eventType, eventName, startDate, en
 	}
 
 	var events []models.AnalyticsEvent
-	keys, err := db.Client.GetAll(ctx, query, &events)
+	keys, err := db.GetAll(ctx, query, &events)
 	if err != nil {
 		return nil, err
 	}
@@ -554,7 +538,7 @@ func GetAnalyticsStats(db *DatastoreClient) (map[string]interface{}, error) {
 
 	// Get total events count
 	totalQuery := NewQuery("AnalyticsEvent")
-	totalCount, err := db.Client.Count(ctx, totalQuery)
+	totalCount, err := db.Count(ctx, totalQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -580,7 +564,7 @@ func GetABTests(db *DatastoreClient, status string) ([]models.ABTest, error) {
 	}
 
 	var tests []models.ABTest
-	keys, err := db.Client.GetAll(ctx, query, &tests)
+	keys, err := db.GetAll(ctx, query, &tests)
 	if err != nil {
 		return nil, err
 	}
@@ -594,10 +578,10 @@ func GetABTests(db *DatastoreClient, status string) ([]models.ABTest, error) {
 
 func GetABTestByID(db *DatastoreClient, testID string) (*models.ABTest, error) {
 	ctx := context.Background()
-	key := NameKey("ABTest", testID)
+	key := NameKey("ABTest", testID, nil)
 
 	var test models.ABTest
-	err := db.Client.Get(ctx, key, &test)
+	err := db.Get(ctx, key, &test)
 	if err != nil {
 		return nil, err
 	}
@@ -608,17 +592,17 @@ func GetABTestByID(db *DatastoreClient, testID string) (*models.ABTest, error) {
 
 func CreateABTest(db *DatastoreClient, test *models.ABTest) error {
 	ctx := context.Background()
-	key := NameKey("ABTest", test.ID)
+	key := NameKey("ABTest", test.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, test)
+	_, err := db.Put(ctx, key, test)
 	return err
 }
 
 func UpdateABTest(db *DatastoreClient, test *models.ABTest) error {
 	ctx := context.Background()
-	key := NameKey("ABTest", test.ID)
+	key := NameKey("ABTest", test.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, test)
+	_, err := db.Put(ctx, key, test)
 	return err
 }
 
@@ -627,13 +611,13 @@ func GetUserABTestAssignment(db *DatastoreClient, userID, testID string) (*model
 	query := NewQuery("UserABTestAssignment").Filter("UserID =", userID).Filter("ABTestID =", testID)
 
 	var assignments []models.UserABTestAssignment
-	keys, err := db.Client.GetAll(ctx, query, &assignments)
+	keys, err := db.GetAll(ctx, query, &assignments)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(assignments) == 0 {
-		return nil, ErrNotFound
+		return nil, ErrNoSuchEntity
 	}
 
 	assignments[0].ID = keys[0].Name
@@ -642,9 +626,9 @@ func GetUserABTestAssignment(db *DatastoreClient, userID, testID string) (*model
 
 func CreateUserABTestAssignment(db *DatastoreClient, assignment *models.UserABTestAssignment) error {
 	ctx := context.Background()
-	key := NameKey("UserABTestAssignment", assignment.ID)
+	key := NameKey("UserABTestAssignment", assignment.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, assignment)
+	_, err := db.Put(ctx, key, assignment)
 	return err
 }
 
@@ -653,7 +637,7 @@ func GetABTestResults(db *DatastoreClient, testID string) ([]models.ABTestResult
 	query := NewQuery("ABTestResult").Filter("ABTestID =", testID).Order("-PeriodStart")
 
 	var results []models.ABTestResult
-	keys, err := db.Client.GetAll(ctx, query, &results)
+	keys, err := db.GetAll(ctx, query, &results)
 	if err != nil {
 		return nil, err
 	}
@@ -678,7 +662,7 @@ func GetForums(db *DatastoreClient, category, forumType string) ([]models.Commun
 	}
 
 	var forums []models.CommunityForum
-	keys, err := db.Client.GetAll(ctx, query, &forums)
+	keys, err := db.GetAll(ctx, query, &forums)
 	if err != nil {
 		return nil, err
 	}
@@ -692,10 +676,10 @@ func GetForums(db *DatastoreClient, category, forumType string) ([]models.Commun
 
 func GetForumByID(db *DatastoreClient, forumID string) (*models.CommunityForum, error) {
 	ctx := context.Background()
-	key := NameKey("CommunityForum", forumID)
+	key := NameKey("CommunityForum", forumID, nil)
 
 	var forum models.CommunityForum
-	err := db.Client.Get(ctx, key, &forum)
+	err := db.Get(ctx, key, &forum)
 	if err != nil {
 		return nil, err
 	}
@@ -706,17 +690,17 @@ func GetForumByID(db *DatastoreClient, forumID string) (*models.CommunityForum, 
 
 func UpdateForum(db *DatastoreClient, forum *models.CommunityForum) error {
 	ctx := context.Background()
-	key := NameKey("CommunityForum", forum.ID)
+	key := NameKey("CommunityForum", forum.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, forum)
+	_, err := db.Put(ctx, key, forum)
 	return err
 }
 
 func CreateForumPost(db *DatastoreClient, post *models.ForumPost) error {
 	ctx := context.Background()
-	key := NameKey("ForumPost", post.ID)
+	key := NameKey("ForumPost", post.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, post)
+	_, err := db.Put(ctx, key, post)
 	return err
 }
 
@@ -737,7 +721,7 @@ func GetForumPosts(db *DatastoreClient, forumID, status, tag, limit string) ([]m
 	}
 
 	var posts []models.ForumPost
-	keys, err := db.Client.GetAll(ctx, query, &posts)
+	keys, err := db.GetAll(ctx, query, &posts)
 	if err != nil {
 		return nil, err
 	}
@@ -751,10 +735,10 @@ func GetForumPosts(db *DatastoreClient, forumID, status, tag, limit string) ([]m
 
 func GetForumPostByID(db *DatastoreClient, postID string) (*models.ForumPost, error) {
 	ctx := context.Background()
-	key := NameKey("ForumPost", postID)
+	key := NameKey("ForumPost", postID, nil)
 
 	var post models.ForumPost
-	err := db.Client.Get(ctx, key, &post)
+	err := db.Get(ctx, key, &post)
 	if err != nil {
 		return nil, err
 	}
@@ -765,24 +749,24 @@ func GetForumPostByID(db *DatastoreClient, postID string) (*models.ForumPost, er
 
 func UpdateForumPost(db *DatastoreClient, post *models.ForumPost) error {
 	ctx := context.Background()
-	key := NameKey("ForumPost", post.ID)
+	key := NameKey("ForumPost", post.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, post)
+	_, err := db.Put(ctx, key, post)
 	return err
 }
 
 func DeleteForumPost(db *DatastoreClient, postID string) error {
 	ctx := context.Background()
-	key := NameKey("ForumPost", postID)
+	key := NameKey("ForumPost", postID, nil)
 
-	return db.Client.Delete(ctx, key)
+	return db.Delete(ctx, key)
 }
 
 func CreateForumReply(db *DatastoreClient, reply *models.ForumReply) error {
 	ctx := context.Background()
-	key := NameKey("ForumReply", reply.ID)
+	key := NameKey("ForumReply", reply.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, reply)
+	_, err := db.Put(ctx, key, reply)
 	return err
 }
 
@@ -791,7 +775,7 @@ func GetForumReplies(db *DatastoreClient, postID string) ([]models.ForumReply, e
 	query := NewQuery("ForumReply").Filter("PostID =", postID).Order("CreatedAt")
 
 	var replies []models.ForumReply
-	keys, err := db.Client.GetAll(ctx, query, &replies)
+	keys, err := db.GetAll(ctx, query, &replies)
 	if err != nil {
 		return nil, err
 	}
@@ -805,10 +789,10 @@ func GetForumReplies(db *DatastoreClient, postID string) ([]models.ForumReply, e
 
 func GetForumReplyByID(db *DatastoreClient, replyID string) (*models.ForumReply, error) {
 	ctx := context.Background()
-	key := NameKey("ForumReply", replyID)
+	key := NameKey("ForumReply", replyID, nil)
 
 	var reply models.ForumReply
-	err := db.Client.Get(ctx, key, &reply)
+	err := db.Get(ctx, key, &reply)
 	if err != nil {
 		return nil, err
 	}
@@ -819,9 +803,9 @@ func GetForumReplyByID(db *DatastoreClient, replyID string) (*models.ForumReply,
 
 func UpdateForumReply(db *DatastoreClient, reply *models.ForumReply) error {
 	ctx := context.Background()
-	key := NameKey("ForumReply", reply.ID)
+	key := NameKey("ForumReply", reply.ID, nil)
 
-	_, err := db.Client.Put(ctx, key, reply)
+	_, err := db.Put(ctx, key, reply)
 	return err
 }
 
@@ -830,7 +814,7 @@ func GetUserForumPosts(db *DatastoreClient, userID string) ([]models.ForumPost, 
 	query := NewQuery("ForumPost").Filter("UserID =", userID).Order("-CreatedAt")
 
 	var posts []models.ForumPost
-	keys, err := db.Client.GetAll(ctx, query, &posts)
+	keys, err := db.GetAll(ctx, query, &posts)
 	if err != nil {
 		return nil, err
 	}
@@ -862,7 +846,7 @@ func SearchForumPosts(db *DatastoreClient, query, forumID, tag, limit string) ([
 	}
 
 	var posts []models.ForumPost
-	keys, err := db.Client.GetAll(ctx, dsQuery, &posts)
+	keys, err := db.GetAll(ctx, dsQuery, &posts)
 	if err != nil {
 		return nil, err
 	}
@@ -885,7 +869,7 @@ func GetPopularForumPosts(db *DatastoreClient, period, limit string) ([]models.F
 	}
 
 	var posts []models.ForumPost
-	keys, err := db.Client.GetAll(ctx, query, &posts)
+	keys, err := db.GetAll(ctx, query, &posts)
 	if err != nil {
 		return nil, err
 	}
@@ -902,14 +886,14 @@ func GetForumStats(db *DatastoreClient) (map[string]interface{}, error) {
 
 	// Get total posts count
 	postsQuery := NewQuery("ForumPost")
-	postsCount, err := db.Client.Count(ctx, postsQuery)
+	postsCount, err := db.Count(ctx, postsQuery)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get total replies count
 	repliesQuery := NewQuery("ForumReply")
-	repliesCount, err := db.Client.Count(ctx, repliesQuery)
+	repliesCount, err := db.Count(ctx, repliesQuery)
 	if err != nil {
 		return nil, err
 	}

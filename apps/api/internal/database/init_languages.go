@@ -5,11 +5,9 @@ import (
 	"time"
 
 	"github.com/typing-master-for-coding-backend/internal/models"
-
-	"cloud.google.com/go/datastore"
 )
 
-// InitializeDefaultLanguages creates the default language configurations in Datastore
+// InitializeDefaultLanguages creates the default language configurations in the database
 func InitializeDefaultLanguages(db *DatastoreClient) error {
 	ctx := context.Background()
 
@@ -17,7 +15,7 @@ func InitializeDefaultLanguages(db *DatastoreClient) error {
 		{
 			ID:       "python",
 			Name:     "Python",
-			Version:  1,
+			Version:  "1",
 			ParserID: "tree-sitter-python",
 			GrammarConfig: map[string]interface{}{
 				"tokenTypes": []string{"identifier", "string", "number", "keyword", "operator", "delimiter", "comment"},
@@ -36,7 +34,7 @@ func InitializeDefaultLanguages(db *DatastoreClient) error {
 		{
 			ID:       "javascript",
 			Name:     "JavaScript",
-			Version:  1,
+			Version:  "1",
 			ParserID: "tree-sitter-javascript",
 			GrammarConfig: map[string]interface{}{
 				"tokenTypes": []string{"identifier", "string", "number", "keyword", "operator", "delimiter", "comment"},
@@ -55,7 +53,7 @@ func InitializeDefaultLanguages(db *DatastoreClient) error {
 		{
 			ID:       "yaml",
 			Name:     "YAML",
-			Version:  1,
+			Version:  "1",
 			ParserID: "tree-sitter-yaml",
 			GrammarConfig: map[string]interface{}{
 				"tokenTypes": []string{"key", "value", "string", "number", "boolean", "null", "comment"},
@@ -74,7 +72,7 @@ func InitializeDefaultLanguages(db *DatastoreClient) error {
 		{
 			ID:       "cpp",
 			Name:     "C++",
-			Version:  1,
+			Version:  "1",
 			ParserID: "tree-sitter-cpp",
 			GrammarConfig: map[string]interface{}{
 				"tokenTypes": []string{"identifier", "string", "number", "keyword", "operator", "delimiter", "comment", "preprocessor", "type"},
@@ -104,7 +102,7 @@ func InitializeDefaultLanguages(db *DatastoreClient) error {
 		{
 			ID:       "rust",
 			Name:     "Rust",
-			Version:  1,
+			Version:  "1",
 			ParserID: "tree-sitter-rust",
 			GrammarConfig: map[string]interface{}{
 				"tokenTypes": []string{"identifier", "string", "number", "keyword", "operator", "delimiter", "comment", "attribute", "lifetime", "type"},
@@ -132,9 +130,9 @@ func InitializeDefaultLanguages(db *DatastoreClient) error {
 		},
 	}
 
-	// Insert each language into Datastore
+	// Insert each language into the database
 	for _, language := range languages {
-		key := datastore.NameKey("Language", language.ID, nil)
+		key := NameKey("Language", language.ID, nil)
 
 		// Check if language already exists
 		var existing models.Language

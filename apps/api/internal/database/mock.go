@@ -2,69 +2,37 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"reflect"
+	"sort"
 	"sync"
 	"time"
 
 	"github.com/typing-master-for-coding-backend/internal/models"
-
-	"cloud.google.com/go/datastore"
 )
 
-// MockDatastore provides an in-memory implementation for development
+// MockDatastore is an in-memory datastore used for tests and local development.
 type MockDatastore struct {
-	mu                 sync.RWMutex
-	users              map[string]*models.User
-	languages          map[string]*models.Language
-	lessons            map[string]*models.Lesson
-	snippets           map[string]*models.Snippet
-	sessions           map[string]*models.Session
-	events             map[string][]*models.SessionEvent
-	results            map[string]*models.Result
-	playlists          map[string]*models.Playlist
-	lessonProgress     map[string]*models.LessonProgress
-	contentVersions    map[string]*models.ContentVersion
-	contentValidations map[string]*models.ContentValidation
-	tutorials          map[string]*models.Tutorial
+	mu       sync.RWMutex
+	entities map[string]map[string]json.RawMessage
 }
 
-// MockDatastoreClient is an alias for testing compatibility
-type MockDatastoreClient = MockDatastore
-
+// NewMockDatastore creates a new in-memory datastore with sample data.
 func NewMockDatastore() *MockDatastore {
-	mock := &MockDatastore{
-		users:              make(map[string]*models.User),
-		languages:          make(map[string]*models.Language),
-		lessons:            make(map[string]*models.Lesson),
-		snippets:           make(map[string]*models.Snippet),
-		sessions:           make(map[string]*models.Session),
-		events:             make(map[string][]*models.SessionEvent),
-		results:            make(map[string]*models.Result),
-		playlists:          make(map[string]*models.Playlist),
-		lessonProgress:     make(map[string]*models.LessonProgress),
-		contentVersions:    make(map[string]*models.ContentVersion),
-		contentValidations: make(map[string]*models.ContentValidation),
-		tutorials:          make(map[string]*models.Tutorial),
+	m := &MockDatastore{
+		entities: make(map[string]map[string]json.RawMessage),
 	}
-
-	// Initialize with some sample data
-	mock.initSampleData()
-
-	return mock
-}
-
-// NewMockDatastoreClient creates a new mock datastore client for testing
-func NewMockDatastoreClient() *MockDatastoreClient {
-	return NewMockDatastore()
+	m.initSampleData()
+	return m
 }
 
 func (m *MockDatastore) initSampleData() {
-	// Add sample languages
-	languages := []*models.Language{
+	languages := []models.Language{
 		{
 			ID:              "javascript",
 			Name:            "JavaScript",
-			Version:         1,
+			Version:         "1",
 			ParserID:        "tree-sitter-javascript",
 			GrammarConfig:   map[string]interface{}{"semicolons": true},
 			WhitespaceRules: map[string]interface{}{"indentation": "spaces"},
@@ -74,7 +42,7 @@ func (m *MockDatastore) initSampleData() {
 		{
 			ID:              "python",
 			Name:            "Python",
-			Version:         1,
+			Version:         "1",
 			ParserID:        "tree-sitter-python",
 			GrammarConfig:   map[string]interface{}{"indentation": "spaces"},
 			WhitespaceRules: map[string]interface{}{"indentation": "spaces"},
@@ -84,7 +52,7 @@ func (m *MockDatastore) initSampleData() {
 		{
 			ID:              "cpp",
 			Name:            "C++",
-			Version:         1,
+			Version:         "1",
 			ParserID:        "tree-sitter-cpp",
 			GrammarConfig:   map[string]interface{}{"semicolons": true},
 			WhitespaceRules: map[string]interface{}{"indentation": "spaces"},
@@ -94,7 +62,7 @@ func (m *MockDatastore) initSampleData() {
 		{
 			ID:              "rust",
 			Name:            "Rust",
-			Version:         1,
+			Version:         "1",
 			ParserID:        "tree-sitter-rust",
 			GrammarConfig:   map[string]interface{}{"semicolons": true},
 			WhitespaceRules: map[string]interface{}{"indentation": "spaces"},
@@ -104,7 +72,7 @@ func (m *MockDatastore) initSampleData() {
 		{
 			ID:              "yaml",
 			Name:            "YAML",
-			Version:         1,
+			Version:         "1",
 			ParserID:        "tree-sitter-yaml",
 			GrammarConfig:   map[string]interface{}{"indentation": "spaces"},
 			WhitespaceRules: map[string]interface{}{"indentation": "spaces"},
@@ -114,47 +82,11 @@ func (m *MockDatastore) initSampleData() {
 	}
 
 	for _, lang := range languages {
-		m.languages[lang.ID] = lang
+		key := NameKey("Language", lang.ID, nil)
+		_, _ = m.Put(context.Background(), key, &lang)
 	}
 
-	// Add sample lessons
-	lessons := []*models.Lesson{
-		{
-			ID:               "lesson1",
-			LanguageID:       "javascript",
-			Title:            "Intro to Functions",
-			Difficulty:       1,
-			Objectives:       []string{"Learn JavaScript functions"},
-			Prerequisites:    []string{},
-			EstimatedMinutes: 30,
-			TokensCovered:    []string{"function", "return"},
-			SnippetIDs:       []string{},
-			Version:          1,
-			CreatedBy:        "admin",
-			CreatedAt:        time.Now(),
-		},
-		{
-			ID:               "lesson2",
-			LanguageID:       "javascript",
-			Title:            "Advanced Patterns",
-			Difficulty:       2,
-			Objectives:       []string{"Learn advanced JavaScript patterns"},
-			Prerequisites:    []string{"lesson1"},
-			EstimatedMinutes: 45,
-			TokensCovered:    []string{"async", "await", "promise"},
-			SnippetIDs:       []string{},
-			Version:          1,
-			CreatedBy:        "admin",
-			CreatedAt:        time.Now(),
-		},
-	}
-
-	for _, lesson := range lessons {
-		m.lessons[lesson.ID] = lesson
-	}
-
-	// Add sample snippets
-	snippets := []*models.Snippet{
+	snippets := []models.Snippet{
 		{
 			ID:            "snippet1",
 			LanguageID:    "javascript",
@@ -190,157 +122,106 @@ func (m *MockDatastore) initSampleData() {
 	}
 
 	for _, snippet := range snippets {
-		m.snippets[snippet.ID] = snippet
+		key := NameKey("Snippet", snippet.ID, nil)
+		_, _ = m.Put(context.Background(), key, &snippet)
 	}
 }
 
-// Mock implementations for common operations
-func (m *MockDatastore) Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error) {
+// Put stores an entity with the provided key.
+func (m *MockDatastore) Put(ctx context.Context, key *Key, src interface{}) (*Key, error) {
+	if key == nil {
+		return nil, ErrNoSuchEntity
+	}
+	if src == nil {
+		return nil, fmt.Errorf("database: src is nil")
+	}
+
+	data, err := marshalEntity(src)
+	if err != nil {
+		return nil, err
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	switch v := src.(type) {
-	case *models.User:
-		if key == nil || key.Name == "" {
-			key = datastore.NameKey("User", fmt.Sprintf("user_%d", time.Now().UnixNano()), nil)
-		}
-		v.ID = key.Name
-		m.users[key.Name] = v
-	case *models.Language:
-		if key == nil {
-			key = datastore.NameKey("Language", fmt.Sprintf("lang_%d", time.Now().UnixNano()), nil)
-		}
-		v.ID = key.Name
-		m.languages[key.Name] = v
-	case *models.Lesson:
-		if key == nil || key.Name == "" {
-			key = datastore.NameKey("Lesson", fmt.Sprintf("lesson_%d", time.Now().UnixNano()), nil)
-		}
-		v.ID = key.Name
-		m.lessons[key.Name] = v
-	case *models.Snippet:
-		if key == nil || key.Name == "" {
-			key = datastore.NameKey("Snippet", fmt.Sprintf("snippet_%d", time.Now().UnixNano()), nil)
-		}
-		v.ID = key.Name
-		m.snippets[key.Name] = v
-	case *models.Session:
-		if key == nil || key.Name == "" {
-			key = datastore.NameKey("Session", fmt.Sprintf("session_%d", time.Now().UnixNano()), nil)
-		}
-		v.ID = key.Name
-		m.sessions[key.Name] = v
-	case *models.Result:
-		if key == nil {
-			key = datastore.NameKey("Result", fmt.Sprintf("result_%d", time.Now().UnixNano()), nil)
-		}
-		v.SessionID = key.Name
-		m.results[key.Name] = v
+	if m.entities[key.Kind] == nil {
+		m.entities[key.Kind] = make(map[string]json.RawMessage)
 	}
-
+	m.entities[key.Kind][key.Name] = data
 	return key, nil
 }
 
-func (m *MockDatastore) Get(ctx context.Context, key *datastore.Key, dst interface{}) error {
-	if key == nil {
-		return datastore.ErrNoSuchEntity
+// PutMulti stores multiple entities.
+func (m *MockDatastore) PutMulti(ctx context.Context, keys []*Key, src interface{}) ([]*Key, error) {
+	v := reflect.ValueOf(src)
+	if v.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("database: src must be a slice")
+	}
+	if len(keys) != v.Len() {
+		return nil, fmt.Errorf("database: keys and src length mismatch")
 	}
 
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	switch v := dst.(type) {
-	case *models.User:
-		if user, exists := m.users[key.Name]; exists {
-			*v = *user
-			return nil
+	returnedKeys := make([]*Key, len(keys))
+	for i, key := range keys {
+		elem := v.Index(i).Interface()
+		newKey, err := m.Put(ctx, key, elem)
+		if err != nil {
+			return nil, err
 		}
-	case *models.Language:
-		if lang, exists := m.languages[key.Name]; exists {
-			*v = *lang
-			return nil
-		}
-	case *models.Lesson:
-		if lesson, exists := m.lessons[key.Name]; exists {
-			*v = *lesson
-			return nil
-		}
-	case *models.Snippet:
-		if snippet, exists := m.snippets[key.Name]; exists {
-			*v = *snippet
-			return nil
-		}
-	case *models.Session:
-		if session, exists := m.sessions[key.Name]; exists {
-			*v = *session
-			return nil
-		}
-	case *models.Result:
-		if result, exists := m.results[key.Name]; exists {
-			*v = *result
-			return nil
-		}
+		returnedKeys[i] = newKey
 	}
-
-	return datastore.ErrNoSuchEntity
+	return returnedKeys, nil
 }
 
-func (m *MockDatastore) GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error) {
+// Get retrieves an entity by key.
+func (m *MockDatastore) Get(ctx context.Context, key *Key, dst interface{}) error {
+	if key == nil {
+		return ErrNoSuchEntity
+	}
+
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// This is a simplified implementation that returns data based on the destination type
-	var keys []*datastore.Key
-
-	switch v := dst.(type) {
-	case *[]models.User:
-		users := v
-
-		// For testing purposes, if this is a query for users, return all users
-		// The Register handler will check for duplicates by email/handle in the returned slice
-		for id, user := range m.users {
-			*users = append(*users, *user)
-			keys = append(keys, datastore.NameKey("User", id, nil))
-		}
-	case *[]*models.Language:
-		languages := dst.(*[]*models.Language)
-		for id, lang := range m.languages {
-			*languages = append(*languages, lang)
-			keys = append(keys, datastore.NameKey("Language", id, nil))
-		}
-	case *[]*models.Lesson:
-		lessons := dst.(*[]*models.Lesson)
-		for id, lesson := range m.lessons {
-			*lessons = append(*lessons, lesson)
-			keys = append(keys, datastore.NameKey("Lesson", id, nil))
-		}
-	case *[]*models.Snippet:
-		snippets := dst.(*[]*models.Snippet)
-		for id, snippet := range m.snippets {
-			*snippets = append(*snippets, snippet)
-			keys = append(keys, datastore.NameKey("Snippet", id, nil))
-		}
-	case *[]*models.Session:
-		sessions := dst.(*[]*models.Session)
-		for id, session := range m.sessions {
-			*sessions = append(*sessions, session)
-			keys = append(keys, datastore.NameKey("Session", id, nil))
-		}
+	data, exists := m.entities[key.Kind][key.Name]
+	if !exists {
+		return ErrNoSuchEntity
 	}
 
+	return unmarshalEntity(data, dst)
+}
+
+// GetAll retrieves entities matching the query.
+func (m *MockDatastore) GetAll(ctx context.Context, query *Query, dst interface{}) ([]*Key, error) {
+	if query.err != nil {
+		return nil, query.err
+	}
+
+	keys, data, err := m.query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	if query.keysOnly || dst == nil {
+		return keys, nil
+	}
+
+	if err := unmarshalSlice(dst, data); err != nil {
+		return nil, err
+	}
 	return keys, nil
 }
 
-func (m *MockDatastore) Count(ctx context.Context, q *datastore.Query) (int, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	// For simplicity, return counts for common entity types
-	// In a real implementation, you'd need to inspect the query more carefully
-	return len(m.users) + len(m.languages) + len(m.lessons) + len(m.snippets) + len(m.sessions), nil
+// Run returns an iterator over the query results.
+func (m *MockDatastore) Run(ctx context.Context, query *Query) Iterator {
+	keys, data, err := m.query(ctx, query)
+	if err != nil {
+		return &errorIterator{err: err}
+	}
+	return newSliceIterator(keys, data)
 }
 
-func (m *MockDatastore) Delete(ctx context.Context, key *datastore.Key) error {
+// Delete removes an entity by key.
+func (m *MockDatastore) Delete(ctx context.Context, key *Key) error {
 	if key == nil {
 		return nil
 	}
@@ -348,168 +229,419 @@ func (m *MockDatastore) Delete(ctx context.Context, key *datastore.Key) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	switch key.Kind {
-	case "User":
-		delete(m.users, key.Name)
-	case "Language":
-		delete(m.languages, key.Name)
-	case "Lesson":
-		delete(m.lessons, key.Name)
-	case "Snippet":
-		delete(m.snippets, key.Name)
-	case "Session":
-		delete(m.sessions, key.Name)
-	case "Result":
-		delete(m.results, key.Name)
+	if m.entities[key.Kind] != nil {
+		delete(m.entities[key.Kind], key.Name)
 	}
-
 	return nil
 }
 
-func (m *MockDatastore) DeleteMulti(ctx context.Context, keys []*datastore.Key) error {
-	if keys == nil {
-		return nil
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+// DeleteMulti removes multiple entities by key.
+func (m *MockDatastore) DeleteMulti(ctx context.Context, keys []*Key) error {
 	for _, key := range keys {
-		if key == nil {
-			continue
+		if err := m.Delete(ctx, key); err != nil {
+			return err
 		}
-		switch key.Kind {
-		case "User":
-			delete(m.users, key.Name)
-		case "Language":
-			delete(m.languages, key.Name)
-		case "Lesson":
-			delete(m.lessons, key.Name)
-		case "Snippet":
-			delete(m.snippets, key.Name)
-		case "Session":
-			delete(m.sessions, key.Name)
-		case "SessionEvent":
-			delete(m.events, key.Name)
-		case "Result":
-			delete(m.results, key.Name)
-		case "LessonProgress":
-			delete(m.lessonProgress, key.Name)
-		case "Playlist":
-			delete(m.playlists, key.Name)
+	}
+	return nil
+}
+
+// Count returns the number of entities matching the query.
+func (m *MockDatastore) Count(ctx context.Context, query *Query) (int, error) {
+	if query.err != nil {
+		return 0, query.err
+	}
+
+	keys, _, err := m.query(ctx, query)
+	if err != nil {
+		return 0, err
+	}
+	return len(keys), nil
+}
+
+func (m *MockDatastore) query(ctx context.Context, query *Query) ([]*Key, [][]byte, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	items := m.entities[query.kind]
+	if items == nil {
+		return nil, nil, nil
+	}
+
+	var keys []*Key
+	var data [][]byte
+	for name, payload := range items {
+		keys = append(keys, &Key{Kind: query.kind, Name: name})
+		data = append(data, payload)
+	}
+
+	// Apply simple in-memory filters (currently best-effort; keeps tests stable).
+	if len(query.filters) > 0 {
+		filteredKeys := make([]*Key, 0, len(keys))
+		filteredData := make([][]byte, 0, len(keys))
+		for i, payload := range data {
+			if m.matchesFilters(payload, query.filters) {
+				filteredKeys = append(filteredKeys, keys[i])
+				filteredData = append(filteredData, payload)
+			}
+		}
+		keys = filteredKeys
+		data = filteredData
+	}
+
+	// Apply order (best-effort; not critical for tests).
+	if len(query.orders) > 0 {
+		m.sortResults(data, keys, query.orders)
+	}
+
+	// Apply offset and limit.
+	if query.offset > 0 && query.offset < len(keys) {
+		keys = keys[query.offset:]
+		data = data[query.offset:]
+	} else if query.offset >= len(keys) {
+		return nil, nil, nil
+	}
+
+	if query.limit > 0 && query.limit < len(keys) {
+		keys = keys[:query.limit]
+		data = data[:query.limit]
+	}
+
+	return keys, data, nil
+}
+
+func (m *MockDatastore) matchesFilters(payload json.RawMessage, filters []filter) bool {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		return false
+	}
+
+	for _, f := range filters {
+		key := toSnakeCase(f.fieldName)
+		val, ok := raw[key]
+		if !ok {
+			return false
+		}
+		if !compareFilterValue(val, f.value, f.operator) {
+			return false
+		}
+	}
+	return true
+}
+
+func compareFilterValue(dataValue, filterValue interface{}, op string) bool {
+	op = normalizeOpString(op)
+
+	ds := fmt.Sprintf("%v", dataValue)
+	fs := fmt.Sprintf("%v", filterValue)
+
+	switch op {
+	case "=":
+		return ds == fs
+	case "!=":
+		return ds != fs
+	case ">", ">=", "<", "<=":
+		return compareComparable(dataValue, filterValue, op)
+	default:
+		return false
+	}
+}
+
+func normalizeOpString(op string) string {
+	switch op {
+	case "=", "==":
+		return "="
+	case ">":
+		return ">"
+	case ">=":
+		return ">="
+	case "<":
+		return "<"
+	case "<=":
+		return "<="
+	case "!=", "<>":
+		return "!="
+	}
+	return "="
+}
+
+func compareComparable(dataValue, filterValue interface{}, op string) bool {
+	// Try time comparison first.
+	if dt, ok := parseTime(dataValue); ok {
+		if ft, ok := parseTime(filterValue); ok {
+			switch op {
+			case ">":
+				return dt.After(ft)
+			case ">=":
+				return dt.After(ft) || dt.Equal(ft)
+			case "<":
+				return dt.Before(ft)
+			case "<=":
+				return dt.Before(ft) || dt.Equal(ft)
+			}
 		}
 	}
 
-	return nil
+	// Try numeric comparison.
+	if dn, ok := parseNumber(dataValue); ok {
+		if fn, ok := parseNumber(filterValue); ok {
+			switch op {
+			case ">":
+				return dn > fn
+			case ">=":
+				return dn >= fn
+			case "<":
+				return dn < fn
+			case "<=":
+				return dn <= fn
+			}
+		}
+	}
+
+	// Fall back to string comparison.
+	ds := fmt.Sprintf("%v", dataValue)
+	fs := fmt.Sprintf("%v", filterValue)
+	switch op {
+	case ">":
+		return ds > fs
+	case ">=":
+		return ds >= fs
+	case "<":
+		return ds < fs
+	case "<=":
+		return ds <= fs
+	}
+	return false
+}
+
+func parseTime(v interface{}) (time.Time, bool) {
+	switch t := v.(type) {
+	case time.Time:
+		return t, true
+	case string:
+		for _, layout := range []string{time.RFC3339, time.RFC3339Nano, "2006-01-02T15:04:05Z", "2006-01-02T15:04:05.999Z"} {
+			if parsed, err := time.Parse(layout, t); err == nil {
+				return parsed, true
+			}
+		}
+	}
+	return time.Time{}, false
+}
+
+func parseNumber(v interface{}) (float64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return n, true
+	case float32:
+		return float64(n), true
+	case int:
+		return float64(n), true
+	case int64:
+		return float64(n), true
+	case int32:
+		return float64(n), true
+	case string:
+		if parsed, err := parseNumberString(n); err == nil {
+			return parsed, true
+		}
+	}
+	return 0, false
+}
+
+func parseNumberString(s string) (float64, error) {
+	var f float64
+	_, err := fmt.Sscanf(s, "%f", &f)
+	return f, err
+}
+
+func (m *MockDatastore) sortResults(data [][]byte, keys []*Key, orders []order) {
+	if len(orders) == 0 {
+		return
+	}
+	raw := make([]map[string]interface{}, len(data))
+	for i, payload := range data {
+		var obj map[string]interface{}
+		_ = json.Unmarshal(payload, &obj)
+		raw[i] = obj
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		for _, o := range orders {
+			key := toSnakeCase(o.fieldName)
+			vi, vj := raw[i][key], raw[j][key]
+			cmp := compareValues(vi, vj)
+			if cmp != 0 {
+				if o.descending {
+					return cmp > 0
+				}
+				return cmp < 0
+			}
+		}
+		return false
+	})
+
+	// Reorder data alongside keys.
+	newData := make([][]byte, len(data))
+	for i, key := range keys {
+		for j, k := range keys {
+			if k == key {
+				newData[i] = data[j]
+				break
+			}
+		}
+	}
+	copy(data, newData)
+}
+
+func compareValues(a, b interface{}) int {
+	if a == nil && b == nil {
+		return 0
+	}
+	if a == nil {
+		return -1
+	}
+	if b == nil {
+		return 1
+	}
+
+	if an, ok := parseNumber(a); ok {
+		if bn, ok := parseNumber(b); ok {
+			if an < bn {
+				return -1
+			}
+			if an > bn {
+				return 1
+			}
+			return 0
+		}
+	}
+
+	if at, ok := parseTime(a); ok {
+		if bt, ok := parseTime(b); ok {
+			if at.Before(bt) {
+				return -1
+			}
+			if at.After(bt) {
+				return 1
+			}
+			return 0
+		}
+	}
+
+	sa := fmt.Sprintf("%v", a)
+	sb := fmt.Sprintf("%v", b)
+	if sa < sb {
+		return -1
+	}
+	if sa > sb {
+		return 1
+	}
+	return 0
 }
 
 // Helper methods for testing
 
 func (m *MockDatastore) PutUser(id string, user *models.User) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.users[id] = user
+	user.ID = id
+	_, _ = m.Put(context.Background(), NameKey("User", id, nil), user)
 }
 
 func (m *MockDatastore) PutLanguage(id string, language *models.Language) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.languages[id] = language
+	language.ID = id
+	_, _ = m.Put(context.Background(), NameKey("Language", id, nil), language)
 }
 
 func (m *MockDatastore) PutLesson(id string, lesson *models.Lesson) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.lessons[id] = lesson
+	lesson.ID = id
+	_, _ = m.Put(context.Background(), NameKey("Lesson", id, nil), lesson)
 }
 
 func (m *MockDatastore) PutSnippet(id string, snippet *models.Snippet) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.snippets[id] = snippet
+	snippet.ID = id
+	_, _ = m.Put(context.Background(), NameKey("Snippet", id, nil), snippet)
 }
 
 func (m *MockDatastore) PutSession(id string, session *models.Session) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.sessions[id] = session
+	session.ID = id
+	_, _ = m.Put(context.Background(), NameKey("Session", id, nil), session)
 }
 
 func (m *MockDatastore) PutPlaylist(id string, playlist *models.Playlist) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.playlists[id] = playlist
+	playlist.ID = id
+	_, _ = m.Put(context.Background(), NameKey("Playlist", id, nil), playlist)
 }
 
 func (m *MockDatastore) PutLessonProgress(id string, progress *models.LessonProgress) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.lessonProgress[id] = progress
+	progress.ID = id
+	_, _ = m.Put(context.Background(), NameKey("LessonProgress", id, nil), progress)
 }
 
-// Tutorial operations for MockDatastore
+// Tutorial operations
 func (m *MockDatastore) GetAllTutorials() ([]models.Tutorial, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	var tutorials []models.Tutorial
-	for _, tutorial := range m.tutorials {
-		if tutorial.IsActive {
-			tutorials = append(tutorials, *tutorial)
+	_, err := m.GetAll(context.Background(), NewQuery("Tutorial"), &tutorials)
+	if err != nil {
+		return nil, err
+	}
+
+	var active []models.Tutorial
+	for _, t := range tutorials {
+		if t.IsActive {
+			active = append(active, t)
 		}
 	}
-	return tutorials, nil
+	return active, nil
 }
 
 func (m *MockDatastore) GetTutorialsByCategory(category string) ([]models.Tutorial, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	var tutorials []models.Tutorial
-	for _, tutorial := range m.tutorials {
-		if tutorial.IsActive && tutorial.Category == category {
-			tutorials = append(tutorials, *tutorial)
+	_, err := m.GetAll(context.Background(), NewQuery("Tutorial").FilterField("Category", "=", category), &tutorials)
+	if err != nil {
+		return nil, err
+	}
+
+	var filtered []models.Tutorial
+	for _, t := range tutorials {
+		if t.IsActive && t.Category == category {
+			filtered = append(filtered, t)
 		}
 	}
-	return tutorials, nil
+	return filtered, nil
 }
 
 func (m *MockDatastore) GetTutorialsByDifficulty(difficulty string) ([]models.Tutorial, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
 	var tutorials []models.Tutorial
-	for _, tutorial := range m.tutorials {
-		if tutorial.IsActive && tutorial.Difficulty == difficulty {
-			tutorials = append(tutorials, *tutorial)
+	_, err := m.GetAll(context.Background(), NewQuery("Tutorial").FilterField("Difficulty", "=", difficulty), &tutorials)
+	if err != nil {
+		return nil, err
+	}
+
+	var filtered []models.Tutorial
+	for _, t := range tutorials {
+		if t.IsActive && t.Difficulty == difficulty {
+			filtered = append(filtered, t)
 		}
 	}
-	return tutorials, nil
+	return filtered, nil
 }
 
 func (m *MockDatastore) GetTutorialByID(tutorialID string) (*models.Tutorial, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	if tutorial, exists := m.tutorials[tutorialID]; exists && tutorial.IsActive {
-		return tutorial, nil
+	var tutorial models.Tutorial
+	if err := m.Get(context.Background(), NameKey("Tutorial", tutorialID, nil), &tutorial); err != nil {
+		return nil, err
 	}
-	return nil, datastore.ErrNoSuchEntity
+	if !tutorial.IsActive {
+		return nil, ErrNoSuchEntity
+	}
+	return &tutorial, nil
 }
 
+// Clear removes all data from the mock datastore.
 func (m *MockDatastore) Clear() {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.users = make(map[string]*models.User)
-	m.languages = make(map[string]*models.Language)
-	m.lessons = make(map[string]*models.Lesson)
-	m.snippets = make(map[string]*models.Snippet)
-	m.sessions = make(map[string]*models.Session)
-	m.events = make(map[string][]*models.SessionEvent)
-	m.results = make(map[string]*models.Result)
-	m.playlists = make(map[string]*models.Playlist)
-	m.lessonProgress = make(map[string]*models.LessonProgress)
-	m.contentVersions = make(map[string]*models.ContentVersion)
-	m.contentValidations = make(map[string]*models.ContentValidation)
-	m.tutorials = make(map[string]*models.Tutorial)
+	m.entities = make(map[string]map[string]json.RawMessage)
+	m.mu.Unlock()
+	m.initSampleData()
 }
+
+// Ensure MockDatastore implements storage.
+var _ storage = (*MockDatastore)(nil)

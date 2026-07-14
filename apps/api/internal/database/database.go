@@ -3,155 +3,162 @@ package database
 import (
 	"context"
 	"fmt"
-	"os"
+	"time"
 
-	"cloud.google.com/go/datastore"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/jmoiron/sqlx"
+	"github.com/typing-master-for-coding-backend/internal/config"
 	"github.com/typing-master-for-coding-backend/internal/models"
-	"google.golang.org/api/option"
 )
 
+// DatastoreClient is the database client used by the rest of the application.
+// It keeps the old name to avoid renaming the many callers across handlers/services.
 type DatastoreClient struct {
-	Client    *datastore.Client
+	Client    *sqlx.DB
 	ProjectID string
 	IsMock    bool
 	Mock      *MockDatastore
+	store     storage
 }
 
-func Initialize(projectID string) (*DatastoreClient, error) {
-	ctx := context.Background()
+type storage interface {
+	Put(ctx context.Context, key *Key, src interface{}) (*Key, error)
+	PutMulti(ctx context.Context, keys []*Key, src interface{}) ([]*Key, error)
+	Get(ctx context.Context, key *Key, dst interface{}) error
+	GetAll(ctx context.Context, query *Query, dst interface{}) ([]*Key, error)
+	Run(ctx context.Context, query *Query) Iterator
+	Delete(ctx context.Context, key *Key) error
+	DeleteMulti(ctx context.Context, keys []*Key) error
+	Count(ctx context.Context, query *Query) (int, error)
+}
 
-	// Check if we're in development mode without credentials
-	environment := os.Getenv("ENVIRONMENT")
-	if environment == "development" {
-		// Try to use emulator first
-		if emulatorHost := os.Getenv("DATASTORE_EMULATOR_HOST"); emulatorHost != "" {
-			client, err := datastore.NewClient(ctx, projectID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create datastore emulator client: %v", err)
-			}
-			return &DatastoreClient{
-				Client:    client,
-				ProjectID: projectID,
-				IsMock:    false,
-				Mock:      nil,
-			}, nil
-		}
-
-		// If no emulator and no credentials, return a mock client for development
-		return &DatastoreClient{
-			Client:    nil,
-			ProjectID: projectID,
-			IsMock:    true,
-			Mock:      NewMockDatastore(),
-		}, nil
+// Initialize opens the Postgres connection when DATABASE_URL is provided,
+// otherwise it returns an in-memory mock datastore for local development/testing.
+func Initialize(cfg *config.Config) (*DatastoreClient, error) {
+	if cfg.DatabaseURL == "" {
+		return NewMockDatastoreClient(), nil
 	}
 
-	// Production mode - use real credentials
-	var client *datastore.Client
-	var err error
-
-	if credentialsFile := os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"); credentialsFile != "" {
-		client, err = datastore.NewClient(ctx, projectID, option.WithCredentialsFile(credentialsFile))
-	} else {
-		client, err = datastore.NewClient(ctx, projectID)
-	}
-
+	db, err := sqlx.Open("pgx", cfg.DatabaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create datastore client: %v", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	db.SetMaxOpenConns(cfg.DatabaseMaxOpenConns)
+	db.SetMaxIdleConns(cfg.DatabaseMaxIdleConns)
+	db.SetConnMaxLifetime(time.Duration(cfg.DatabaseConnMaxLifetimeMinutes) * time.Minute)
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	if err := migrateSchema(db); err != nil {
+		return nil, fmt.Errorf("failed to run schema migrations: %w", err)
+	}
+
+	store := newPostgresStorage(db)
 	return &DatastoreClient{
-		Client:    client,
-		ProjectID: projectID,
+		Client:    db,
+		ProjectID: cfg.ProjectID,
 		IsMock:    false,
-		Mock:      nil,
+		store:     store,
 	}, nil
 }
 
-func (dc *DatastoreClient) Close() error {
-	if dc.IsMock || dc.Client == nil {
-		return nil
+// NewMockDatastoreClient returns a DatastoreClient backed by the in-memory mock store.
+func NewMockDatastoreClient() *DatastoreClient {
+	mock := NewMockDatastore()
+	return &DatastoreClient{
+		Client:    nil,
+		ProjectID: "mock-project",
+		IsMock:    true,
+		Mock:      mock,
+		store:     mock,
 	}
-	return dc.Client.Close()
 }
 
-// Helper methods that work with both real and mock datastores
-func (dc *DatastoreClient) Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error) {
-	if dc.IsMock {
+func (dc *DatastoreClient) Put(ctx context.Context, key *Key, src interface{}) (*Key, error) {
+	if dc.IsMock && dc.Mock != nil {
 		return dc.Mock.Put(ctx, key, src)
 	}
-	return dc.Client.Put(ctx, key, src)
+	return dc.store.Put(ctx, key, src)
 }
 
-func (dc *DatastoreClient) PutMulti(ctx context.Context, keys []*datastore.Key, src interface{}) ([]*datastore.Key, error) {
-	if dc.IsMock {
-		// For mock, call Put for each item
-		resultKeys := make([]*datastore.Key, len(keys))
-		for i, key := range keys {
-			// Extract individual item from slice
-			// This is a simplified implementation for mock
-			resultKey, err := dc.Mock.Put(ctx, key, src)
-			if err != nil {
-				return nil, err
-			}
-			resultKeys[i] = resultKey
-		}
-		return resultKeys, nil
+func (dc *DatastoreClient) PutMulti(ctx context.Context, keys []*Key, src interface{}) ([]*Key, error) {
+	if dc.IsMock && dc.Mock != nil {
+		return dc.Mock.PutMulti(ctx, keys, src)
 	}
-	return dc.Client.PutMulti(ctx, keys, src)
+	return dc.store.PutMulti(ctx, keys, src)
 }
 
-func (dc *DatastoreClient) Get(ctx context.Context, key *datastore.Key, dst interface{}) error {
-	if dc.IsMock {
+func (dc *DatastoreClient) Get(ctx context.Context, key *Key, dst interface{}) error {
+	if dc.IsMock && dc.Mock != nil {
 		return dc.Mock.Get(ctx, key, dst)
 	}
-	return dc.Client.Get(ctx, key, dst)
+	return dc.store.Get(ctx, key, dst)
 }
 
-func (dc *DatastoreClient) GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error) {
-	if dc.IsMock {
-		return dc.Mock.GetAll(ctx, q, dst)
+func (dc *DatastoreClient) GetAll(ctx context.Context, query *Query, dst interface{}) ([]*Key, error) {
+	if dc.IsMock && dc.Mock != nil {
+		return dc.Mock.GetAll(ctx, query, dst)
 	}
-	return dc.Client.GetAll(ctx, q, dst)
+	return dc.store.GetAll(ctx, query, dst)
 }
 
-func (dc *DatastoreClient) NewQuery(kind string) *datastore.Query {
-	return datastore.NewQuery(kind)
+func (dc *DatastoreClient) Run(ctx context.Context, query *Query) Iterator {
+	if dc.IsMock && dc.Mock != nil {
+		return dc.Mock.Run(ctx, query)
+	}
+	return dc.store.Run(ctx, query)
 }
 
-func (dc *DatastoreClient) NameKey(kind, name string, parent *datastore.Key) *datastore.Key {
-	return datastore.NameKey(kind, name, parent)
-}
-
-func (dc *DatastoreClient) Delete(ctx context.Context, key *datastore.Key) error {
-	if dc.IsMock {
+func (dc *DatastoreClient) Delete(ctx context.Context, key *Key) error {
+	if dc.IsMock && dc.Mock != nil {
 		return dc.Mock.Delete(ctx, key)
 	}
-	return dc.Client.Delete(ctx, key)
+	return dc.store.Delete(ctx, key)
 }
 
-func (dc *DatastoreClient) DeleteMulti(ctx context.Context, keys []*datastore.Key) error {
-	if dc.IsMock {
+func (dc *DatastoreClient) DeleteMulti(ctx context.Context, keys []*Key) error {
+	if dc.IsMock && dc.Mock != nil {
 		return dc.Mock.DeleteMulti(ctx, keys)
 	}
-	return dc.Client.DeleteMulti(ctx, keys)
+	return dc.store.DeleteMulti(ctx, keys)
 }
 
-func (dc *DatastoreClient) Count(ctx context.Context, q *datastore.Query) (int, error) {
-	if dc.IsMock {
-		return dc.Mock.Count(ctx, q)
+func (dc *DatastoreClient) Count(ctx context.Context, query *Query) (int, error) {
+	if dc.IsMock && dc.Mock != nil {
+		return dc.Mock.Count(ctx, query)
 	}
-	return dc.Client.Count(ctx, q)
+	return dc.store.Count(ctx, query)
 }
 
-// Clear removes all data from the datastore (for testing)
+// NewQuery creates a new database query.
+func (dc *DatastoreClient) NewQuery(kind string) *Query {
+	return NewQuery(kind)
+}
+
+// NameKey creates a new key that uses a string name.
+func (dc *DatastoreClient) NameKey(kind, name string, parent *Key) *Key {
+	return NameKey(kind, name, parent)
+}
+
+// Close closes the underlying database connection.
+func (dc *DatastoreClient) Close() error {
+	if dc.Client != nil {
+		return dc.Client.Close()
+	}
+	return nil
+}
+
+// Clear removes all data from the mock datastore (for testing).
 func (dc *DatastoreClient) Clear() {
 	if dc.IsMock && dc.Mock != nil {
 		dc.Mock.Clear()
 	}
 }
 
-// PutEntity stores any entity data (for testing)
+// PutEntity stores a generic entity under the "Entity" kind (for testing).
 func (dc *DatastoreClient) PutEntity(id string, entity interface{}) {
 	if dc.IsMock && dc.Mock != nil {
 		key := dc.NameKey("Entity", id, nil)
@@ -159,16 +166,20 @@ func (dc *DatastoreClient) PutEntity(id string, entity interface{}) {
 	}
 }
 
-// PutLesson stores a lesson (for testing)
+// PutLesson stores a lesson (for testing).
 func (dc *DatastoreClient) PutLesson(id string, lesson *models.Lesson) {
 	if dc.IsMock && dc.Mock != nil {
 		dc.Mock.PutLesson(id, lesson)
 	}
 }
 
-// PutLessonProgress stores lesson progress (for testing)
+// PutLessonProgress stores lesson progress (for testing).
 func (dc *DatastoreClient) PutLessonProgress(id string, progress *models.LessonProgress) {
 	if dc.IsMock && dc.Mock != nil {
 		dc.Mock.PutLessonProgress(id, progress)
 	}
+}
+
+func init() {
+	stdlib.GetDefaultDriver()
 }

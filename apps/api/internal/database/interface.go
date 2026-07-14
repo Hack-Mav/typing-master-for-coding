@@ -1,24 +1,21 @@
 package database
 
-import (
-	"context"
+import "context"
 
-	"cloud.google.com/go/datastore"
-)
-
-// DatastoreInterface defines the interface for datastore operations
-// This allows other packages to use database operations without importing the concrete implementation
+// DatastoreInterface defines the interface for database operations.
 type DatastoreInterface interface {
-	Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error)
-	PutMulti(ctx context.Context, keys []*datastore.Key, src interface{}) ([]*datastore.Key, error)
-	Get(ctx context.Context, key *datastore.Key, dst interface{}) error
-	GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error)
-	NewQuery(kind string) *datastore.Query
-	NameKey(kind, name string, parent *datastore.Key) *datastore.Key
-	Delete(ctx context.Context, key *datastore.Key) error
-	DeleteMulti(ctx context.Context, keys []*datastore.Key) error
-	Count(ctx context.Context, q *datastore.Query) (int, error)
+	Put(ctx context.Context, key *Key, src interface{}) (*Key, error)
+	PutMulti(ctx context.Context, keys []*Key, src interface{}) ([]*Key, error)
+	Get(ctx context.Context, key *Key, dst interface{}) error
+	GetAll(ctx context.Context, q *Query, dst interface{}) ([]*Key, error)
+	Run(ctx context.Context, q *Query) Iterator
+	Delete(ctx context.Context, key *Key) error
+	DeleteMulti(ctx context.Context, keys []*Key) error
+	Count(ctx context.Context, q *Query) (int, error)
+	NewQuery(kind string) *Query
+	NameKey(kind, name string, parent *Key) *Key
+	Close() error
 }
 
-// Ensure DatastoreClient implements the interface
+// Ensure DatastoreClient implements DatastoreInterface.
 var _ DatastoreInterface = (*DatastoreClient)(nil)
