@@ -25,15 +25,15 @@ func main() {
 	// Initialize configuration
 	cfg := config.Load()
 
-	// Initialize Datastore
-	db, err := database.Initialize(cfg.ProjectID)
+	// Initialize database (Postgres or in-memory mock)
+	db, err := database.Initialize(cfg)
 	if err != nil {
-		log.Fatal("Failed to initialize datastore:", err)
+		log.Fatal("Failed to initialize database:", err)
 	}
 	defer db.Close()
 
-	// Initialize in-memory cache
-	cacheClient := cache.NewInMemoryCache(cfg.CacheMaxSize, cfg.CacheTTLMinutes)
+	// Initialize cache (Redis when configured, otherwise in-memory)
+	cacheClient := cache.NewCache(cfg)
 
 	// Initialize default languages
 	if err := database.InitializeDefaultLanguages(db); err != nil {
@@ -50,7 +50,7 @@ func main() {
 	}
 
 	// Initialize scoring services
-	handlers.InitializeScoringServices(db.Client)
+	handlers.InitializeScoringServices(db)
 	log.Println("Scoring services initialized successfully")
 
 	// Set Gin mode

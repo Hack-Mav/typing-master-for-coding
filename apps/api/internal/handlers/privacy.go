@@ -9,11 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/typing-master-for-coding-backend/internal/database"
 	"github.com/typing-master-for-coding-backend/internal/models"
-
-	"cloud.google.com/go/datastore"
-	"github.com/gin-gonic/gin"
 )
 
 // UpdatePrivacySettings updates user privacy settings
@@ -38,7 +36,7 @@ func UpdatePrivacySettings(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		ctx := context.Background()
-		key := datastore.NameKey("User", userID.(string), nil)
+		key := database.NameKey("User", userID.(string), nil)
 
 		var user models.User
 		err := db.Get(ctx, key, &user)
@@ -92,7 +90,7 @@ func ExportUserData(db *database.DatastoreClient) gin.HandlerFunc {
 		userData := make(map[string]interface{})
 
 		// Get user profile
-		userKey := datastore.NameKey("User", userID.(string), nil)
+		userKey := database.NameKey("User", userID.(string), nil)
 		var user models.User
 		err := db.Get(ctx, userKey, &user)
 		if err == nil {
@@ -101,7 +99,7 @@ func ExportUserData(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Get user sessions
-		sessionsQuery := datastore.NewQuery("Session").Filter("user_id =", userID.(string))
+		sessionsQuery := database.NewQuery("Session").Filter("user_id =", userID.(string))
 		var sessions []*models.Session
 		sessionKeys, err := db.GetAll(ctx, sessionsQuery, &sessions)
 		if err == nil {
@@ -117,7 +115,7 @@ func ExportUserData(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Get user results
-		resultsQuery := datastore.NewQuery("Result").Filter("user_id =", userID.(string))
+		resultsQuery := database.NewQuery("Result").Filter("user_id =", userID.(string))
 		var results []*models.Result
 		resultKeys, err := db.GetAll(ctx, resultsQuery, &results)
 		if err == nil {
@@ -133,7 +131,7 @@ func ExportUserData(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Get lesson progress
-		progressQuery := datastore.NewQuery("LessonProgress").Filter("user_id =", userID.(string))
+		progressQuery := database.NewQuery("LessonProgress").Filter("user_id =", userID.(string))
 		var progress []*models.LessonProgress
 		_, err = db.GetAll(ctx, progressQuery, &progress)
 		if err == nil {
@@ -186,7 +184,7 @@ func DeleteUserData(db *database.DatastoreClient) gin.HandlerFunc {
 		ctx := context.Background()
 
 		// Delete user sessions
-		sessionsQuery := datastore.NewQuery("Session").Filter("user_id =", userID.(string)).KeysOnly()
+		sessionsQuery := database.NewQuery("Session").Filter("user_id =", userID.(string)).KeysOnly()
 		sessionKeys, err := db.GetAll(ctx, sessionsQuery, nil)
 		if err == nil && len(sessionKeys) > 0 {
 			err = db.DeleteMulti(ctx, sessionKeys)
@@ -197,7 +195,7 @@ func DeleteUserData(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Delete session events
-		eventsQuery := datastore.NewQuery("SessionEvent").Filter("user_id =", userID.(string)).KeysOnly()
+		eventsQuery := database.NewQuery("SessionEvent").Filter("user_id =", userID.(string)).KeysOnly()
 		eventKeys, err := db.GetAll(ctx, eventsQuery, nil)
 		if err == nil && len(eventKeys) > 0 {
 			err = db.DeleteMulti(ctx, eventKeys)
@@ -208,7 +206,7 @@ func DeleteUserData(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Delete results
-		resultsQuery := datastore.NewQuery("Result").Filter("user_id =", userID.(string)).KeysOnly()
+		resultsQuery := database.NewQuery("Result").Filter("user_id =", userID.(string)).KeysOnly()
 		resultKeys, err := db.GetAll(ctx, resultsQuery, nil)
 		if err == nil && len(resultKeys) > 0 {
 			err = db.DeleteMulti(ctx, resultKeys)
@@ -219,7 +217,7 @@ func DeleteUserData(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Delete lesson progress
-		progressQuery := datastore.NewQuery("LessonProgress").Filter("user_id =", userID.(string)).KeysOnly()
+		progressQuery := database.NewQuery("LessonProgress").Filter("user_id =", userID.(string)).KeysOnly()
 		progressKeys, err := db.GetAll(ctx, progressQuery, nil)
 		if err == nil && len(progressKeys) > 0 {
 			err = db.DeleteMulti(ctx, progressKeys)
@@ -230,7 +228,7 @@ func DeleteUserData(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Delete user profile
-		userKey := datastore.NameKey("User", userID.(string), nil)
+		userKey := database.NameKey("User", userID.(string), nil)
 		err = db.Delete(ctx, userKey)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user profile"})
@@ -264,7 +262,7 @@ func GetConsentStatus(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		ctx := context.Background()
-		key := datastore.NameKey("User", userID.(string), nil)
+		key := database.NameKey("User", userID.(string), nil)
 
 		var user models.User
 		err := db.Get(ctx, key, &user)

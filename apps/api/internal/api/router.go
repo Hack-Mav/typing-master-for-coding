@@ -19,6 +19,10 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 	// Error handling middleware (applied first)
 	router.Use(errorHandler.HandlePanic())
 
+	// CORS must run early so the browser sees the correct headers even if a
+	// later middleware aborts the request.
+	router.Use(middleware.CORS(cfg.AllowedOrigins))
+
 	// Cross-platform compatibility middleware
 	router.Use(middleware.FeatureDetectionMiddleware())
 	router.Use(middleware.AccessibilityMiddleware())
@@ -30,11 +34,10 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 
 	// Security middleware
 	router.Use(middleware.SecurityMiddleware(db))
-	router.Use(middleware.RateLimitMiddleware(100))                // 100 requests per minute per IP
+	router.Use(middleware.RateLimitMiddleware(cacheClient, 100))   // 100 requests per minute per IP
 	router.Use(middleware.RequestSizeMiddleware(10 * 1024 * 1024)) // 10MB max request size
 
 	// Standard middleware
-	router.Use(middleware.CORS(cfg.AllowedOrigins))
 	router.Use(middleware.Logger())
 	router.Use(middleware.Recovery())
 	router.Use(middleware.SecurityAuditMiddleware(db))
@@ -105,10 +108,12 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/register", handlers.Register(db, cfg.JWTSecret))
-			auth.POST("/login", handlers.Login(db, cfg.JWTSecret))
-			auth.POST("/login/mfa", handlers.LoginWithMFA(db, cfg.JWTSecret))
-			auth.POST("/refresh", handlers.RefreshToken(cfg.JWTSecret))
+			auth.POST("/login", handlers.Login(db, cacheClient, cfg.JWTSecret))
+			auth.POST("/login/mfa", handlers.LoginWithMFA(db, cacheClient, cfg.JWTSecret))
+			auth.POST("/refresh", handlers.RefreshToken(db, cfg.JWTSecret))
+			auth.POST("/logout", handlers.Logout())
 			auth.POST("/anonymous", handlers.CreateAnonymousSession(cfg.JWTSecret))
+			auth.POST("/verify-email", handlers.VerifyEmail(db))
 
 			// MFA routes
 			auth.POST("/mfa/setup", handlers.SetupMFA(db))
@@ -303,11 +308,11 @@ func SetupRouter(db *database.DatastoreClient, cacheClient *cache.InMemoryCache,
 			integrations.GET("/github/repos", handlers.GetGitHubRepos(db))
 
 			// OAuth routes
-			integrations.GET("/oauth/:provider", handlers.GetOAuthURL(db))
-			integrations.POST("/oauth/:provider/flow", handlers.InitiateOAuthFlow(db))
-			integrations.GET("/oauth/:provider/callback", handlers.HandleOAuthCallback(db))
-			integrations.POST("/oauth/:provider/refresh", handlers.RefreshOAuthToken(db))
-			integrations.DELETE("/oauth/:provider", handlers.RevokeOAuthToken(db))
+			integrations.GET("/oauth/:provider", handlers.GetOAuthURL(db, cacheClient))
+			integrations.POST("/oauth/:provider/flow", handlers.InitiateOAuthFlow(db, cacheClient))
+			integrations.GET("/oauth/:provider/callback", handlers.HandleOAuthCallback(db, cacheClient))
+			integrations.POST("/oauth/:provider/refresh", handlers.RefreshOAuthToken(db, cacheClient))
+			integrations.DELETE("/oauth/:provider", handlers.RevokeOAuthToken(db, cacheClient))
 		}
 
 		// Workflow embedding routes

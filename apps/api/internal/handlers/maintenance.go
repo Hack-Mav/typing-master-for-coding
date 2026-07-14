@@ -5,18 +5,16 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/typing-master-for-coding-backend/internal/database"
 	"github.com/typing-master-for-coding-backend/internal/models"
-
-	"cloud.google.com/go/datastore"
-	"github.com/gin-gonic/gin"
 )
 
 func GetCurrentSystemVersion(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
 
-		query := datastore.NewQuery("SystemVersion").Order("-ReleasedAt").Limit(20)
+		query := database.NewQuery("SystemVersion").Order("-ReleasedAt").Limit(20)
 		var versions []models.SystemVersion
 		keys, err := db.GetAll(ctx, query, &versions)
 		if err != nil {
@@ -68,7 +66,7 @@ func CreateSystemVersion(db *database.DatastoreClient) gin.HandlerFunc {
 		ctx := context.Background()
 
 		if version.IsCurrent {
-			q := datastore.NewQuery("SystemVersion").FilterField("IsCurrent", "=", true)
+			q := database.NewQuery("SystemVersion").FilterField("IsCurrent", "=", true)
 			var existing []models.SystemVersion
 			existingKeys, err := db.GetAll(ctx, q, &existing)
 			if err == nil && len(existing) > 0 {
@@ -83,7 +81,7 @@ func CreateSystemVersion(db *database.DatastoreClient) gin.HandlerFunc {
 			}
 		}
 
-		key := datastore.IncompleteKey("SystemVersion", nil)
+		key := database.IncompleteKey("SystemVersion", nil)
 		storedKey, err := db.Put(ctx, key, &version)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create system version"})
@@ -101,7 +99,7 @@ func GetSystemVersions(db *database.DatastoreClient) gin.HandlerFunc {
 
 		channel := c.Query("channel")
 
-		query := datastore.NewQuery("SystemVersion").Order("-ReleasedAt")
+		query := database.NewQuery("SystemVersion").Order("-ReleasedAt")
 		if channel != "" {
 			query = query.FilterField("Channel", "=", channel)
 		}
@@ -126,14 +124,14 @@ func SetCurrentSystemVersion(db *database.DatastoreClient) gin.HandlerFunc {
 		id := c.Param("id")
 		ctx := context.Background()
 
-		key := datastore.NameKey("SystemVersion", id, nil)
+		key := database.NameKey("SystemVersion", id, nil)
 		var version models.SystemVersion
 		if err := db.Get(ctx, key, &version); err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "System version not found"})
 			return
 		}
 
-		q := datastore.NewQuery("SystemVersion").Filter("IsCurrent =", true)
+		q := database.NewQuery("SystemVersion").Filter("IsCurrent =", true)
 		var existing []models.SystemVersion
 		existingKeys, err := db.GetAll(ctx, q, &existing)
 		if err == nil && len(existing) > 0 {
@@ -183,7 +181,7 @@ func CreateComplianceStandard(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		ctx := context.Background()
-		key := datastore.IncompleteKey("ComplianceStandard", nil)
+		key := database.IncompleteKey("ComplianceStandard", nil)
 		storedKey, err := db.Put(ctx, key, &standard)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create compliance standard"})
@@ -202,7 +200,7 @@ func GetComplianceStandards(db *database.DatastoreClient) gin.HandlerFunc {
 		status := c.Query("status")
 		code := c.Query("code")
 
-		query := datastore.NewQuery("ComplianceStandard").Order("-EffectiveFrom")
+		query := database.NewQuery("ComplianceStandard").Order("-EffectiveFrom")
 		if status != "" {
 			query = query.FilterField("Status", "=", status)
 		}
@@ -230,7 +228,7 @@ func UpdateComplianceStandard(db *database.DatastoreClient) gin.HandlerFunc {
 		id := c.Param("id")
 		ctx := context.Background()
 
-		key := datastore.NameKey("ComplianceStandard", id, nil)
+		key := database.NameKey("ComplianceStandard", id, nil)
 		var existing models.ComplianceStandard
 		if err := db.Get(ctx, key, &existing); err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Compliance standard not found"})
@@ -272,7 +270,7 @@ func GetActiveComplianceStandards(db *database.DatastoreClient) gin.HandlerFunc 
 		ctx := context.Background()
 		now := time.Now().UTC()
 
-		query := datastore.NewQuery("ComplianceStandard").
+		query := database.NewQuery("ComplianceStandard").
 			FilterField("Status", "=", "active").
 			FilterField("EffectiveFrom", "<=", now)
 

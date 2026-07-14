@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
 	"github.com/typing-master-for-coding-backend/internal/middleware"
+	"github.com/typing-master-for-coding-backend/internal/models"
 	"github.com/typing-master-for-coding-backend/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -39,7 +41,7 @@ func TestCreateSession(t *testing.T) {
 	router.POST("/api/v1/sessions", middleware.AuthMiddleware(cfg.JWTSecret), CreateSession(mockDB, mockCache))
 
 	// Requirement 2: Multiple practice modes
-	t.Run("Create Session - Not Implemented", func(t *testing.T) {
+	t.Run("Create Session - Success", func(t *testing.T) {
 		mockDB.Clear()
 		user := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
 
@@ -56,8 +58,7 @@ func TestCreateSession(t *testing.T) {
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/sessions", reqBody, headers)
 
-		// Currently returns not implemented
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Equal(t, http.StatusCreated, w.Code)
 	})
 }
 
@@ -68,9 +69,11 @@ func TestUpdateSession(t *testing.T) {
 
 	router.PUT("/api/v1/sessions/:id", middleware.AuthMiddleware(cfg.JWTSecret), UpdateSession(mockDB, mockCache))
 
-	t.Run("Update Session - Not Implemented", func(t *testing.T) {
+	t.Run("Update Session - Success", func(t *testing.T) {
 		mockDB.Clear()
 		user := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
+		session := testutil.CreateTestSession(mockDB, "session1", user.ID, "drill", "javascript")
+		mockDB.Put(context.Background(), mockDB.NameKey("Session", "session1", nil), session)
 
 		token, _ := testutil.GenerateTestToken(user.ID, user.Handle, user.Email, false)
 		headers := map[string]string{
@@ -83,7 +86,28 @@ func TestUpdateSession(t *testing.T) {
 
 		w := testutil.MakeRequest(router, "PUT", "/api/v1/sessions/session1", reqBody, headers)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("Update Session - Unauthorized", func(t *testing.T) {
+		mockDB.Clear()
+		owner := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
+		other := testutil.CreateTestUser(mockDB, "user2", "otheruser", "other@example.com")
+		session := testutil.CreateTestSession(mockDB, "session1", owner.ID, "drill", "javascript")
+		mockDB.Put(context.Background(), mockDB.NameKey("Session", "session1", nil), session)
+
+		token, _ := testutil.GenerateTestToken(other.ID, other.Handle, other.Email, false)
+		headers := map[string]string{
+			"Authorization": "Bearer " + token,
+		}
+
+		reqBody := map[string]interface{}{
+			"duration_ms": 60000,
+		}
+
+		w := testutil.MakeRequest(router, "PUT", "/api/v1/sessions/session1", reqBody, headers)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
 }
 
@@ -95,30 +119,30 @@ func TestRecordEvents(t *testing.T) {
 	router.POST("/api/v1/sessions/:id/events", middleware.AuthMiddleware(cfg.JWTSecret), RecordEvents(mockDB, mockCache))
 
 	// Requirement 3: Keystroke tracking and metrics
-	t.Run("Record Events - Not Implemented", func(t *testing.T) {
+	t.Run("Record Events - Success", func(t *testing.T) {
 		mockDB.Clear()
 		user := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
+		session := testutil.CreateTestSession(mockDB, "session1", user.ID, "drill", "javascript")
+		mockDB.Put(context.Background(), mockDB.NameKey("Session", "session1", nil), session)
 
 		token, _ := testutil.GenerateTestToken(user.ID, user.Handle, user.Email, false)
 		headers := map[string]string{
 			"Authorization": "Bearer " + token,
 		}
 
-		reqBody := map[string]interface{}{
-			"events": []map[string]interface{}{
-				{
-					"timestamp_ms":    1000,
-					"key_pressed":     "f",
-					"action":          "down",
-					"cursor_position": 0,
-					"error_flag":      false,
-				},
+		reqBody := []map[string]interface{}{
+			{
+				"timestamp_ms":    1000,
+				"key_pressed":     "f",
+				"action":          "down",
+				"cursor_position": 0,
+				"error_flag":      false,
 			},
 		}
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/sessions/session1/events", reqBody, headers)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
 	})
 }
 
@@ -130,9 +154,11 @@ func TestFinalizeSession(t *testing.T) {
 	router.POST("/api/v1/sessions/:id/finalize", middleware.AuthMiddleware(cfg.JWTSecret), FinalizeSession(mockDB, mockCache))
 
 	// Requirement 3: Session completion and scoring
-	t.Run("Finalize Session - Not Implemented", func(t *testing.T) {
+	t.Run("Finalize Session - Success", func(t *testing.T) {
 		mockDB.Clear()
 		user := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
+		session := testutil.CreateTestSession(mockDB, "session1", user.ID, "drill", "javascript")
+		mockDB.Put(context.Background(), mockDB.NameKey("Session", "session1", nil), session)
 
 		token, _ := testutil.GenerateTestToken(user.ID, user.Handle, user.Email, false)
 		headers := map[string]string{
@@ -141,7 +167,24 @@ func TestFinalizeSession(t *testing.T) {
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/sessions/session1/finalize", nil, headers)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("Finalize Session - Unauthorized", func(t *testing.T) {
+		mockDB.Clear()
+		owner := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
+		other := testutil.CreateTestUser(mockDB, "user2", "otheruser", "other@example.com")
+		session := testutil.CreateTestSession(mockDB, "session1", owner.ID, "drill", "javascript")
+		mockDB.Put(context.Background(), mockDB.NameKey("Session", "session1", nil), session)
+
+		token, _ := testutil.GenerateTestToken(other.ID, other.Handle, other.Email, false)
+		headers := map[string]string{
+			"Authorization": "Bearer " + token,
+		}
+
+		w := testutil.MakeRequest(router, "POST", "/api/v1/sessions/session1/finalize", nil, headers)
+
+		assert.Equal(t, http.StatusForbidden, w.Code)
 	})
 }
 
@@ -153,9 +196,17 @@ func TestGetResults(t *testing.T) {
 	router.GET("/api/v1/results", middleware.AuthMiddleware(cfg.JWTSecret), GetResults(mockDB))
 
 	// Requirement 3: Results and metrics display
-	t.Run("Get Results - Not Implemented", func(t *testing.T) {
+	t.Run("Get Results - Success", func(t *testing.T) {
 		mockDB.Clear()
 		user := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
+		session := testutil.CreateTestSession(mockDB, "session1", user.ID, "drill", "javascript")
+		result := &models.Result{
+			CPM:            300,
+			TWPM:           60,
+			RawAccuracy:    0.95,
+			CompositeScore: 85,
+		}
+		mockDB.Put(context.Background(), mockDB.NameKey("Result", session.ID, nil), result)
 
 		token, _ := testutil.GenerateTestToken(user.ID, user.Handle, user.Email, false)
 		headers := map[string]string{
@@ -164,7 +215,12 @@ func TestGetResults(t *testing.T) {
 
 		w := testutil.MakeRequest(router, "GET", "/api/v1/results", nil, headers)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response []map[string]interface{}
+		testutil.ParseJSON(w.Body.Bytes(), &response)
+		assert.Equal(t, 1, len(response))
+		assert.Equal(t, "session1", response[0]["session_id"])
 	})
 }
 
@@ -175,9 +231,17 @@ func TestGetResult(t *testing.T) {
 
 	router.GET("/api/v1/results/:session_id", middleware.AuthMiddleware(cfg.JWTSecret), GetResult(mockDB))
 
-	t.Run("Get Result - Not Implemented", func(t *testing.T) {
+	t.Run("Get Result - Success", func(t *testing.T) {
 		mockDB.Clear()
 		user := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
+		session := testutil.CreateTestSession(mockDB, "session1", user.ID, "drill", "javascript")
+		result := &models.Result{
+			CPM:            300,
+			TWPM:           60,
+			RawAccuracy:    0.95,
+			CompositeScore: 85,
+		}
+		mockDB.Put(context.Background(), mockDB.NameKey("Result", session.ID, nil), result)
 
 		token, _ := testutil.GenerateTestToken(user.ID, user.Handle, user.Email, false)
 		headers := map[string]string{
@@ -186,7 +250,12 @@ func TestGetResult(t *testing.T) {
 
 		w := testutil.MakeRequest(router, "GET", "/api/v1/results/session1", nil, headers)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		var response map[string]interface{}
+		testutil.ParseJSON(w.Body.Bytes(), &response)
+		assert.Contains(t, response, "result")
+		assert.Contains(t, response, "session")
 	})
 }
 
@@ -198,7 +267,7 @@ func TestGetLeaderboards(t *testing.T) {
 	router.GET("/api/v1/leaderboards", middleware.AuthMiddleware(cfg.JWTSecret), GetLeaderboards(mockCache))
 
 	// Requirement 4: Leaderboards and rankings
-	t.Run("Get Leaderboards - Not Implemented", func(t *testing.T) {
+	t.Run("Get Leaderboards - Service Unavailable", func(t *testing.T) {
 		_, mockDB, _ := testutil.SetupTestRouter()
 		user := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
 
@@ -209,7 +278,7 @@ func TestGetLeaderboards(t *testing.T) {
 
 		w := testutil.MakeRequest(router, "GET", "/api/v1/leaderboards", nil, headers)
 
-		assert.Equal(t, http.StatusNotImplemented, w.Code)
+		assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	})
 }
 

@@ -2,15 +2,14 @@ package handlers
 
 import (
 	"fmt"
+	"github.com/typing-master-for-coding-backend/internal/cache"
+	"github.com/typing-master-for-coding-backend/internal/database"
+	"github.com/typing-master-for-coding-backend/internal/models"
+	"github.com/typing-master-for-coding-backend/internal/services"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-
-	"cloud.google.com/go/datastore"
-	"github.com/typing-master-for-coding-backend/internal/database"
-	"github.com/typing-master-for-coding-backend/internal/models"
-	"github.com/typing-master-for-coding-backend/internal/services"
 
 	"github.com/gin-gonic/gin"
 )
@@ -84,10 +83,10 @@ func CreateIntegration(db *database.DatastoreClient) gin.HandlerFunc {
 			UpdatedAt: time.Now(),
 		}
 
-		key := datastore.NameKey("Integration", userID+time.Now().String(), nil)
+		key := database.NameKey("Integration", userID+time.Now().String(), nil)
 
 		// Save integration
-		key, err := db.Client.Put(c.Request.Context(), key, integration)
+		key, err := db.Put(c.Request.Context(), key, integration)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create integration"})
 			return
@@ -124,7 +123,7 @@ func GetIntegrations(db *database.DatastoreClient) gin.HandlerFunc {
 			Order("-CreatedAt")
 
 		var integrations []*models.Integration
-		keys, err := db.Client.GetAll(c.Request.Context(), q, &integrations)
+		keys, err := db.GetAll(c.Request.Context(), q, &integrations)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to retrieve integrations"})
 			return
@@ -168,7 +167,7 @@ func DeleteIntegration(db *database.DatastoreClient) gin.HandlerFunc {
 		// Get integration
 		key := db.NameKey("Integration", integrationID, nil)
 		var integration models.Integration
-		if err := db.Client.Get(c.Request.Context(), key, &integration); err != nil {
+		if err := db.Get(c.Request.Context(), key, &integration); err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "integration not found"})
 			return
 		}
@@ -180,7 +179,7 @@ func DeleteIntegration(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Delete integration
-		if err := db.Client.Delete(c.Request.Context(), key); err != nil {
+		if err := db.Delete(c.Request.Context(), key); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete integration"})
 			return
 		}
@@ -404,7 +403,7 @@ func HandleEmbedWebhook() gin.HandlerFunc {
 }
 
 // InitiateOAuthFlow initiates OAuth authentication for a provider
-func InitiateOAuthFlow(db *database.DatastoreClient) gin.HandlerFunc {
+func InitiateOAuthFlow(db *database.DatastoreClient, cacheClient *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		provider := c.Param("provider")
 		if provider == "" {
@@ -426,7 +425,7 @@ func InitiateOAuthFlow(db *database.DatastoreClient) gin.HandlerFunc {
 		scopes := strings.Split(c.DefaultQuery("scopes", "user,repo"), ",")
 
 		// Create OAuth service
-		oauthService := services.NewOAuthService(db)
+		oauthService := services.NewOAuthService(db, cacheClient)
 
 		// Initiate OAuth flow
 		err := oauthService.InitiateOAuthFlow(c, provider, userID, redirectURI, scopes)
@@ -438,10 +437,10 @@ func InitiateOAuthFlow(db *database.DatastoreClient) gin.HandlerFunc {
 }
 
 // HandleOAuthCallback handles OAuth callback from providers
-func HandleOAuthCallback(db *database.DatastoreClient) gin.HandlerFunc {
+func HandleOAuthCallback(db *database.DatastoreClient, cacheClient *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Create OAuth service
-		oauthService := services.NewOAuthService(db)
+		oauthService := services.NewOAuthService(db, cacheClient)
 
 		// Handle OAuth callback
 		err := oauthService.HandleOAuthCallback(c)
@@ -458,7 +457,7 @@ func HandleOAuthCallback(db *database.DatastoreClient) gin.HandlerFunc {
 }
 
 // RefreshOAuthToken refreshes an OAuth token
-func RefreshOAuthToken(db *database.DatastoreClient) gin.HandlerFunc {
+func RefreshOAuthToken(db *database.DatastoreClient, cacheClient *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		provider := c.Param("provider")
 		if provider == "" {
@@ -473,7 +472,7 @@ func RefreshOAuthToken(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Create OAuth service
-		oauthService := services.NewOAuthService(db)
+		oauthService := services.NewOAuthService(db, cacheClient)
 
 		// Refresh token
 		token, err := oauthService.RefreshToken(c.Request.Context(), provider, userID)
@@ -487,7 +486,7 @@ func RefreshOAuthToken(db *database.DatastoreClient) gin.HandlerFunc {
 }
 
 // RevokeOAuthToken revokes an OAuth token
-func RevokeOAuthToken(db *database.DatastoreClient) gin.HandlerFunc {
+func RevokeOAuthToken(db *database.DatastoreClient, cacheClient *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		provider := c.Param("provider")
 		if provider == "" {
@@ -502,7 +501,7 @@ func RevokeOAuthToken(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Create OAuth service
-		oauthService := services.NewOAuthService(db)
+		oauthService := services.NewOAuthService(db, cacheClient)
 
 		// Revoke token
 		err := oauthService.RevokeToken(c.Request.Context(), provider, userID)
@@ -516,7 +515,7 @@ func RevokeOAuthToken(db *database.DatastoreClient) gin.HandlerFunc {
 }
 
 // GetOAuthURL returns OAuth authorization URL
-func GetOAuthURL(db *database.DatastoreClient) gin.HandlerFunc {
+func GetOAuthURL(db *database.DatastoreClient, cacheClient *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		provider := c.Param("provider")
 		if provider == "" {
@@ -538,10 +537,10 @@ func GetOAuthURL(db *database.DatastoreClient) gin.HandlerFunc {
 		scopes := strings.Split(c.DefaultQuery("scopes", "user,repo"), ",")
 
 		// Create OAuth service
-		oauthService := services.NewOAuthService(db)
+		oauthService := services.NewOAuthService(db, cacheClient)
 
 		// Get OAuth URL
-		authURL, err := oauthService.GetOAuthURL(provider, userID, redirectURI, scopes)
+		authURL, err := oauthService.GetOAuthURL(c, provider, userID, redirectURI, scopes)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

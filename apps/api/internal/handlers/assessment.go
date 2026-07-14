@@ -8,12 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/typing-master-for-coding-backend/internal/cache"
 	"github.com/typing-master-for-coding-backend/internal/database"
 	"github.com/typing-master-for-coding-backend/internal/models"
-
-	"cloud.google.com/go/datastore"
-	"github.com/gin-gonic/gin"
 )
 
 // Assessment Blueprint handlers
@@ -29,7 +27,7 @@ func GetAssessmentBlueprints(db *database.DatastoreClient, cache *cache.InMemory
 			return
 		}
 
-		query := datastore.NewQuery("AssessmentBlueprint")
+		query := database.NewQuery("AssessmentBlueprint")
 		if language != "" {
 			query = query.Filter("language =", language)
 		}
@@ -68,12 +66,12 @@ func GetAssessmentBlueprint(db *database.DatastoreClient, cache *cache.InMemoryC
 			return
 		}
 
-		key := datastore.NameKey("AssessmentBlueprint", blueprintID, nil)
+		key := database.NameKey("AssessmentBlueprint", blueprintID, nil)
 		var blueprint models.AssessmentBlueprint
 
 		err := db.Get(ctx, key, &blueprint)
 		if err != nil {
-			if err == datastore.ErrNoSuchEntity {
+			if err == database.ErrNoSuchEntity {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Assessment blueprint not found"})
 				return
 			}
@@ -114,7 +112,7 @@ func CreateAssessmentBlueprint(db *database.DatastoreClient, cache *cache.InMemo
 		blueprint.CreatedAt = time.Now()
 		blueprint.Version = 1
 
-		key := datastore.NameKey("AssessmentBlueprint", blueprint.ID, nil)
+		key := database.NameKey("AssessmentBlueprint", blueprint.ID, nil)
 		_, err := db.Put(ctx, key, &blueprint)
 		if err != nil {
 			log.Printf("Error creating assessment blueprint: %v", err)
@@ -146,11 +144,11 @@ func CreateAssessmentSession(db *database.DatastoreClient, cache *cache.InMemory
 		}
 
 		// Verify blueprint exists
-		blueprintKey := datastore.NameKey("AssessmentBlueprint", request.BlueprintID, nil)
+		blueprintKey := database.NameKey("AssessmentBlueprint", request.BlueprintID, nil)
 		var blueprint models.AssessmentBlueprint
 		err := db.Get(ctx, blueprintKey, &blueprint)
 		if err != nil {
-			if err == datastore.ErrNoSuchEntity {
+			if err == database.ErrNoSuchEntity {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Assessment blueprint not found"})
 				return
 			}
@@ -176,7 +174,7 @@ func CreateAssessmentSession(db *database.DatastoreClient, cache *cache.InMemory
 			},
 		}
 
-		key := datastore.NameKey("AssessmentSession", session.ID, nil)
+		key := database.NameKey("AssessmentSession", session.ID, nil)
 		_, err = db.Put(ctx, key, &session)
 		if err != nil {
 			log.Printf("Error creating assessment session: %v", err)
@@ -193,12 +191,12 @@ func GetAssessmentSession(db *database.DatastoreClient, cache *cache.InMemoryCac
 		ctx := context.Background()
 		sessionID := c.Param("id")
 
-		key := datastore.NameKey("AssessmentSession", sessionID, nil)
+		key := database.NameKey("AssessmentSession", sessionID, nil)
 		var session models.AssessmentSession
 
 		err := db.Get(ctx, key, &session)
 		if err != nil {
-			if err == datastore.ErrNoSuchEntity {
+			if err == database.ErrNoSuchEntity {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Assessment session not found"})
 				return
 			}
@@ -224,11 +222,11 @@ func RecordSnippetResult(db *database.DatastoreClient, cache *cache.InMemoryCach
 		}
 
 		// Get current session
-		sessionKey := datastore.NameKey("AssessmentSession", sessionID, nil)
+		sessionKey := database.NameKey("AssessmentSession", sessionID, nil)
 		var session models.AssessmentSession
 		err := db.Get(ctx, sessionKey, &session)
 		if err != nil {
-			if err == datastore.ErrNoSuchEntity {
+			if err == database.ErrNoSuchEntity {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Assessment session not found"})
 				return
 			}
@@ -269,11 +267,11 @@ func FinalizeAssessment(db *database.DatastoreClient, cache *cache.InMemoryCache
 		}
 
 		// Get session
-		sessionKey := datastore.NameKey("AssessmentSession", sessionID, nil)
+		sessionKey := database.NameKey("AssessmentSession", sessionID, nil)
 		var session models.AssessmentSession
 		err := db.Get(ctx, sessionKey, &session)
 		if err != nil {
-			if err == datastore.ErrNoSuchEntity {
+			if err == database.ErrNoSuchEntity {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Assessment session not found"})
 				return
 			}
@@ -283,7 +281,7 @@ func FinalizeAssessment(db *database.DatastoreClient, cache *cache.InMemoryCache
 		}
 
 		// Get blueprint for scoring criteria
-		blueprintKey := datastore.NameKey("AssessmentBlueprint", session.BlueprintID, nil)
+		blueprintKey := database.NameKey("AssessmentBlueprint", session.BlueprintID, nil)
 		var blueprint models.AssessmentBlueprint
 		err = db.Get(ctx, blueprintKey, &blueprint)
 		if err != nil {
@@ -309,7 +307,7 @@ func FinalizeAssessment(db *database.DatastoreClient, cache *cache.InMemoryCache
 		}
 
 		// Store result separately for analytics
-		resultKey := datastore.NameKey("AssessmentResult", sessionID, nil)
+		resultKey := database.NameKey("AssessmentResult", sessionID, nil)
 		_, err = db.Put(ctx, resultKey, &result)
 		if err != nil {
 			log.Printf("Error storing assessment result: %v", err)
@@ -333,11 +331,11 @@ func GetAssessmentSnippet(db *database.DatastoreClient, cache *cache.InMemoryCac
 		}
 
 		// Get snippet
-		snippetKey := datastore.NameKey("Snippet", snippetID, nil)
+		snippetKey := database.NameKey("Snippet", snippetID, nil)
 		var snippet models.Snippet
 		err := db.Get(ctx, snippetKey, &snippet)
 		if err != nil {
-			if err == datastore.ErrNoSuchEntity {
+			if err == database.ErrNoSuchEntity {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Assessment snippet not found"})
 				return
 			}
@@ -431,7 +429,7 @@ func GetUserBadges(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 			return
 		}
 
-		query := datastore.NewQuery("UserBadge").Filter("user_id =", userID)
+		query := database.NewQuery("UserBadge").Filter("user_id =", userID)
 		var userBadges []models.UserBadge
 		keys, err := db.GetAll(ctx, query, &userBadges)
 		if err != nil {
@@ -443,7 +441,7 @@ func GetUserBadges(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 		// Get badge details
 		badges := make([]models.AssessmentBadge, 0, len(userBadges))
 		for i, userBadge := range userBadges {
-			badgeKey := datastore.NameKey("Badge", userBadge.BadgeID, nil)
+			badgeKey := database.NameKey("Badge", userBadge.BadgeID, nil)
 			var badge models.AssessmentBadge
 			err := db.Get(ctx, badgeKey, &badge)
 			if err != nil {
@@ -484,7 +482,7 @@ func ScheduleAssessment(db *database.DatastoreClient, cache *cache.InMemoryCache
 		schedule.ReminderSent = false
 
 		scheduleID := fmt.Sprintf("%s-%s-%d", schedule.UserID, schedule.AssessmentID, time.Now().Unix())
-		key := datastore.NameKey("AssessmentSchedule", scheduleID, nil)
+		key := database.NameKey("AssessmentSchedule", scheduleID, nil)
 
 		_, err := db.Put(ctx, key, &schedule)
 		if err != nil {

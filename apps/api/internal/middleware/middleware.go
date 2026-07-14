@@ -11,12 +11,22 @@ import (
 )
 
 func CORS(allowedOrigins []string) gin.HandlerFunc {
+	// Normalize the configured origins so whitespace around commas doesn't break
+	// exact matching.
+	normalized := make([]string, 0, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			normalized = append(normalized, o)
+		}
+	}
+
 	return gin.HandlerFunc(func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
 		// Check if origin is allowed
 		allowed := false
-		for _, allowedOrigin := range allowedOrigins {
+		for _, allowedOrigin := range normalized {
 			if origin == allowedOrigin {
 				allowed = true
 				break
@@ -25,6 +35,7 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 
 		if allowed {
 			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Vary", "Origin")
 		}
 
 		c.Header("Access-Control-Allow-Credentials", "true")
@@ -62,18 +73,26 @@ func Recovery() gin.HandlerFunc {
 
 func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
-			c.Abort()
-			return
-		}
+		var tokenString string
 
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == authHeader {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Bearer token required"})
-			c.Abort()
-			return
+		// First try to get token from HttpOnly cookie
+		if cookie, err := c.Cookie("access_token"); err == nil {
+			tokenString = cookie
+		} else {
+			// Fall back to Authorization header
+			authHeader := c.GetHeader("Authorization")
+			if authHeader == "" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization required"})
+				c.Abort()
+				return
+			}
+
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+			if tokenString == authHeader {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Bearer token required"})
+				c.Abort()
+				return
+			}
 		}
 
 		// Use JWT v5 parsing method compatible with auth package

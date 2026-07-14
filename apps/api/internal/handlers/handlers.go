@@ -9,14 +9,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/typing-master-for-coding-backend/internal/cache"
 	"github.com/typing-master-for-coding-backend/internal/database"
 	"github.com/typing-master-for-coding-backend/internal/models"
 	"github.com/typing-master-for-coding-backend/internal/scoring"
 	"github.com/typing-master-for-coding-backend/internal/utils"
-
-	"cloud.google.com/go/datastore"
-	"github.com/gin-gonic/gin"
 )
 
 func HealthCheck(c *gin.Context) {
@@ -33,8 +31,8 @@ func HealthCheck(c *gin.Context) {
 
 func GetLanguages(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
-		query := datastore.NewQuery("Language")
+		ctx := c.Request.Context()
+		query := database.NewQuery("Language")
 
 		var languages []*models.Language
 		keys, err := db.GetAll(ctx, query, &languages)
@@ -54,9 +52,9 @@ func GetLanguages(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.
 func GetLanguage(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Language", id, nil)
+		key := database.NameKey("Language", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		var language models.Language
 		err := db.Get(ctx, key, &language)
 		if err != nil {
@@ -92,9 +90,9 @@ func CreateLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		language.CreatedAt = utils.GetCurrentUTCTime()
-		key := datastore.NameKey("Language", language.ID, nil)
+		key := database.NameKey("Language", language.ID, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		_, err := db.Put(ctx, key, &language)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create language"})
@@ -107,8 +105,8 @@ func CreateLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 
 func GetLessons(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
-		query := datastore.NewQuery("Lesson")
+		ctx := c.Request.Context()
+		query := database.NewQuery("Lesson")
 
 		var lessons []*models.Lesson
 		keys, err := db.GetAll(ctx, query, &lessons)
@@ -128,9 +126,9 @@ func GetLessons(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.Ha
 func GetLesson(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Lesson", id, nil)
+		key := database.NameKey("Lesson", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		var lesson models.Lesson
 		err := db.Get(ctx, key, &lesson)
 		if err != nil {
@@ -145,8 +143,8 @@ func GetLesson(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.Han
 
 func GetSnippets(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
-		query := datastore.NewQuery("Snippet")
+		ctx := c.Request.Context()
+		query := database.NewQuery("Snippet")
 
 		var snippets []*models.Snippet
 		keys, err := db.GetAll(ctx, query, &snippets)
@@ -166,9 +164,9 @@ func GetSnippets(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.H
 func GetSnippet(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Snippet", id, nil)
+		key := database.NameKey("Snippet", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		var snippet models.Snippet
 		err := db.Get(ctx, key, &snippet)
 		if err != nil {
@@ -183,9 +181,9 @@ func GetSnippet(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.Ha
 
 func GetPublicLessons(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		// For now, return all lessons - in production, filter by public flag
-		query := datastore.NewQuery("Lesson")
+		query := database.NewQuery("Lesson")
 
 		var lessons []*models.Lesson
 		keys, err := db.GetAll(ctx, query, &lessons)
@@ -204,9 +202,9 @@ func GetPublicLessons(db *database.DatastoreClient, cache *cache.InMemoryCache) 
 
 func GetPublicSnippets(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		// For now, return all snippets - in production, filter by public flag
-		query := datastore.NewQuery("Snippet")
+		query := database.NewQuery("Snippet")
 
 		var snippets []*models.Snippet
 		keys, err := db.GetAll(ctx, query, &snippets)
@@ -226,9 +224,9 @@ func GetPublicSnippets(db *database.DatastoreClient, cache *cache.InMemoryCache)
 func UpdateLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Language", id, nil)
+		key := database.NameKey("Language", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		var existing models.Language
 		err := db.Get(ctx, key, &existing)
 		if err != nil {
@@ -261,9 +259,9 @@ func UpdateLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 func DeleteLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Language", id, nil)
+		key := database.NameKey("Language", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		err := db.Delete(ctx, key)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete language"})
@@ -284,9 +282,9 @@ func CreateLesson(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		lesson.CreatedAt = utils.GetCurrentUTCTime()
-		key := datastore.NameKey("Lesson", fmt.Sprintf("%s_%d", lesson.LanguageID, utils.GetCurrentTimestamp()), nil)
+		key := database.NameKey("Lesson", fmt.Sprintf("%s_%d", lesson.LanguageID, utils.GetCurrentTimestamp()), nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		_, err := db.Put(ctx, key, &lesson)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create lesson"})
@@ -301,9 +299,9 @@ func CreateLesson(db *database.DatastoreClient) gin.HandlerFunc {
 func UpdateLesson(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Lesson", id, nil)
+		key := database.NameKey("Lesson", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		var existing models.Lesson
 		err := db.Get(ctx, key, &existing)
 		if err != nil {
@@ -340,9 +338,9 @@ func UpdateLesson(db *database.DatastoreClient) gin.HandlerFunc {
 func DeleteLesson(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Lesson", id, nil)
+		key := database.NameKey("Lesson", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		err := db.Delete(ctx, key)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete lesson"})
@@ -366,9 +364,9 @@ func CreateSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 		snippet.Checksum = utils.GenerateChecksum(snippet.SourceCode)
 		snippet.CreatedAt = utils.GetCurrentUTCTime()
 
-		key := datastore.NameKey("Snippet", fmt.Sprintf("%s_%d", snippet.LanguageID, utils.GetCurrentTimestamp()), nil)
+		key := database.NameKey("Snippet", fmt.Sprintf("%s_%d", snippet.LanguageID, utils.GetCurrentTimestamp()), nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		_, err := db.Put(ctx, key, &snippet)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create snippet"})
@@ -383,9 +381,9 @@ func CreateSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 func UpdateSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Snippet", id, nil)
+		key := database.NameKey("Snippet", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		var existing models.Snippet
 		err := db.Get(ctx, key, &existing)
 		if err != nil {
@@ -401,13 +399,14 @@ func UpdateSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 
 		// Update fields and regenerate checksum if source code changed
 		existing.Title = updates.Title
+		originalSourceCode := existing.SourceCode
 		existing.SourceCode = updates.SourceCode
 		existing.Tags = updates.Tags
 		existing.Difficulty = updates.Difficulty
 		existing.EstimatedTime = updates.EstimatedTime
 		existing.AccessibilityTags = updates.AccessibilityTags
 
-		if existing.SourceCode != updates.SourceCode {
+		if originalSourceCode != updates.SourceCode {
 			existing.Checksum = utils.GenerateChecksum(updates.SourceCode)
 		}
 
@@ -424,9 +423,9 @@ func UpdateSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 func DeleteSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Snippet", id, nil)
+		key := database.NameKey("Snippet", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		err := db.Delete(ctx, key)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete snippet"})
@@ -439,7 +438,7 @@ func DeleteSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 
 func CreateAnonymousTypingSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
+		ctx := c.Request.Context()
 
 		var req struct {
 			Mode       string                 `json:"mode" binding:"required"`
@@ -474,7 +473,7 @@ func CreateAnonymousTypingSession(db *database.DatastoreClient, cache *cache.InM
 		}
 
 		sessionID := fmt.Sprintf("session_%s_%d", userID, time.Now().UnixNano())
-		key := datastore.NameKey("Session", sessionID, nil)
+		key := database.NameKey("Session", sessionID, nil)
 
 		_, err := db.Put(ctx, key, &session)
 		if err != nil {
@@ -490,7 +489,7 @@ func CreateAnonymousTypingSession(db *database.DatastoreClient, cache *cache.InM
 
 func CreateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		userID := c.GetString("user_id")
 
 		var req struct {
@@ -519,7 +518,7 @@ func CreateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 		}
 
 		sessionID := fmt.Sprintf("session_%s_%d", userID, time.Now().UnixNano())
-		key := datastore.NameKey("Session", sessionID, nil)
+		key := database.NameKey("Session", sessionID, nil)
 
 		_, err := db.Put(ctx, key, &session)
 		if err != nil {
@@ -535,8 +534,9 @@ func CreateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 
 func UpdateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		sessionID := c.Param("id")
+		userID := c.GetString("user_id")
 
 		var updates struct {
 			DurationMs int64                  `json:"duration_ms"`
@@ -549,11 +549,17 @@ func UpdateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 		}
 
 		// Get existing session
-		key := datastore.NameKey("Session", sessionID, nil)
+		key := database.NameKey("Session", sessionID, nil)
 		var session models.Session
 		err := db.Get(ctx, key, &session)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+			return
+		}
+
+		// Verify session ownership
+		if session.UserID != userID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to update this session"})
 			return
 		}
 
@@ -580,7 +586,7 @@ func UpdateSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin
 
 func RecordEvents(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		sessionID := c.Param("id")
 
 		var events []models.SessionEvent
@@ -592,19 +598,25 @@ func RecordEvents(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.
 		// Verify session exists (check cache first)
 		var session models.Session
 		if cachedSession, found := cache.Get(sessionID); found {
-			session = cachedSession.(models.Session)
-		} else {
-			sessionKey := datastore.NameKey("Session", sessionID, nil)
-			err := db.Get(ctx, sessionKey, &session)
-			if err != nil {
+			if typedSession, ok := cachedSession.(models.Session); ok {
+				session = typedSession
+			} else {
+				// Cache contains unexpected type; invalidate and fall back to DB
+				cache.Delete(sessionID)
+				found = false
+			}
+		}
+		if session.ID == "" {
+			sessionKey := database.NameKey("Session", sessionID, nil)
+			if err := db.Get(ctx, sessionKey, &session); err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
 				return
 			}
-			cache.Set(sessionID, session) // Cache the session for future requests
+			cache.Set(sessionID, session) // Cache the session with the configured TTL
 		}
 
 		// Store events in batch
-		keys := make([]*datastore.Key, len(events))
+		keys := make([]*database.Key, len(events))
 		entities := make([]interface{}, len(events))
 
 		baseTimestamp := time.Now().UnixNano()
@@ -612,7 +624,7 @@ func RecordEvents(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.
 			event.SessionID = sessionID
 			event.CreatedAt = time.Now()
 			eventID := fmt.Sprintf("%s_event_%d", sessionID, baseTimestamp+int64(i))
-			keys[i] = datastore.NameKey("SessionEvent", eventID, nil)
+			keys[i] = database.NameKey("SessionEvent", eventID, nil)
 			entities[i] = &event
 		}
 
@@ -630,15 +642,22 @@ func RecordEvents(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.
 
 func FinalizeSession(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		sessionID := c.Param("id")
+		userID := c.GetString("user_id")
 
 		// Get session
-		sessionKey := datastore.NameKey("Session", sessionID, nil)
+		sessionKey := database.NameKey("Session", sessionID, nil)
 		var session models.Session
 		err := db.Get(ctx, sessionKey, &session)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Session not found"})
+			return
+		}
+
+		// Verify session ownership
+		if session.UserID != userID {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You do not have permission to finalize this session"})
 			return
 		}
 
@@ -659,23 +678,28 @@ func FinalizeSession(db *database.DatastoreClient, cache *cache.InMemoryCache) g
 
 		// Process scoring if service is initialized
 		if scoringService != nil {
-			go func() {
-				// Process asynchronously to avoid blocking response
-				metrics, err := scoringService.ProcessSession(context.Background(), sessionID)
-				if err != nil {
-					log.Printf("Failed to process session metrics: %v", err)
-					return
-				}
+			// Use a background context with a timeout so scoring is not tied to the
+			// request lifecycle and cannot run forever, while still surfacing errors.
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
 
-				// Update leaderboards
-				err = scoringService.UpdateLeaderboard(context.Background(), sessionID)
-				if err != nil {
-					log.Printf("Failed to update leaderboards: %v", err)
-				}
+			metrics, err := scoringService.ProcessSession(ctx, sessionID)
+			if err != nil {
+				log.Printf("Failed to process session metrics for %s: %v", sessionID, err)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error":   "Session finalized but scoring failed: " + err.Error(),
+					"session": session,
+				})
+				return
+			}
 
-				log.Printf("Session %s processed: Score=%d, CPM=%.2f, TWPM=%.2f",
-					sessionID, metrics.CompositeScore, metrics.CPM, metrics.TWPM)
-			}()
+			// Update leaderboards
+			if err := scoringService.UpdateLeaderboard(ctx, sessionID); err != nil {
+				log.Printf("Failed to update leaderboards for %s: %v", sessionID, err)
+			}
+
+			log.Printf("Session %s processed: Score=%d, CPM=%.2f, TWPM=%.2f",
+				sessionID, metrics.CompositeScore, metrics.CPM, metrics.TWPM)
 		}
 
 		session.ID = sessionID
@@ -688,7 +712,7 @@ func FinalizeSession(db *database.DatastoreClient, cache *cache.InMemoryCache) g
 
 func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		userID := c.GetString("user_id")
 
 		// Query parameters
@@ -703,7 +727,7 @@ func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 		mode := c.Query("mode")
 
 		// Get user's sessions first to filter results
-		sessionQuery := datastore.NewQuery("Session").FilterField("UserID", "=", userID)
+		sessionQuery := database.NewQuery("Session").FilterField("UserID", "=", userID)
 		if languageID != "" {
 			sessionQuery = sessionQuery.FilterField("LanguageID", "=", languageID)
 		}
@@ -724,7 +748,7 @@ func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 		results := make([]models.Result, 0)
 		for i := range sessions {
 			sessionID := sessionKeys[i].Name
-			resultKey := datastore.NameKey("Result", sessionID, nil)
+			resultKey := database.NameKey("Result", sessionID, nil)
 			var result models.Result
 			err := db.Get(ctx, resultKey, &result)
 			if err == nil {
@@ -739,15 +763,15 @@ func GetResults(db *database.DatastoreClient) gin.HandlerFunc {
 
 func GetResult(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		sessionID := c.Param("session_id")
 
 		// Get result
-		key := datastore.NameKey("Result", sessionID, nil)
+		key := database.NameKey("Result", sessionID, nil)
 		var result models.Result
 		err := db.Get(ctx, key, &result)
 		if err != nil {
-			if err == datastore.ErrNoSuchEntity {
+			if err == database.ErrNoSuchEntity {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Result not found"})
 				return
 			}
@@ -759,7 +783,7 @@ func GetResult(db *database.DatastoreClient) gin.HandlerFunc {
 		result.SessionID = sessionID
 
 		// Also get session details
-		sessionKey := datastore.NameKey("Session", sessionID, nil)
+		sessionKey := database.NameKey("Session", sessionID, nil)
 		var session models.Session
 		err = db.Get(ctx, sessionKey, &session)
 		if err == nil {
@@ -817,7 +841,7 @@ func GetLeaderboards(cache *cache.InMemoryCache) gin.HandlerFunc {
 			Limit:      limit,
 		}
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		response, err := leaderboardService.GetLeaderboard(ctx, req)
 		if err != nil {
 			log.Printf("Failed to get leaderboard: %v", err)
@@ -839,9 +863,9 @@ func CreatePlaylist(db *database.DatastoreClient) gin.HandlerFunc {
 
 		playlist.CreatedAt = time.Now()
 		playlist.UpdatedAt = time.Now()
-		key := datastore.NameKey("Playlist", fmt.Sprintf("%s_%d", playlist.UserID, time.Now().Unix()), nil)
+		key := database.NameKey("Playlist", fmt.Sprintf("%s_%d", playlist.UserID, time.Now().Unix()), nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		_, err := db.Put(ctx, key, &playlist)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create playlist"})
@@ -855,8 +879,8 @@ func CreatePlaylist(db *database.DatastoreClient) gin.HandlerFunc {
 
 func GetPlaylists(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx := context.Background()
-		query := datastore.NewQuery("Playlist")
+		ctx := c.Request.Context()
+		query := database.NewQuery("Playlist")
 
 		var playlists []*models.Playlist
 		keys, err := db.GetAll(ctx, query, &playlists)
@@ -876,9 +900,9 @@ func GetPlaylists(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.
 func GetPlaylist(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Playlist", id, nil)
+		key := database.NameKey("Playlist", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		var playlist models.Playlist
 		err := db.Get(ctx, key, &playlist)
 		if err != nil {
@@ -894,9 +918,9 @@ func GetPlaylist(db *database.DatastoreClient, cache *cache.InMemoryCache) gin.H
 func UpdatePlaylist(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Playlist", id, nil)
+		key := database.NameKey("Playlist", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		var existing models.Playlist
 		err := db.Get(ctx, key, &existing)
 		if err != nil {
@@ -934,9 +958,9 @@ func UpdatePlaylist(db *database.DatastoreClient) gin.HandlerFunc {
 func DeletePlaylist(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Playlist", id, nil)
+		key := database.NameKey("Playlist", id, nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		err := db.Delete(ctx, key)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete playlist"})
@@ -963,9 +987,9 @@ func CreateContentVersion(db *database.DatastoreClient) gin.HandlerFunc {
 		version.Checksum = utils.GenerateChecksum(string(contentJSON))
 		version.CreatedAt = time.Now()
 
-		key := datastore.NameKey("ContentVersion", fmt.Sprintf("%s_%s_%d", version.ContentType, version.ContentID, version.Version), nil)
+		key := database.NameKey("ContentVersion", fmt.Sprintf("%s_%s_%d", version.ContentType, version.ContentID, version.Version), nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		_, err := db.Put(ctx, key, &version)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create content version"})
@@ -983,8 +1007,8 @@ func GetContentVersions(db *database.DatastoreClient) gin.HandlerFunc {
 		contentType := c.Param("contentType")
 		contentID := c.Param("contentId")
 
-		ctx := context.Background()
-		query := datastore.NewQuery("ContentVersion").
+		ctx := c.Request.Context()
+		query := database.NewQuery("ContentVersion").
 			FilterField("ContentType", "=", contentType).
 			FilterField("ContentID", "=", contentID).
 			Order("-Version")
@@ -1019,9 +1043,9 @@ func ValidateContentChecksum(db *database.DatastoreClient) gin.HandlerFunc {
 		validation.ValidationStatus = "valid"
 		validation.ValidationErrors = []string{}
 
-		key := datastore.NameKey("ContentValidation", fmt.Sprintf("%s_%s_%d", validation.ContentType, validation.ContentID, time.Now().Unix()), nil)
+		key := database.NameKey("ContentValidation", fmt.Sprintf("%s_%s_%d", validation.ContentType, validation.ContentID, time.Now().Unix()), nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		_, err := db.Put(ctx, key, &validation)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save validation result"})
@@ -1076,9 +1100,9 @@ func ImportSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 			CreatedAt:         time.Now(),
 		}
 
-		key := datastore.NameKey("Snippet", fmt.Sprintf("%s_%d", snippet.LanguageID, time.Now().Unix()), nil)
+		key := database.NameKey("Snippet", fmt.Sprintf("%s_%d", snippet.LanguageID, time.Now().Unix()), nil)
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 		_, err := db.Put(ctx, key, &snippet)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to import snippet"})
@@ -1101,8 +1125,8 @@ func GetLessonProgress(db *database.DatastoreClient) gin.HandlerFunc {
 		userID := c.GetString("user_id")
 		lessonID := c.Param("id")
 
-		ctx := context.Background()
-		query := datastore.NewQuery("LessonProgress").
+		ctx := c.Request.Context()
+		query := database.NewQuery("LessonProgress").
 			FilterField("UserID", "=", userID).
 			FilterField("LessonID", "=", lessonID)
 
@@ -1141,10 +1165,10 @@ func UpdateLessonProgress(db *database.DatastoreClient) gin.HandlerFunc {
 			return
 		}
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 
 		// Check if progress already exists
-		query := datastore.NewQuery("LessonProgress").
+		query := database.NewQuery("LessonProgress").
 			FilterField("UserID", "=", userID).
 			FilterField("LessonID", "=", lessonID)
 
@@ -1152,7 +1176,7 @@ func UpdateLessonProgress(db *database.DatastoreClient) gin.HandlerFunc {
 		keys, err := db.GetAll(ctx, query, &existingProgress)
 
 		var progress *models.LessonProgress
-		var key *datastore.Key
+		var key *database.Key
 
 		if len(existingProgress) > 0 {
 			// Update existing progress
@@ -1198,8 +1222,14 @@ func UpdateLessonProgress(db *database.DatastoreClient) gin.HandlerFunc {
 				CreatedAt:       time.Now(),
 				UpdatedAt:       time.Now(),
 			}
+			if progressUpdate.ProgressPercent >= 100 {
+				newProgress.IsCompleted = true
+				if progressUpdate.CurrentStage != "" {
+					newProgress.CompletedStages = []string{progressUpdate.CurrentStage}
+				}
+			}
 			progress = newProgress
-			key = datastore.NameKey("LessonProgress", fmt.Sprintf("%s_%s_%d", userID, lessonID, time.Now().Unix()), nil)
+			key = database.NameKey("LessonProgress", fmt.Sprintf("%s_%s_%d", userID, lessonID, time.Now().Unix()), nil)
 		}
 
 		_, err = db.Put(ctx, key, progress)
@@ -1219,10 +1249,10 @@ func CheckLessonPrerequisites(db *database.DatastoreClient) gin.HandlerFunc {
 		userID := c.GetString("user_id")
 		lessonID := c.Param("id")
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 
 		// Get lesson details
-		lessonKey := datastore.NameKey("Lesson", lessonID, nil)
+		lessonKey := database.NameKey("Lesson", lessonID, nil)
 		var lesson models.Lesson
 		err := db.Get(ctx, lessonKey, &lesson)
 		if err != nil {
@@ -1232,10 +1262,10 @@ func CheckLessonPrerequisites(db *database.DatastoreClient) gin.HandlerFunc {
 
 		// Check user progress for prerequisites
 		var unlocked = true
-		var missingPrereqs []string
+		missingPrereqs := make([]string, 0)
 
 		for _, prereqID := range lesson.Prerequisites {
-			query := datastore.NewQuery("LessonProgress").
+			query := database.NewQuery("LessonProgress").
 				FilterField("UserID", "=", userID).
 				FilterField("LessonID", "=", prereqID)
 
@@ -1263,10 +1293,10 @@ func GetLessonProgressionFlow(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		lessonID := c.Param("id")
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 
 		// Get lesson details
-		lessonKey := datastore.NameKey("Lesson", lessonID, nil)
+		lessonKey := database.NameKey("Lesson", lessonID, nil)
 		var lesson models.Lesson
 		err := db.Get(ctx, lessonKey, &lesson)
 		if err != nil {
@@ -1323,10 +1353,10 @@ func GetUserProgressionSummary(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetString("user_id")
 
-		ctx := context.Background()
+		ctx := c.Request.Context()
 
 		// Get all lessons
-		lessonQuery := datastore.NewQuery("Lesson")
+		lessonQuery := database.NewQuery("Lesson")
 		var lessons []*models.Lesson
 		lessonKeys, err := db.GetAll(ctx, lessonQuery, &lessons)
 		if err != nil {
@@ -1335,7 +1365,7 @@ func GetUserProgressionSummary(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Get user's progress for all lessons
-		progressQuery := datastore.NewQuery("LessonProgress").
+		progressQuery := database.NewQuery("LessonProgress").
 			FilterField("UserID", "=", userID)
 
 		var progressList []*models.LessonProgress
@@ -1412,11 +1442,11 @@ var antiCheatService *scoring.AntiCheatService
 var tournamentService *scoring.TournamentService
 
 // InitializeScoringServices initializes the scoring services (called during app startup)
-func InitializeScoringServices(dsClient *datastore.Client) {
-	scoringService = scoring.NewService(scoring.NewDatastoreClient(dsClient))
-	leaderboardService = scoring.NewLeaderboardService(scoring.NewDatastoreClient(dsClient))
-	antiCheatService = scoring.NewAntiCheatService(scoring.NewDatastoreClient(dsClient))
-	tournamentService = scoring.NewTournamentService(scoring.NewDatastoreClient(dsClient), *antiCheatService, leaderboardService)
+func InitializeScoringServices(dsClient *database.DatastoreClient) {
+	scoringService = scoring.NewService(dsClient)
+	leaderboardService = scoring.NewLeaderboardService(dsClient)
+	antiCheatService = scoring.NewAntiCheatService(dsClient)
+	tournamentService = scoring.NewTournamentService(dsClient, *antiCheatService, leaderboardService)
 }
 
 // ProcessSessionMetrics processes and stores session metrics
@@ -1427,7 +1457,7 @@ func ProcessSessionMetrics(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 
 	// Process session metrics
 	metrics, err := scoringService.ProcessSession(ctx, req.SessionID)
@@ -1487,7 +1517,7 @@ func GetLeaderboard(c *gin.Context) {
 		Limit:      limit,
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	response, err := leaderboardService.GetLeaderboard(ctx, req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leaderboard"})
@@ -1525,7 +1555,7 @@ func GetUserRank(c *gin.Context) {
 		timeWindow = "weekly"
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	rank, err := leaderboardService.GetUserRank(ctx, userID, languageID, mode, scope, timeWindow)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user rank"})
@@ -1576,7 +1606,7 @@ func GetLeaderboardTrends(c *gin.Context) {
 		Metric:     metric,
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	response, err := leaderboardService.GetLeaderboardTrends(ctx, req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leaderboard trends"})
@@ -1594,7 +1624,7 @@ func AnalyzeAntiCheat(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	report, err := antiCheatService.AnalyzeSession(ctx, sessionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to analyze session for anti-cheat"})
@@ -1623,7 +1653,7 @@ func CreateTournament(c *gin.Context) {
 
 	req.CreatedBy = userID
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	tournament, err := tournamentService.CreateTournament(ctx, &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create tournament"})
@@ -1641,7 +1671,7 @@ func GetTournament(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	tournament, err := tournamentService.GetTournament(ctx, tournamentID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Tournament not found"})
@@ -1665,7 +1695,7 @@ func RegisterForTournament(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	participant, err := tournamentService.RegisterParticipant(ctx, tournamentID, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1683,7 +1713,7 @@ func GetTournamentLeaderboard(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	leaderboard, err := tournamentService.GetTournamentLeaderboard(ctx, tournamentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve tournament leaderboard"})
@@ -1717,7 +1747,7 @@ func SubmitTournamentResult(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	err := tournamentService.SubmitTournamentResult(ctx, tournamentID, userID, req.SessionID, req.Score)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1737,7 +1767,7 @@ func GetUserTournaments(c *gin.Context) {
 
 	status := c.Query("status") // Optional status filter
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	tournaments, err := tournamentService.GetUserTournaments(ctx, userID, status)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve user tournaments"})
@@ -1761,7 +1791,7 @@ func StartTournament(c *gin.Context) {
 	}
 
 	// TODO: Add admin authorization check
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	err := tournamentService.StartTournament(ctx, tournamentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1780,7 +1810,7 @@ func EndTournament(c *gin.Context) {
 	}
 
 	// TODO: Add admin authorization check
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	err := tournamentService.EndTournament(ctx, tournamentID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

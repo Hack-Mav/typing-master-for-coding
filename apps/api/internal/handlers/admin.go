@@ -9,12 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/typing-master-for-coding-backend/internal/database"
 	"github.com/typing-master-for-coding-backend/internal/models"
 	"github.com/typing-master-for-coding-backend/internal/utils"
-
-	"cloud.google.com/go/datastore"
-	"github.com/gin-gonic/gin"
 )
 
 // Admin dashboard - Get overview statistics
@@ -26,7 +24,7 @@ func GetAdminDashboard(db *database.DatastoreClient) gin.HandlerFunc {
 		stats := make(map[string]interface{})
 
 		// User count
-		userQuery := datastore.NewQuery("User")
+		userQuery := database.NewQuery("User")
 		userCount, err := db.Count(ctx, userQuery)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count users"})
@@ -35,7 +33,7 @@ func GetAdminDashboard(db *database.DatastoreClient) gin.HandlerFunc {
 		stats["total_users"] = userCount
 
 		// Admin count
-		adminQuery := datastore.NewQuery("User").FilterField("Role", "=", "admin")
+		adminQuery := database.NewQuery("User").FilterField("Role", "=", "admin")
 		adminCount, err := db.Count(ctx, adminQuery)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count admins"})
@@ -45,7 +43,7 @@ func GetAdminDashboard(db *database.DatastoreClient) gin.HandlerFunc {
 
 		// Session count (last 24 hours)
 		yesterday := time.Now().AddDate(0, 0, -1)
-		sessionQuery := datastore.NewQuery("Session").FilterField("StartedAt", ">", yesterday)
+		sessionQuery := database.NewQuery("Session").FilterField("StartedAt", ">", yesterday)
 		sessionCount, err := db.Count(ctx, sessionQuery)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count sessions"})
@@ -54,20 +52,20 @@ func GetAdminDashboard(db *database.DatastoreClient) gin.HandlerFunc {
 		stats["sessions_last_24h"] = sessionCount
 
 		// Content counts
-		languageQuery := datastore.NewQuery("Language")
+		languageQuery := database.NewQuery("Language")
 		languageCount, _ := db.Count(ctx, languageQuery)
 		stats["total_languages"] = languageCount
 
-		lessonQuery := datastore.NewQuery("Lesson")
+		lessonQuery := database.NewQuery("Lesson")
 		lessonCount, _ := db.Count(ctx, lessonQuery)
 		stats["total_lessons"] = lessonCount
 
-		snippetQuery := datastore.NewQuery("Snippet")
+		snippetQuery := database.NewQuery("Snippet")
 		snippetCount, _ := db.Count(ctx, snippetQuery)
 		stats["total_snippets"] = snippetCount
 
 		// Recent activity (last 10 sessions)
-		recentSessionsQuery := datastore.NewQuery("Session").
+		recentSessionsQuery := database.NewQuery("Session").
 			Order("-StartedAt").
 			Limit(10)
 
@@ -106,7 +104,7 @@ func GetAdminDashboard(db *database.DatastoreClient) gin.HandlerFunc {
 func GetAdminLanguages(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
-		query := datastore.NewQuery("Language")
+		query := database.NewQuery("Language")
 
 		var languages []models.Language
 		keys, err := db.GetAll(ctx, query, &languages)
@@ -138,7 +136,7 @@ func CreateAdminLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 		userID, _ := c.Get("user_id")
 		language.CreatedBy = userID.(string)
 
-		key := datastore.NameKey("Language", language.ID, nil)
+		key := database.NameKey("Language", language.ID, nil)
 
 		ctx := context.Background()
 		_, err := db.Put(ctx, key, &language)
@@ -158,7 +156,7 @@ func CreateAdminLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 func UpdateAdminLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Language", id, nil)
+		key := database.NameKey("Language", id, nil)
 
 		ctx := context.Background()
 		var existing models.Language
@@ -190,7 +188,7 @@ func UpdateAdminLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		// Create content version for audit trail
-		createContentVersion(db, "language", id, existing.Version+1, existing, userID.(string), "Language updated")
+		createContentVersion(db, "language", id, int(time.Now().Unix()), existing, userID.(string), "Language updated")
 
 		c.JSON(http.StatusOK, existing)
 	}
@@ -200,7 +198,7 @@ func UpdateAdminLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 func DeleteAdminLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Language", id, nil)
+		key := database.NameKey("Language", id, nil)
 
 		ctx := context.Background()
 		err := db.Delete(ctx, key)
@@ -217,7 +215,7 @@ func DeleteAdminLanguage(db *database.DatastoreClient) gin.HandlerFunc {
 func GetAdminLessons(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
-		query := datastore.NewQuery("Lesson")
+		query := database.NewQuery("Lesson")
 
 		var lessons []models.Lesson
 		keys, err := db.GetAll(ctx, query, &lessons)
@@ -250,7 +248,7 @@ func CreateAdminLesson(db *database.DatastoreClient) gin.HandlerFunc {
 		userID, _ := c.Get("user_id")
 		lesson.CreatedBy = userID.(string)
 
-		key := datastore.NameKey("Lesson", fmt.Sprintf("%s_%d", lesson.LanguageID, time.Now().Unix()), nil)
+		key := database.NameKey("Lesson", fmt.Sprintf("%s_%d", lesson.LanguageID, time.Now().Unix()), nil)
 
 		ctx := context.Background()
 		_, err := db.Put(ctx, key, &lesson)
@@ -272,7 +270,7 @@ func CreateAdminLesson(db *database.DatastoreClient) gin.HandlerFunc {
 func UpdateAdminLesson(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Lesson", id, nil)
+		key := database.NameKey("Lesson", id, nil)
 
 		ctx := context.Background()
 		var existing models.Lesson
@@ -317,7 +315,7 @@ func UpdateAdminLesson(db *database.DatastoreClient) gin.HandlerFunc {
 func DeleteAdminLesson(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Lesson", id, nil)
+		key := database.NameKey("Lesson", id, nil)
 
 		ctx := context.Background()
 		err := db.Delete(ctx, key)
@@ -334,7 +332,7 @@ func DeleteAdminLesson(db *database.DatastoreClient) gin.HandlerFunc {
 func GetAdminSnippets(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
-		query := datastore.NewQuery("Snippet")
+		query := database.NewQuery("Snippet")
 
 		var snippets []models.Snippet
 		keys, err := db.GetAll(ctx, query, &snippets)
@@ -376,7 +374,7 @@ func CreateAdminSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 		userID, _ := c.Get("user_id")
 		snippet.CreatedBy = userID.(string)
 
-		key := datastore.NameKey("Snippet", fmt.Sprintf("%s_%d", snippet.LanguageID, time.Now().Unix()), nil)
+		key := database.NameKey("Snippet", fmt.Sprintf("%s_%d", snippet.LanguageID, time.Now().Unix()), nil)
 
 		ctx := context.Background()
 		_, err := db.Put(ctx, key, &snippet)
@@ -398,7 +396,7 @@ func CreateAdminSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 func UpdateAdminSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Snippet", id, nil)
+		key := database.NameKey("Snippet", id, nil)
 
 		ctx := context.Background()
 		var existing models.Snippet
@@ -454,7 +452,7 @@ func UpdateAdminSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 func DeleteAdminSnippet(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("Snippet", id, nil)
+		key := database.NameKey("Snippet", id, nil)
 
 		ctx := context.Background()
 		err := db.Delete(ctx, key)
@@ -476,7 +474,7 @@ func GetAdminContentVersions(db *database.DatastoreClient) gin.HandlerFunc {
 		contentID := c.Param("contentId")
 
 		ctx := context.Background()
-		query := datastore.NewQuery("ContentVersion").
+		query := database.NewQuery("ContentVersion").
 			FilterField("ContentType", "=", contentType).
 			FilterField("ContentID", "=", contentID).
 			Order("-Version")
@@ -512,7 +510,7 @@ func RestoreAdminContentVersion(db *database.DatastoreClient) gin.HandlerFunc {
 		ctx := context.Background()
 
 		// Get the specific version
-		versionKey := datastore.NameKey("ContentVersion",
+		versionKey := database.NameKey("ContentVersion",
 			fmt.Sprintf("%s_%s_%d", contentType, contentID, version), nil)
 
 		var contentVersion models.ContentVersion
@@ -529,7 +527,7 @@ func RestoreAdminContentVersion(db *database.DatastoreClient) gin.HandlerFunc {
 			contentBytes, _ := json.Marshal(contentVersion.Content)
 			json.Unmarshal(contentBytes, &language)
 
-			langKey := datastore.NameKey("Language", contentID, nil)
+			langKey := database.NameKey("Language", contentID, nil)
 			_, err = db.Put(ctx, langKey, &language)
 
 		case "lesson":
@@ -537,7 +535,7 @@ func RestoreAdminContentVersion(db *database.DatastoreClient) gin.HandlerFunc {
 			contentBytes, _ := json.Marshal(contentVersion.Content)
 			json.Unmarshal(contentBytes, &lesson)
 
-			lessonKey := datastore.NameKey("Lesson", contentID, nil)
+			lessonKey := database.NameKey("Lesson", contentID, nil)
 			_, err = db.Put(ctx, lessonKey, &lesson)
 
 		case "snippet":
@@ -545,7 +543,7 @@ func RestoreAdminContentVersion(db *database.DatastoreClient) gin.HandlerFunc {
 			contentBytes, _ := json.Marshal(contentVersion.Content)
 			json.Unmarshal(contentBytes, &snippet)
 
-			snippetKey := datastore.NameKey("Snippet", contentID, nil)
+			snippetKey := database.NameKey("Snippet", contentID, nil)
 			_, err = db.Put(ctx, snippetKey, &snippet)
 		}
 
@@ -581,7 +579,7 @@ func ValidateAdminContent(db *database.DatastoreClient) gin.HandlerFunc {
 
 		switch request.ContentType {
 		case "snippet":
-			snippetKey := datastore.NameKey("Snippet", request.ContentID, nil)
+			snippetKey := database.NameKey("Snippet", request.ContentID, nil)
 			var snippet models.Snippet
 			err := db.Get(ctx, snippetKey, &snippet)
 			if err != nil {
@@ -605,7 +603,7 @@ func ValidateAdminContent(db *database.DatastoreClient) gin.HandlerFunc {
 			}
 
 		case "lesson":
-			lessonKey := datastore.NameKey("Lesson", request.ContentID, nil)
+			lessonKey := database.NameKey("Lesson", request.ContentID, nil)
 			var lesson models.Lesson
 			err := db.Get(ctx, lessonKey, &lesson)
 			if err != nil {
@@ -628,7 +626,7 @@ func ValidateAdminContent(db *database.DatastoreClient) gin.HandlerFunc {
 			}
 
 		case "language":
-			langKey := datastore.NameKey("Language", request.ContentID, nil)
+			langKey := database.NameKey("Language", request.ContentID, nil)
 			var language models.Language
 			err := db.Get(ctx, langKey, &language)
 			if err != nil {
@@ -657,7 +655,7 @@ func ValidateAdminContent(db *database.DatastoreClient) gin.HandlerFunc {
 			ValidatedAt:      time.Now(),
 		}
 
-		key := datastore.NameKey("ContentValidation",
+		key := database.NameKey("ContentValidation",
 			fmt.Sprintf("%s_%s_%d", request.ContentType, request.ContentID, time.Now().Unix()), nil)
 
 		_, err := db.Put(ctx, key, &validation)
@@ -690,7 +688,7 @@ func createContentVersion(db *database.DatastoreClient, contentType, contentID s
 		CreatedAt:   time.Now(),
 	}
 
-	key := datastore.NameKey("ContentVersion",
+	key := database.NameKey("ContentVersion",
 		fmt.Sprintf("%s_%s_%d", contentType, contentID, version), nil)
 
 	ctx := context.Background()
@@ -752,7 +750,7 @@ func CreateABTest(db *database.DatastoreClient) gin.HandlerFunc {
 			CreatedAt:      time.Now(),
 		}
 
-		key := datastore.NameKey("ABTest", fmt.Sprintf("%s_%d", test.Name, time.Now().Unix()), nil)
+		key := database.NameKey("ABTest", fmt.Sprintf("%s_%d", test.Name, time.Now().Unix()), nil)
 
 		ctx := context.Background()
 		_, err := db.Put(ctx, key, &testRecord)
@@ -770,7 +768,7 @@ func CreateABTest(db *database.DatastoreClient) gin.HandlerFunc {
 func GetABTests(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		ctx := context.Background()
-		query := datastore.NewQuery("ABTest")
+		query := database.NewQuery("ABTest")
 
 		var tests []models.ABTest
 		keys, err := db.GetAll(ctx, query, &tests)
@@ -791,7 +789,7 @@ func GetABTests(db *database.DatastoreClient) gin.HandlerFunc {
 func UpdateABTest(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("ABTest", id, nil)
+		key := database.NameKey("ABTest", id, nil)
 
 		ctx := context.Background()
 		var existing models.ABTest
@@ -827,7 +825,7 @@ func UpdateABTest(db *database.DatastoreClient) gin.HandlerFunc {
 func DeleteABTest(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("ABTest", id, nil)
+		key := database.NameKey("ABTest", id, nil)
 
 		ctx := context.Background()
 		err := db.Delete(ctx, key)
@@ -844,7 +842,7 @@ func DeleteABTest(db *database.DatastoreClient) gin.HandlerFunc {
 func GetABTestResults(db *database.DatastoreClient) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
-		key := datastore.NameKey("ABTest", id, nil)
+		key := database.NameKey("ABTest", id, nil)
 
 		ctx := context.Background()
 		var test models.ABTest

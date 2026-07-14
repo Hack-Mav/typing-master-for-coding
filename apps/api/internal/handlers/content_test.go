@@ -116,7 +116,7 @@ func TestCreateLanguage(t *testing.T) {
 		reqBody := models.Language{
 			ID:       "go",
 			Name:     "Go",
-			Version:  1,
+			Version:  "1",
 			ParserID: "tree-sitter-go",
 			GrammarConfig: map[string]interface{}{
 				"semicolons": false,
