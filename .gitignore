@@ -115,3 +115,16 @@ nginx/ssl/*.key
 # Temporary files
 tmp/
 temp/
+
+# Anonymization files
+.anon_*
+
+# Log files
+*.log
+*.log.*
+
+# Backup files
+*.bak
+
+# kiro
+.kiro/

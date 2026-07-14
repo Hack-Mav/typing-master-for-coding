@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Build output
+out/
+dist/
+build/
+*.vsix
+
+# Environment variables
+.env
+.env.*
+
+# Logs
+*.log
+*.log.*
+
+# Test artifacts
+test-results/
+playwright-report/
+playwright/.cache/

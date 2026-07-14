@@ -1,0 +1,24 @@
+# Compiled binaries
+bin/
+*.exe
+*.exe~
+*.test
+*.out
+/main
+/server
+
+# Logs
+*.log
+*.log.*
+
+# Environment variables
+.env
+.env.*
+
+# Coverage
+coverage
+*.lcov
+
+# Temporary files
+tmp/
+temp/
