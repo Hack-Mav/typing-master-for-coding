@@ -46,7 +46,7 @@ type DataExportRequest struct {
 
 // DataDeletionRequest represents a GDPR data deletion request
 type DataDeletionRequest struct {
-	Confirm bool `json:"confirm" binding:"required"`
+	Confirm bool `json:"confirm"`
 }
 
 // UserResponse represents a sanitized user response
@@ -65,8 +65,11 @@ type UserResponse struct {
 	UpdatedAt             string                 `json:"updated_at"`
 
 	// MFA fields
-	MFAEnabled bool   `json:"mfa_enabled"`
+	MFAEnabled bool `json:"mfa_enabled"`
 	MFASetupAt string `json:"mfa_setup_at,omitempty"`
+
+	// Security fields
+	EmailVerified bool `json:"email_verified"`
 }
 
 // AnonymousSessionRequest represents an anonymous user session creation

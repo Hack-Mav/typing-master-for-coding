@@ -6,10 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/typing-master-for-coding-backend/internal/database"
-
-	"cloud.google.com/go/datastore"
 	"github.com/google/uuid"
+	"github.com/typing-master-for-coding-backend/internal/database"
 )
 
 // Service handles role-based access control operations
@@ -118,7 +116,7 @@ func (s *Service) InitializeDefaultRolesAndPermissions(ctx context.Context) erro
 
 	// Save permissions
 	for _, perm := range permissions {
-		key := datastore.NameKey("Permission", perm.Name, nil)
+		key := database.NameKey("Permission", perm.Name, nil)
 		_, err := s.db.Put(ctx, key, &perm)
 		if err != nil {
 			return fmt.Errorf("failed to create permission %s: %w", perm.Name, err)
@@ -167,7 +165,7 @@ func (s *Service) InitializeDefaultRolesAndPermissions(ctx context.Context) erro
 
 	// Save roles
 	for _, role := range roles {
-		key := datastore.NameKey("Role", role.Name, nil)
+		key := database.NameKey("Role", role.Name, nil)
 		_, err := s.db.Put(ctx, key, &role)
 		if err != nil {
 			return fmt.Errorf("failed to create role %s: %w", role.Name, err)
@@ -180,7 +178,7 @@ func (s *Service) InitializeDefaultRolesAndPermissions(ctx context.Context) erro
 // CreateRole creates a new role
 func (s *Service) CreateRole(ctx context.Context, req CreateRoleRequest, createdBy string) (*Role, error) {
 	// Check if role already exists
-	existingKey := datastore.NameKey("Role", req.Name, nil)
+	existingKey := database.NameKey("Role", req.Name, nil)
 	var existingRole Role
 	err := s.db.Get(ctx, existingKey, &existingRole)
 	if err == nil {
@@ -199,7 +197,7 @@ func (s *Service) CreateRole(ctx context.Context, req CreateRoleRequest, created
 		UpdatedAt:   time.Now().UTC(),
 	}
 
-	key := datastore.NameKey("Role", role.Name, nil)
+	key := database.NameKey("Role", role.Name, nil)
 	_, err = s.db.Put(ctx, key, &role)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create role: %w", err)
@@ -211,7 +209,7 @@ func (s *Service) CreateRole(ctx context.Context, req CreateRoleRequest, created
 
 // GetRoles retrieves all roles
 func (s *Service) GetRoles(ctx context.Context) ([]Role, error) {
-	query := datastore.NewQuery("Role").Order("name")
+	query := database.NewQuery("Role").Order("name")
 	var roles []Role
 	keys, err := s.db.GetAll(ctx, query, &roles)
 	if err != nil {
@@ -227,7 +225,7 @@ func (s *Service) GetRoles(ctx context.Context) ([]Role, error) {
 
 // GetRole retrieves a specific role by ID
 func (s *Service) GetRole(ctx context.Context, roleID string) (*Role, error) {
-	key := datastore.NameKey("Role", roleID, nil)
+	key := database.NameKey("Role", roleID, nil)
 	var role Role
 	err := s.db.Get(ctx, key, &role)
 	if err != nil {
@@ -240,7 +238,7 @@ func (s *Service) GetRole(ctx context.Context, roleID string) (*Role, error) {
 
 // UpdateRole updates an existing role
 func (s *Service) UpdateRole(ctx context.Context, roleID string, req UpdateRoleRequest) error {
-	key := datastore.NameKey("Role", roleID, nil)
+	key := database.NameKey("Role", roleID, nil)
 	var role Role
 	err := s.db.Get(ctx, key, &role)
 	if err != nil {
@@ -273,7 +271,7 @@ func (s *Service) UpdateRole(ctx context.Context, roleID string, req UpdateRoleR
 
 // DeleteRole deletes a role (soft delete by setting inactive)
 func (s *Service) DeleteRole(ctx context.Context, roleID string) error {
-	key := datastore.NameKey("Role", roleID, nil)
+	key := database.NameKey("Role", roleID, nil)
 	var role Role
 	err := s.db.Get(ctx, key, &role)
 	if err != nil {
@@ -294,7 +292,7 @@ func (s *Service) DeleteRole(ctx context.Context, roleID string) error {
 // AssignRole assigns a role to a user
 func (s *Service) AssignRole(ctx context.Context, req AssignRoleRequest, assignedBy string) (*UserRole, error) {
 	// Check if user already has this role active
-	query := datastore.NewQuery("UserRole").
+	query := database.NewQuery("UserRole").
 		Filter("user_id =", req.UserID).
 		Filter("role_id =", req.RoleID).
 		Filter("is_active =", true).
@@ -325,7 +323,7 @@ func (s *Service) AssignRole(ctx context.Context, req AssignRoleRequest, assigne
 
 	// Generate UUID for the assignment
 	userRoleID := uuid.New().String()
-	key := datastore.NameKey("UserRole", userRoleID, nil)
+	key := database.NameKey("UserRole", userRoleID, nil)
 	_, err = s.db.Put(ctx, key, &userRole)
 	if err != nil {
 		return nil, fmt.Errorf("failed to assign role: %w", err)
@@ -338,7 +336,7 @@ func (s *Service) AssignRole(ctx context.Context, req AssignRoleRequest, assigne
 // GetUserRoles retrieves all active roles for a user
 func (s *Service) GetUserRoles(ctx context.Context, userID string) ([]UserRole, error) {
 	now := time.Now().UTC()
-	query := datastore.NewQuery("UserRole").
+	query := database.NewQuery("UserRole").
 		Filter("user_id =", userID).
 		Filter("is_active =", true).
 		Filter("expires_at >", now)
@@ -447,7 +445,7 @@ func (s *Service) HasAnyPermission(ctx context.Context, userID string, permissio
 
 // RevokeRole revokes a role from a user
 func (s *Service) RevokeRole(ctx context.Context, userID, roleID string) error {
-	query := datastore.NewQuery("UserRole").
+	query := database.NewQuery("UserRole").
 		Filter("user_id =", userID).
 		Filter("role_id =", roleID).
 		Filter("is_active =", true).
@@ -479,7 +477,7 @@ func (s *Service) RevokeRole(ctx context.Context, userID, roleID string) error {
 
 // GetPermissions retrieves all permissions
 func (s *Service) GetPermissions(ctx context.Context) ([]Permission, error) {
-	query := datastore.NewQuery("Permission").Order("name")
+	query := database.NewQuery("Permission").Order("name")
 	var permissions []Permission
 	keys, err := s.db.GetAll(ctx, query, &permissions)
 	if err != nil {
@@ -496,7 +494,7 @@ func (s *Service) GetPermissions(ctx context.Context) ([]Permission, error) {
 // CreatePermission creates a new permission
 func (s *Service) CreatePermission(ctx context.Context, req CreatePermissionRequest, createdBy string) (*Permission, error) {
 	// Check if permission already exists
-	existingKey := datastore.NameKey("Permission", req.Name, nil)
+	existingKey := database.NameKey("Permission", req.Name, nil)
 	var existingPermission Permission
 	err := s.db.Get(ctx, existingKey, &existingPermission)
 	if err == nil {
@@ -517,7 +515,7 @@ func (s *Service) CreatePermission(ctx context.Context, req CreatePermissionRequ
 		UpdatedAt:   time.Now().UTC(),
 	}
 
-	key := datastore.NameKey("Permission", permission.Name, nil)
+	key := database.NameKey("Permission", permission.Name, nil)
 	_, err = s.db.Put(ctx, key, &permission)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create permission: %w", err)

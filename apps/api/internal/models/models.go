@@ -27,13 +27,20 @@ type User struct {
 	MFASecret      string     `datastore:"mfa_secret" json:"-"`       // Never expose in JSON
 	MFABackupCodes []string   `datastore:"mfa_backup_codes" json:"-"` // Never expose in JSON
 	MFASetupAt     *time.Time `datastore:"mfa_setup_at" json:"mfa_setup_at,omitempty"`
+
+	// Security fields
+	EmailVerified          bool       `datastore:"email_verified" json:"email_verified"`
+	EmailVerificationToken string     `datastore:"email_verification_token" json:"-"` // Never expose in JSON
+	FailedLoginAttempts    int        `datastore:"failed_login_attempts" json:"-"`
+	LockedUntil            *time.Time `datastore:"locked_until" json:"-"`
+	RefreshTokenHash       string     `datastore:"refresh_token_hash" json:"-"` // Hash of the currently valid refresh token
 }
 
 // Language entity for Datastore
 type Language struct {
 	ID              string                 `datastore:"-" json:"id"`
 	Name            string                 `datastore:"name" json:"name"`
-	Version         int                    `datastore:"version" json:"version"`
+	Version         string                 `datastore:"version" json:"version"`
 	ParserID        string                 `datastore:"parser_id" json:"parser_id"`
 	GrammarConfig   map[string]interface{} `datastore:"grammar_config" json:"grammar_config"`
 	WhitespaceRules map[string]interface{} `datastore:"whitespace_rules" json:"whitespace_rules"`
