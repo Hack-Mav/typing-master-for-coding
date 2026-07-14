@@ -7,15 +7,69 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/typing-master-for-coding-backend/internal/auth"
+	"github.com/typing-master-for-coding-backend/internal/cache"
 	"github.com/typing-master-for-coding-backend/internal/database"
 	"github.com/typing-master-for-coding-backend/internal/models"
 	"github.com/typing-master-for-coding-backend/internal/rbac"
-
-	"cloud.google.com/go/datastore"
-	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
+
+// setAuthCookies sets HttpOnly cookies for access and refresh tokens
+func setAuthCookies(c *gin.Context, tokens *auth.TokenPair, isSecure bool) {
+	// Access token cookie (15 minutes)
+	c.SetSameSite(http.SameSiteStrictMode)
+	accessCookie := http.Cookie{
+		Name:     "access_token",
+		Value:    tokens.AccessToken,
+		Path:     "/",
+		MaxAge:   15 * 60, // 15 minutes
+		Secure:   isSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
+	http.SetCookie(c.Writer, &accessCookie)
+
+	// Refresh token cookie (7 days)
+	refreshCookie := http.Cookie{
+		Name:     "refresh_token",
+		Value:    tokens.RefreshToken,
+		Path:     "/",
+		MaxAge:   7 * 24 * 60 * 60, // 7 days
+		Secure:   isSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
+	http.SetCookie(c.Writer, &refreshCookie)
+}
+
+// clearAuthCookies clears the auth cookies
+func clearAuthCookies(c *gin.Context) {
+	c.SetSameSite(http.SameSiteStrictMode)
+
+	accessCookie := http.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
+	http.SetCookie(c.Writer, &accessCookie)
+
+	refreshCookie := http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}
+	http.SetCookie(c.Writer, &refreshCookie)
+}
 
 // Register handles user registration
 func Register(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
@@ -26,10 +80,16 @@ func Register(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
+		// Enforce password complexity
+		if err := auth.ValidatePassword(req.Password); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
 		ctx := context.Background()
 
 		// Check if email already exists
-		query := datastore.NewQuery("User").Filter("email =", req.Email).Limit(1)
+		query := database.NewQuery("User").Filter("email =", req.Email).Limit(1)
 		var existingUsers []models.User
 		_, err := db.GetAll(ctx, query, &existingUsers)
 		if err == nil {
@@ -42,7 +102,7 @@ func Register(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 		}
 
 		// Check if handle already exists
-		query = datastore.NewQuery("User").Filter("handle =", req.Handle).Limit(1)
+		query = database.NewQuery("User").Filter("handle =", req.Handle).Limit(1)
 		_, err = db.GetAll(ctx, query, &existingUsers)
 		if err == nil {
 			for _, existingUser := range existingUsers {
@@ -64,25 +124,27 @@ func Register(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 		userID := uuid.New().String()
 		now := time.Now().UTC()
 		user := models.User{
-			ID:                    userID,
-			Handle:                req.Handle,
-			Email:                 req.Email,
-			Role:                  "user", // Default role for new users
-			PasswordHash:          passwordHash,
-			IsAnonymous:           false,
-			Locale:                req.Locale,
-			KeyboardLayout:        req.KeyboardLayout,
-			PrivacyMode:           false,
-			TelemetryConsent:      req.TelemetryConsent,
-			DataProcessingConsent: req.DataProcessingConsent,
-			Settings:              make(map[string]interface{}),
-			CreatedAt:             now,
-			UpdatedAt:             now,
-			LastLoginAt:           &now,
+			ID:                     userID,
+			Handle:                 req.Handle,
+			Email:                  req.Email,
+			Role:                   "user", // Default role for new users
+			PasswordHash:           passwordHash,
+			IsAnonymous:            false,
+			Locale:                 req.Locale,
+			KeyboardLayout:         req.KeyboardLayout,
+			PrivacyMode:            false,
+			TelemetryConsent:       req.TelemetryConsent,
+			DataProcessingConsent:  req.DataProcessingConsent,
+			Settings:               make(map[string]interface{}),
+			CreatedAt:              now,
+			UpdatedAt:              now,
+			LastLoginAt:            &now,
+			EmailVerified:          false,
+			EmailVerificationToken: uuid.New().String(),
 		}
 
 		// Save to Datastore
-		key := datastore.NameKey("User", userID, nil)
+		key := database.NameKey("User", userID, nil)
 		_, err = db.Put(ctx, key, &user)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
@@ -100,12 +162,18 @@ func Register(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 			fmt.Printf("Failed to assign user role: %v\n", err)
 		}
 
-		// Generate JWT tokens
+		// Generate JWT tokens and store the refresh token hash for rotation
 		tokens, err := auth.GenerateTokenPair(userID, user.Handle, user.Email, user.Role, false, jwtSecret)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 			return
 		}
+		user.RefreshTokenHash = auth.HashRefreshToken(tokens.RefreshToken)
+		_, _ = db.Put(ctx, key, &user)
+
+		// Set HttpOnly cookies for security
+		c.SetCookie("access_token", tokens.AccessToken, int(15*60), "/", "", true, true)
+		c.SetCookie("refresh_token", tokens.RefreshToken, int(7*24*60*60), "/", "", true, true)
 
 		c.JSON(http.StatusCreated, gin.H{
 			"user":   toUserResponse(&user),
@@ -115,7 +183,9 @@ func Register(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 }
 
 // Login handles user authentication
-func Login(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
+func Login(db *database.DatastoreClient, cacheClient *cache.InMemoryCache, jwtSecret string) gin.HandlerFunc {
+	tracker := auth.NewLoginAttemptTracker(cacheClient)
+
 	return func(c *gin.Context) {
 		var req models.LoginRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -123,20 +193,27 @@ func Login(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
+		// Account lockout / rate limiting
+		if tracker.IsLockedOut(req.Email) {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Account locked due to too many failed attempts. Try again later."})
+			return
+		}
+
 		ctx := context.Background()
 
 		// Find user by email
-		query := datastore.NewQuery("User").Filter("email =", req.Email).Limit(1)
+		query := database.NewQuery("User").Filter("email =", req.Email).Limit(1)
 		var users []models.User
 		keys, err := db.GetAll(ctx, query, &users)
 		if err != nil || len(users) == 0 {
+			tracker.RecordFailedAttempt(req.Email)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 			return
 		}
 
 		// Find the user with the matching email
 		var user models.User
-		var userKey *datastore.Key
+		var userKey *database.Key
 		found := false
 		for i, u := range users {
 			if u.Email == req.Email {
@@ -148,6 +225,7 @@ func Login(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 		}
 
 		if !found {
+			tracker.RecordFailedAttempt(req.Email)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 			return
 		}
@@ -156,7 +234,14 @@ func Login(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 
 		// Check password
 		if !auth.CheckPassword(req.Password, user.PasswordHash) {
+			tracker.RecordFailedAttempt(req.Email)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			return
+		}
+
+		// Require email verification before completing login
+		if !user.EmailVerified {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Email not verified", "code": "EMAIL_VERIFICATION_REQUIRED"})
 			return
 		}
 
@@ -172,23 +257,31 @@ func Login(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 		}
 
 		// MFA not enabled - complete login normally
+		tracker.RecordSuccessfulLogin(req.Email)
+
 		now := time.Now().UTC()
 		user.LastLoginAt = &now
 		user.UpdatedAt = now
 
-		key := datastore.NameKey("User", user.ID, nil)
-		_, err = db.Put(ctx, key, &user)
-		if err != nil {
-			// Log error but don't fail login
-			fmt.Printf("Failed to update last login time: %v\n", err)
-		}
+		key := database.NameKey("User", user.ID, nil)
 
-		// Generate JWT tokens
+		// Generate JWT tokens and rotate refresh token
 		tokens, err := auth.GenerateTokenPair(user.ID, user.Handle, user.Email, user.Role, false, jwtSecret)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 			return
 		}
+		user.RefreshTokenHash = auth.HashRefreshToken(tokens.RefreshToken)
+
+		_, err = db.Put(ctx, key, &user)
+		if err != nil {
+			// Log error but don't fail login
+			fmt.Printf("Failed to update user after login: %v\n", err)
+		}
+
+		// Set HttpOnly cookies for security
+		c.SetCookie("access_token", tokens.AccessToken, int(15*60), "/", "", true, true)
+		c.SetCookie("refresh_token", tokens.RefreshToken, int(7*24*60*60), "/", "", true, true)
 
 		c.JSON(http.StatusOK, gin.H{
 			"requires_mfa": false,
@@ -198,8 +291,8 @@ func Login(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 	}
 }
 
-// RefreshToken handles token refresh
-func RefreshToken(jwtSecret string) gin.HandlerFunc {
+// RefreshToken handles token refresh with rotation and reuse detection
+func RefreshToken(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			RefreshToken string `json:"refresh_token" binding:"required"`
@@ -209,12 +302,42 @@ func RefreshToken(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// Validate and refresh token
-		tokens, err := auth.RefreshAccessToken(req.RefreshToken, jwtSecret)
+		// Validate refresh token
+		claims, err := auth.ValidateToken(req.RefreshToken, jwtSecret)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
 			return
 		}
+
+		// Load the user and verify the supplied token matches the stored refresh token hash
+		ctx := context.Background()
+		key := database.NameKey("User", claims.UserID, nil)
+		var user models.User
+		err = db.Get(ctx, key, &user)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
+			return
+		}
+
+		user.ID = claims.UserID
+		if !auth.CheckRefreshToken(req.RefreshToken, user.RefreshTokenHash) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired refresh token"})
+			return
+		}
+
+		// Generate new token pair and rotate the refresh token hash
+		tokens, err := auth.GenerateTokenPair(user.ID, user.Handle, user.Email, user.Role, claims.IsAnonymous, jwtSecret)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
+			return
+		}
+		user.RefreshTokenHash = auth.HashRefreshToken(tokens.RefreshToken)
+		user.UpdatedAt = time.Now().UTC()
+		_, _ = db.Put(ctx, key, &user)
+
+		// Set HttpOnly cookies for security
+		c.SetCookie("access_token", tokens.AccessToken, int(15*60), "/", "", true, true)
+		c.SetCookie("refresh_token", tokens.RefreshToken, int(7*24*60*60), "/", "", true, true)
 
 		c.JSON(http.StatusOK, tokens)
 	}
@@ -238,6 +361,10 @@ func CreateAnonymousSession(jwtSecret string) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 			return
 		}
+
+		// Set HttpOnly cookies for security
+		c.SetCookie("access_token", tokens.AccessToken, int(15*60), "/", "", true, true)
+		c.SetCookie("refresh_token", tokens.RefreshToken, int(7*24*60*60), "/", "", true, true)
 
 		// Create anonymous user response
 		anonymousUser := gin.H{
@@ -284,7 +411,7 @@ func GetProfile(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		ctx := context.Background()
-		key := datastore.NameKey("User", userID.(string), nil)
+		key := database.NameKey("User", userID.(string), nil)
 
 		var user models.User
 		err := db.Get(ctx, key, &user)
@@ -320,7 +447,7 @@ func UpdateProfile(db *database.DatastoreClient) gin.HandlerFunc {
 		}
 
 		ctx := context.Background()
-		key := datastore.NameKey("User", userID.(string), nil)
+		key := database.NameKey("User", userID.(string), nil)
 
 		var user models.User
 		err := db.Get(ctx, key, &user)
@@ -390,6 +517,9 @@ func toUserResponse(user *models.User) models.UserResponse {
 		// MFA fields
 		MFAEnabled: user.MFAEnabled,
 		MFASetupAt: mfaSetupAt,
+
+		// Security fields
+		EmailVerified: user.EmailVerified,
 	}
 }
 
@@ -560,7 +690,9 @@ func RegenerateMFABackupCodes(db *database.DatastoreClient) gin.HandlerFunc {
 }
 
 // LoginWithMFA completes login with MFA verification
-func LoginWithMFA(db *database.DatastoreClient, jwtSecret string) gin.HandlerFunc {
+func LoginWithMFA(db *database.DatastoreClient, cacheClient *cache.InMemoryCache, jwtSecret string) gin.HandlerFunc {
+	tracker := auth.NewLoginAttemptTracker(cacheClient)
+
 	return func(c *gin.Context) {
 		var req models.LoginWithMFARequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -568,13 +700,20 @@ func LoginWithMFA(db *database.DatastoreClient, jwtSecret string) gin.HandlerFun
 			return
 		}
 
+		// Account lockout / rate limiting
+		if tracker.IsLockedOut(req.Email) {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Account locked due to too many failed attempts. Try again later."})
+			return
+		}
+
 		ctx := context.Background()
 
 		// Find user by email
-		query := datastore.NewQuery("User").Filter("email =", req.Email).Limit(1)
+		query := database.NewQuery("User").Filter("email =", req.Email).Limit(1)
 		var users []models.User
 		keys, err := db.GetAll(ctx, query, &users)
 		if err != nil || len(users) == 0 {
+			tracker.RecordFailedAttempt(req.Email)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 			return
 		}
@@ -585,7 +724,14 @@ func LoginWithMFA(db *database.DatastoreClient, jwtSecret string) gin.HandlerFun
 
 		// Verify password again for security
 		if !auth.CheckPassword(req.Password, user.PasswordHash) {
+			tracker.RecordFailedAttempt(req.Email)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			return
+		}
+
+		// Require email verification before completing login
+		if !user.EmailVerified {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Email not verified", "code": "EMAIL_VERIFICATION_REQUIRED"})
 			return
 		}
 
@@ -612,34 +758,98 @@ func LoginWithMFA(db *database.DatastoreClient, jwtSecret string) gin.HandlerFun
 			}
 
 			if !valid {
+				tracker.RecordFailedAttempt(req.Email)
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid MFA code"})
 				return
 			}
 		}
+
+		tracker.RecordSuccessfulLogin(req.Email)
 
 		// MFA verification successful - complete login
 		now := time.Now().UTC()
 		user.LastLoginAt = &now
 		user.UpdatedAt = now
 
-		key := datastore.NameKey("User", user.ID, nil)
-		_, err = db.Put(ctx, key, &user)
-		if err != nil {
-			// Log error but don't fail login
-			fmt.Printf("Failed to update last login time: %v\n", err)
-		}
+		key := database.NameKey("User", user.ID, nil)
 
-		// Generate JWT tokens
+		// Generate JWT tokens and rotate refresh token
 		tokens, err := auth.GenerateTokenPair(user.ID, user.Handle, user.Email, user.Role, false, jwtSecret)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 			return
 		}
+		user.RefreshTokenHash = auth.HashRefreshToken(tokens.RefreshToken)
+
+		_, err = db.Put(ctx, key, &user)
+		if err != nil {
+			// Log error but don't fail login
+			fmt.Printf("Failed to update user after login: %v\n", err)
+		}
+
+		// Set HttpOnly cookies for security
+		c.SetCookie("access_token", tokens.AccessToken, int(15*60), "/", "", true, true)
+		c.SetCookie("refresh_token", tokens.RefreshToken, int(7*24*60*60), "/", "", true, true)
 
 		c.JSON(http.StatusOK, gin.H{
 			"requires_mfa": false,
 			"user":         toUserResponse(&user),
 			"tokens":       tokens,
 		})
+	}
+}
+
+// Logout handles user logout by clearing HttpOnly cookies
+func Logout() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Clear HttpOnly cookies by setting them with empty values and past expiration
+		c.SetCookie("access_token", "", -1, "/", "", true, true)
+		c.SetCookie("refresh_token", "", -1, "/", "", true, true)
+
+		c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+	}
+}
+
+// VerifyEmail verifies a user's email address using a one-time token.
+func VerifyEmail(db *database.DatastoreClient) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			Email string `json:"email" binding:"required,email"`
+			Token string `json:"token" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		ctx := context.Background()
+		query := database.NewQuery("User").Filter("email =", req.Email).Limit(1)
+		var users []models.User
+		keys, err := db.GetAll(ctx, query, &users)
+		if err != nil || len(users) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid verification request"})
+			return
+		}
+
+		user := users[0]
+		userKey := keys[0]
+		user.ID = userKey.Name
+
+		if user.EmailVerificationToken != req.Token {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid verification token"})
+			return
+		}
+
+		user.EmailVerified = true
+		user.EmailVerificationToken = ""
+		user.UpdatedAt = time.Now().UTC()
+
+		_, err = db.Put(ctx, userKey, &user)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to verify email"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Email verified successfully"})
 	}
 }

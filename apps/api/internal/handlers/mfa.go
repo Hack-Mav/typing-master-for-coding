@@ -8,8 +8,6 @@ import (
 	"github.com/typing-master-for-coding-backend/internal/auth"
 	"github.com/typing-master-for-coding-backend/internal/database"
 	"github.com/typing-master-for-coding-backend/internal/models"
-
-	"cloud.google.com/go/datastore"
 )
 
 // MFAService handles MFA-related operations
@@ -27,7 +25,7 @@ func (s *MFAService) SetupMFA(userID string) (*models.MFASetupResponse, error) {
 	ctx := context.Background()
 
 	// Get user
-	key := datastore.NameKey("User", userID, nil)
+	key := database.NameKey("User", userID, nil)
 	var user models.User
 	err := s.db.Get(ctx, key, &user)
 	if err != nil {
@@ -87,7 +85,7 @@ func (s *MFAService) VerifyMFASetup(userID string, code string) error {
 	ctx := context.Background()
 
 	// Get user
-	key := datastore.NameKey("User", userID, nil)
+	key := database.NameKey("User", userID, nil)
 	var user models.User
 	err := s.db.Get(ctx, key, &user)
 	if err != nil {
@@ -127,7 +125,7 @@ func (s *MFAService) ValidateMFACode(userID string, code string) (bool, error) {
 	ctx := context.Background()
 
 	// Get user
-	key := datastore.NameKey("User", userID, nil)
+	key := database.NameKey("User", userID, nil)
 	var user models.User
 	err := s.db.Get(ctx, key, &user)
 	if err != nil {
@@ -153,7 +151,7 @@ func (s *MFAService) ValidateBackupCode(userID string, backupCode string) (bool,
 	ctx := context.Background()
 
 	// Get user
-	key := datastore.NameKey("User", userID, nil)
+	key := database.NameKey("User", userID, nil)
 	var user models.User
 	err := s.db.Get(ctx, key, &user)
 	if err != nil {
@@ -186,7 +184,7 @@ func (s *MFAService) DisableMFA(userID string, password string, code string) err
 	ctx := context.Background()
 
 	// Get user
-	key := datastore.NameKey("User", userID, nil)
+	key := database.NameKey("User", userID, nil)
 	var user models.User
 	err := s.db.Get(ctx, key, &user)
 	if err != nil {
@@ -228,7 +226,7 @@ func (s *MFAService) GetMFAStatus(userID string) (*models.MFAStatusResponse, err
 	ctx := context.Background()
 
 	// Get user
-	key := datastore.NameKey("User", userID, nil)
+	key := database.NameKey("User", userID, nil)
 	var user models.User
 	err := s.db.Get(ctx, key, &user)
 	if err != nil {
@@ -247,7 +245,7 @@ func (s *MFAService) RegenerateBackupCodes(userID string, code string) ([]string
 	ctx := context.Background()
 
 	// Get user
-	key := datastore.NameKey("User", userID, nil)
+	key := database.NameKey("User", userID, nil)
 	var user models.User
 	err := s.db.Get(ctx, key, &user)
 	if err != nil {

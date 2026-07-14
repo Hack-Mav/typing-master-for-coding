@@ -1,15 +1,20 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
+	"github.com/typing-master-for-coding-backend/internal/auth"
 	"github.com/typing-master-for-coding-backend/internal/middleware"
 	"github.com/typing-master-for-coding-backend/internal/models"
 	"github.com/typing-master-for-coding-backend/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 )
+
+const testPassword = "Password123!"
+const testWrongPassword = "WrongPassword1!"
 
 // TestRegister tests user registration endpoint
 func TestRegister(t *testing.T) {
@@ -23,7 +28,7 @@ func TestRegister(t *testing.T) {
 		reqBody := models.RegisterRequest{
 			Handle:                "testuser",
 			Email:                 "test@example.com",
-			Password:              "password123",
+			Password:              testPassword,
 			Locale:                "en-US",
 			KeyboardLayout:        "QWERTY",
 			TelemetryConsent:      true,
@@ -57,7 +62,7 @@ func TestRegister(t *testing.T) {
 		reqBody := models.RegisterRequest{
 			Handle:   "newuser",
 			Email:    "test@example.com",
-			Password: "password123",
+			Password: testPassword,
 		}
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/register", reqBody, nil)
@@ -72,7 +77,7 @@ func TestRegister(t *testing.T) {
 		reqBody := models.RegisterRequest{
 			Handle:   "testuser",
 			Email:    "new@example.com",
-			Password: "password123",
+			Password: testPassword,
 		}
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/register", reqBody, nil)
@@ -84,7 +89,7 @@ func TestRegister(t *testing.T) {
 		reqBody := models.RegisterRequest{
 			Handle:   "testuser",
 			Email:    "invalid-email",
-			Password: "password123",
+			Password: testPassword,
 		}
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/register", reqBody, nil)
@@ -97,6 +102,18 @@ func TestRegister(t *testing.T) {
 			Handle:   "testuser",
 			Email:    "test@example.com",
 			Password: "short",
+		}
+
+		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/register", reqBody, nil)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("Weak Password Rejected", func(t *testing.T) {
+		reqBody := models.RegisterRequest{
+			Handle:   "testuser",
+			Email:    "weak@example.com",
+			Password: "password123",
 		}
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/register", reqBody, nil)
@@ -122,7 +139,7 @@ func TestRegister(t *testing.T) {
 		reqBody := models.RegisterRequest{
 			Handle:                "privacyuser",
 			Email:                 "privacy@example.com",
-			Password:              "password123",
+			Password:              testPassword,
 			TelemetryConsent:      false,
 			DataProcessingConsent: false,
 		}
@@ -142,9 +159,9 @@ func TestRegister(t *testing.T) {
 
 // TestLogin tests user login endpoint
 func TestLogin(t *testing.T) {
-	router, mockDB, _ := testutil.SetupTestRouter()
+	router, mockDB, mockCache := testutil.SetupTestRouter()
 
-	router.POST("/api/v1/auth/login", Login(mockDB, "test-secret-key-for-testing-only"))
+	router.POST("/api/v1/auth/login", Login(mockDB, mockCache, "test-secret-key-for-testing-only"))
 
 	t.Run("Successful Login", func(t *testing.T) {
 		mockDB.Clear()
@@ -152,7 +169,7 @@ func TestLogin(t *testing.T) {
 
 		reqBody := models.LoginRequest{
 			Email:    "test@example.com",
-			Password: "password123",
+			Password: testPassword,
 		}
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/login", reqBody, nil)
@@ -175,7 +192,7 @@ func TestLogin(t *testing.T) {
 
 		reqBody := models.LoginRequest{
 			Email:    "nonexistent@example.com",
-			Password: "password123",
+			Password: testPassword,
 		}
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/login", reqBody, nil)
@@ -189,7 +206,7 @@ func TestLogin(t *testing.T) {
 
 		reqBody := models.LoginRequest{
 			Email:    "test@example.com",
-			Password: "wrongpassword",
+			Password: testWrongPassword,
 		}
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/login", reqBody, nil)
@@ -207,21 +224,48 @@ func TestLogin(t *testing.T) {
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
+
+	t.Run("Account Lockout", func(t *testing.T) {
+		mockDB.Clear()
+		mockCache.Clear()
+		testutil.CreateTestUser(mockDB, "user1", "testuser", "lockout@example.com")
+
+		reqBody := models.LoginRequest{
+			Email:    "lockout@example.com",
+			Password: testWrongPassword,
+		}
+
+		// 5 failed attempts lock the account
+		for i := 0; i < 5; i++ {
+			w := testutil.MakeRequest(router, "POST", "/api/v1/auth/login", reqBody, nil)
+			assert.Equal(t, http.StatusUnauthorized, w.Code)
+		}
+
+		// 6th request should be rate-limited
+		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/login", reqBody, nil)
+		assert.Equal(t, http.StatusTooManyRequests, w.Code)
+	})
 }
 
 // TestRefreshToken tests token refresh endpoint
 func TestRefreshToken(t *testing.T) {
-	router, _, _ := testutil.SetupTestRouter()
+	router, mockDB, _ := testutil.SetupTestRouter()
 
-	router.POST("/api/v1/auth/refresh", RefreshToken("test-secret-key-for-testing-only"))
+	router.POST("/api/v1/auth/refresh", RefreshToken(mockDB, "test-secret-key-for-testing-only"))
 
 	t.Run("Successful Token Refresh", func(t *testing.T) {
-		// Generate a valid refresh token
-		token, err := testutil.GenerateTestToken("user1", "testuser", "test@example.com", false)
+		mockDB.Clear()
+		user := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
+
+		// Generate a valid refresh token and store its hash against the user
+		tokens, err := testutil.GenerateTestTokenPair(user.ID, user.Handle, user.Email, false)
+		assert.NoError(t, err)
+		user.RefreshTokenHash = auth.HashRefreshToken(tokens.RefreshToken)
+		_, err = mockDB.Put(context.Background(), mockDB.NameKey("User", user.ID, nil), user)
 		assert.NoError(t, err)
 
 		reqBody := map[string]interface{}{
-			"refresh_token": token,
+			"refresh_token": tokens.RefreshToken,
 		}
 
 		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/refresh", reqBody, nil)
@@ -232,6 +276,7 @@ func TestRefreshToken(t *testing.T) {
 		testutil.ParseJSON(w.Body.Bytes(), &response)
 
 		assert.Contains(t, response, "access_token")
+		assert.Contains(t, response, "refresh_token")
 	})
 
 	t.Run("Invalid Refresh Token", func(t *testing.T) {
@@ -250,6 +295,29 @@ func TestRefreshToken(t *testing.T) {
 		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/refresh", reqBody, nil)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+
+	t.Run("Refresh Token Reuse Detected", func(t *testing.T) {
+		mockDB.Clear()
+		user := testutil.CreateTestUser(mockDB, "user1", "testuser", "test@example.com")
+
+		tokens, err := testutil.GenerateTestTokenPair(user.ID, user.Handle, user.Email, false)
+		assert.NoError(t, err)
+		user.RefreshTokenHash = auth.HashRefreshToken(tokens.RefreshToken)
+		_, err = mockDB.Put(context.Background(), mockDB.NameKey("User", user.ID, nil), user)
+		assert.NoError(t, err)
+
+		reqBody := map[string]interface{}{
+			"refresh_token": tokens.RefreshToken,
+		}
+
+		// First refresh succeeds and rotates the token
+		w := testutil.MakeRequest(router, "POST", "/api/v1/auth/refresh", reqBody, nil)
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Reusing the old refresh token should be rejected
+		w = testutil.MakeRequest(router, "POST", "/api/v1/auth/refresh", reqBody, nil)
+		testutil.AssertErrorResponse(t, w, http.StatusUnauthorized, "Invalid or expired")
 	})
 }
 
