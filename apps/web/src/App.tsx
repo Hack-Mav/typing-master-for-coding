@@ -177,10 +177,13 @@ function AppContentWithAuth() {
     setState(prev => ({ ...prev, currentMode: 'menu' }));
   };
 
-  const handleAuthenticated = () => {
+  const handleAuthenticated = (isAnonymous?: boolean) => {
     setShowAuthModal(false);
-    // Refresh auth state
-    window.location.reload();
+    // Only reload for regular login/register where cookies are set.
+    // Anonymous auth sets state in memory, so no reload needed.
+    if (!isAnonymous) {
+      window.location.reload();
+    }
   };
 
   // Main menu component
@@ -196,8 +199,17 @@ function AppContentWithAuth() {
 
         <div className="mode-cards">
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Syntax Tutorials"
             className="mode-card"
             onClick={() => handleModeSelect('syntax-tutorial')}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleModeSelect('syntax-tutorial');
+              }
+            }}
           >
             <h3>Syntax Tutorials</h3>
             <p>Structured lessons from basics to advanced patterns</p>
@@ -209,8 +221,17 @@ function AppContentWithAuth() {
           </div>
 
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Timed Drill"
             className="mode-card"
             onClick={() => handleModeSelect('timed-drill')}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleModeSelect('timed-drill');
+              }
+            }}
           >
             <h3>Timed Drill</h3>
             <p>Speed-focused practice with metrics and time challenges</p>
@@ -222,8 +243,17 @@ function AppContentWithAuth() {
           </div>
 
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Accuracy Mode"
             className="mode-card"
             onClick={() => handleModeSelect('accuracy')}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleModeSelect('accuracy');
+              }
+            }}
           >
             <h3>Accuracy Mode</h3>
             <p>Focus on error-free typing with precision scoring</p>
@@ -234,7 +264,19 @@ function AppContentWithAuth() {
             </div>
           </div>
 
-          <div className="mode-card" onClick={() => handleModeSelect('zen')}>
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label="Zen Mode"
+            className="mode-card"
+            onClick={() => handleModeSelect('zen')}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleModeSelect('zen');
+              }
+            }}
+          >
             <h3>Zen Mode</h3>
             <p>Distraction-free coding practice without metrics</p>
             <div className="mode-features">
@@ -245,8 +287,17 @@ function AppContentWithAuth() {
           </div>
 
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Custom Snippets"
             className="mode-card"
             onClick={() => handleModeSelect('custom-snippets')}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleModeSelect('custom-snippets');
+              }
+            }}
           >
             <h3>Custom Snippets</h3>
             <p>Practice with your own code snippets</p>
@@ -258,8 +309,17 @@ function AppContentWithAuth() {
           </div>
 
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Assessment"
             className="mode-card"
             onClick={() => handleModeSelect('assessment')}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleModeSelect('assessment');
+              }
+            }}
           >
             <h3>Assessment</h3>
             <p>Structured evaluation of your typing skills</p>

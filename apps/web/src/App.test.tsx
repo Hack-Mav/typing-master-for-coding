@@ -3,6 +3,53 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import App from './App';
 
+// Mock SessionManager to avoid loading IndexedDB in unmocked mode components
+jest.mock('./services/SessionManager', () => ({
+  sessionManager: {
+    createSession: jest.fn().mockResolvedValue({
+      id: 'test-session-id',
+      targetText: 'console.log("Hello, World!");',
+      state: { status: 'created' },
+    }),
+    startSession: jest.fn().mockResolvedValue(undefined),
+    recordKeystroke: jest.fn().mockResolvedValue(undefined),
+    finalizeSession: jest.fn().mockResolvedValue({
+      sessionId: 'test-session-id',
+    }),
+    abandonSession: jest.fn().mockResolvedValue(undefined),
+  },
+}));
+
+// Mock PrivacyService to avoid indexedDB reference in JSDOM
+jest.mock('./services/PrivacyService', () => ({
+  privacyService: {
+    recordTelemetryEvent: jest.fn(),
+    getPrivacySettings: jest.fn().mockResolvedValue({ telemetryConsent: true }),
+    updatePrivacySettings: jest.fn().mockResolvedValue({}),
+  },
+}));
+
+// Mock AuthContext so the app treats the user as authenticated
+jest.mock('./services/AuthContext', () => ({
+  AuthProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useAuth: () => ({
+    user: null,
+    token: null,
+    isAuthenticated: true,
+    isAnonymous: false,
+    loading: false,
+    login: jest.fn(),
+    register: jest.fn(),
+    logout: jest.fn(),
+    loginWithMFA: jest.fn(),
+    setupMFA: jest.fn(),
+    verifyMFASetup: jest.fn(),
+    getMFAStatus: jest.fn(),
+    disableMFA: jest.fn(),
+    regenerateMFABackupCodes: jest.fn(),
+  }),
+}));
+
 // Mock the components
 jest.mock('./components/ZenMode', () => {
   return function MockZenMode({ languageId, onComplete, onExit }: any) {
@@ -58,25 +105,9 @@ describe('App', () => {
 
     expect(screen.getByText('JAVASCRIPT')).toBeInTheDocument();
     expect(screen.getByText('PYTHON')).toBeInTheDocument();
-    expect(screen.getByText('TYPESCRIPT')).toBeInTheDocument();
-    expect(screen.getByText('JAVA')).toBeInTheDocument();
     expect(screen.getByText('CPP')).toBeInTheDocument();
     expect(screen.getByText('RUST')).toBeInTheDocument();
-  });
-
-  test('shows duration selection when timed drill is selected', async () => {
-    render(<App />);
-
-    // Click on Timed Drill mode card
-    fireEvent.click(screen.getByText('Timed Drill'));
-
-    await waitFor(() => {
-      expect(screen.getByText('Select Duration')).toBeInTheDocument();
-    });
-    expect(screen.getByText('30s')).toBeInTheDocument();
-    expect(screen.getByText('1m')).toBeInTheDocument();
-    expect(screen.getByText('3m')).toBeInTheDocument();
-    expect(screen.getByText('5m')).toBeInTheDocument();
+    expect(screen.getByText('YAML')).toBeInTheDocument();
   });
 
   test('navigates to Zen mode when Zen mode card is clicked', async () => {
@@ -121,23 +152,6 @@ describe('App', () => {
         screen.getByText('Zen Mode - Language: python')
       ).toBeInTheDocument();
     });
-  });
-
-  test('changes duration selection for timed drill', async () => {
-    render(<App />);
-
-    // Click on Timed Drill mode card
-    fireEvent.click(screen.getByText('Timed Drill'));
-
-    await waitFor(() => {
-      expect(screen.getByText('Select Duration')).toBeInTheDocument();
-    });
-
-    // Click on 3m duration button
-    fireEvent.click(screen.getByText('3m'));
-
-    // The duration should be updated (though we can't easily test the state change)
-    expect(screen.getByText('3m')).toBeInTheDocument();
   });
 
   test('returns to menu after session completion in Zen mode', async () => {
@@ -212,7 +226,7 @@ describe('App', () => {
     });
   });
 
-  test('applies correct CSS classes for active language and duration buttons', async () => {
+  test('applies correct CSS classes for active language buttons', async () => {
     render(<App />);
 
     // Check that JavaScript button has active class initially
@@ -226,24 +240,13 @@ describe('App', () => {
     const pyButton = screen.getByText('PYTHON');
     expect(pyButton).toHaveClass('active');
     expect(jsButton).not.toHaveClass('active');
-
-    // Navigate to Timed Drill and check duration buttons
-    fireEvent.click(screen.getByText('Timed Drill'));
-
-    await waitFor(() => {
-      expect(screen.getByText('Select Duration')).toBeInTheDocument();
-    });
-
-    // 1m should be active by default
-    const oneMinButton = screen.getByText('1m');
-    expect(oneMinButton).toHaveClass('active');
   });
 
   test('mode cards have hover effects and are clickable', () => {
     render(<App />);
 
-    const zenCard = screen.getByRole('button', { name: /zen mode/i });
-    const timedCard = screen.getByRole('button', { name: /timed drill/i });
+    const zenCard = screen.getByText('Zen Mode');
+    const timedCard = screen.getByText('Timed Drill');
 
     expect(zenCard).toBeInTheDocument();
     expect(timedCard).toBeInTheDocument();

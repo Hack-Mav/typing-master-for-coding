@@ -16,6 +16,53 @@ const defaultPreferences: AccessibilityPreferences = {
   screenReaderOptimizations: true,
 };
 
+const FONT_SIZE_MIN = 10;
+const FONT_SIZE_MAX = 100;
+const LINE_HEIGHT_MIN = 1;
+const LINE_HEIGHT_MAX = 3;
+
+function validatePreferences(value: unknown): AccessibilityPreferences | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const v = value as Record<string, unknown>;
+  const parsed: Partial<AccessibilityPreferences> = {};
+
+  if (typeof v.reducedMotion === 'boolean') {
+    parsed.reducedMotion = v.reducedMotion;
+  }
+  if (typeof v.highContrast === 'boolean') {
+    parsed.highContrast = v.highContrast;
+  }
+  if (typeof v.screenReaderOptimizations === 'boolean') {
+    parsed.screenReaderOptimizations = v.screenReaderOptimizations;
+  }
+  if (
+    typeof v.fontSize === 'number' &&
+    v.fontSize >= FONT_SIZE_MIN &&
+    v.fontSize <= FONT_SIZE_MAX
+  ) {
+    parsed.fontSize = v.fontSize;
+  }
+  if (
+    typeof v.lineHeight === 'number' &&
+    v.lineHeight >= LINE_HEIGHT_MIN &&
+    v.lineHeight <= LINE_HEIGHT_MAX
+  ) {
+    parsed.lineHeight = v.lineHeight;
+  }
+
+  return { ...defaultPreferences, ...parsed };
+}
+
+function getSystemPreferences(): Partial<AccessibilityPreferences> {
+  if (typeof window === 'undefined') return {};
+  return {
+    reducedMotion:
+      window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || false,
+    highContrast:
+      window.matchMedia?.('(prefers-contrast: more)')?.matches || false,
+  };
+}
+
 const AccessibilityContext = createContext<{
   preferences: AccessibilityPreferences;
   updatePreferences: (updates: Partial<AccessibilityPreferences>) => void;
@@ -29,18 +76,22 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [preferences, setPreferences] = useState<AccessibilityPreferences>(
     () => {
-      // Load from localStorage if available
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem('typing-master-accessibility');
-        if (saved) {
-          try {
-            return { ...defaultPreferences, ...JSON.parse(saved) };
-          } catch (e) {
-            console.warn('Failed to parse accessibility preferences:', e);
-          }
+      if (typeof window === 'undefined') return defaultPreferences;
+
+      const saved = localStorage.getItem('typing-master-accessibility');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const validated = validatePreferences(parsed);
+          if (validated) return validated;
+          console.warn('Invalid accessibility preferences; using defaults');
+          localStorage.removeItem('typing-master-accessibility');
+        } catch (e) {
+          console.warn('Failed to parse accessibility preferences:', e);
         }
       }
-      return defaultPreferences;
+
+      return { ...defaultPreferences, ...getSystemPreferences() };
     }
   );
 
@@ -57,25 +108,34 @@ export const AccessibilityProvider: React.FC<{ children: React.ReactNode }> = ({
   // Apply preferences to document
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      if (preferences.reducedMotion) {
-        document.body.classList.add('reduce-motion');
-      } else {
-        document.body.classList.remove('reduce-motion');
-      }
-
-      if (preferences.highContrast) {
-        document.body.classList.add('high-contrast');
-      } else {
-        document.body.classList.remove('high-contrast');
-      }
-
-      // Apply font size to root element
-      document.documentElement.style.fontSize = `${preferences.fontSize}px`;
-
-      // Apply line height to body
-      document.body.style.lineHeight = preferences.lineHeight.toString();
+      document.body.classList.toggle(
+        'reduced-motion',
+        preferences.reducedMotion
+      );
+      document.body.classList.toggle('high-contrast', preferences.highContrast);
     }
   }, [preferences]);
+
+  // Respect system accessibility preferences when no user override is saved
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const contrast = window.matchMedia('(prefers-contrast: more)');
+
+    const update = () => {
+      if (localStorage.getItem('typing-master-accessibility')) return;
+      setPreferences(prev => ({ ...prev, ...getSystemPreferences() }));
+    };
+
+    update();
+    reduce.addEventListener('change', update);
+    contrast.addEventListener('change', update);
+    return () => {
+      reduce.removeEventListener('change', update);
+      contrast.removeEventListener('change', update);
+    };
+  }, []);
 
   const updatePreferences = (updates: Partial<AccessibilityPreferences>) => {
     setPreferences(prev => ({ ...prev, ...updates }));

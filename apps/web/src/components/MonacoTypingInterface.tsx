@@ -39,12 +39,13 @@ const MonacoTypingInterface: React.FC<MonacoTypingInterfaceProps> = ({
 }) => {
   const editorRef = useRef<any>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [monaco, setMonaco] = useState<Monaco | null>(null);
   const { preferences } = useAccessibility();
 
   // Use accessibility preferences for font and line height
-  const [fontSizeSetting] = useState(preferences.fontSize || fontSize);
-  const [lineHeightSetting] = useState(preferences.lineHeight || lineHeight);
+  const fontSizeSetting = preferences.fontSize ?? fontSize;
+  const lineHeightSetting = preferences.lineHeight ?? lineHeight;
   const [currentKeyboardLayout, setCurrentKeyboardLayout] =
     useState<KeyboardLayout | null>(null);
 
@@ -54,178 +55,124 @@ const MonacoTypingInterface: React.FC<MonacoTypingInterfaceProps> = ({
     setCurrentKeyboardLayout(layout);
   }, [keyboardLayout]);
 
-  // Keyboard navigation state
-  const [focusedElement, setFocusedElement] = useState<string | null>(null);
+  // Announcement and focus state
   const [announcements, setAnnouncements] = useState<string[]>([]);
   const [isTypingMode, setIsTypingMode] = useState(false);
 
-  // Enhanced keyboard navigation
+  const announce = useCallback(
+    (message: string) => {
+      if (preferences.screenReaderOptimizations) {
+        setAnnouncements(prev => [...prev, message]);
+      }
+    },
+    [preferences.screenReaderOptimizations]
+  );
+
+  // Focus manager and keyboard navigation
+  const focusEditor = useCallback(() => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+      setIsTypingMode(true);
+      announce('Entered typing mode. Start typing to begin practice.');
+    }
+  }, [announce]);
+
+  const focusContainer = useCallback(() => {
+    containerRef.current?.focus();
+    setIsTypingMode(false);
+    announce('Exited typing mode');
+  }, [announce]);
+
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
-      // Don't interfere with typing when in typing mode
       if (isTypingMode && event.key.length === 1) {
         return;
       }
 
       switch (event.key) {
-        case 'Tab':
-          event.preventDefault();
-          // Handle tab navigation between focusable elements
-          const focusableElements = [
-            'editor',
-            'theme-button',
-            'summary-button',
-            'exit-button',
-          ];
-          const currentIndex = focusedElement
-            ? focusableElements.indexOf(focusedElement)
-            : 0;
-          const nextIndex = event.shiftKey
-            ? (currentIndex - 1 + focusableElements.length) %
-              focusableElements.length
-            : (currentIndex + 1) % focusableElements.length;
-          setFocusedElement(focusableElements[nextIndex]);
-          setAnnouncements(prev => [
-            ...prev,
-            `Navigated to ${focusableElements[nextIndex]}`,
-          ]);
-          break;
         case 'Enter':
         case ' ':
-          if (focusedElement === 'editor') {
-            event.preventDefault();
-            setIsTypingMode(true);
-            setAnnouncements(prev => [
-              ...prev,
-              'Entered typing mode. Start typing to begin practice.',
-            ]);
-          } else if (focusedElement === 'theme-button') {
-            event.preventDefault();
-            setAnnouncements(prev => [...prev, 'Theme button activated']);
-          } else if (focusedElement === 'summary-button') {
-            event.preventDefault();
-            setAnnouncements(prev => [...prev, 'Summary button activated']);
-          } else if (focusedElement === 'exit-button') {
-            event.preventDefault();
-            setAnnouncements(prev => [...prev, 'Exit button activated']);
-          }
+          event.preventDefault();
+          focusEditor();
           break;
         case 'Escape':
           if (isTypingMode) {
-            setIsTypingMode(false);
-            setAnnouncements(prev => [...prev, 'Exited typing mode']);
-          } else {
-            setAnnouncements(prev => [...prev, 'Escape pressed']);
+            event.preventDefault();
+            focusContainer();
           }
-          event.preventDefault();
           break;
         case 'ArrowUp':
         case 'ArrowDown':
         case 'ArrowLeft':
         case 'ArrowRight':
-          // Allow normal cursor movement in editor
-          if (focusedElement === 'editor') {
+          if (isTypingMode) {
             return;
           }
           break;
       }
     },
-    [focusedElement, isTypingMode]
+    [isTypingMode, focusEditor, focusContainer]
   );
 
-  // Enhanced announcements for screen readers
+  // Announce typing progress to screen readers
   useEffect(() => {
     if (currentText.length > 0 && currentText.length % 5 === 0) {
       const progress = Math.round(
         (currentText.length / targetText.length) * 100
       );
-      setAnnouncements(prev => [
-        ...prev,
-        `Progress: ${progress}% complete. ${currentText.length} of ${targetText.length} characters typed.`,
-      ]);
+      announce(
+        `Progress: ${progress}% complete. ${currentText.length} of ${targetText.length} characters typed.`
+      );
     }
-  }, [currentText.length, targetText.length]);
+  }, [currentText.length, targetText.length, announce]);
 
-  // Enhanced error announcements
+  // Announce typing errors to screen readers
   useEffect(() => {
     if (currentText.length > 0) {
       const lastChar = currentText[currentText.length - 1];
       const expectedChar = targetText[currentText.length - 1];
       if (lastChar !== expectedChar) {
-        setAnnouncements(prev => [
-          ...prev,
-          `Error: expected ${expectedChar}, got ${lastChar} at position ${currentText.length}`,
-        ]);
+        announce(
+          `Error: expected ${expectedChar}, got ${lastChar} at position ${currentText.length}`
+        );
       }
     }
-  }, [currentText, targetText]);
+  }, [currentText, targetText, announce]);
 
-  // Keyboard layout indicator for screen readers
+  // Announce keyboard layout changes to screen readers
   useEffect(() => {
     if (currentKeyboardLayout) {
-      setAnnouncements(prev => [
-        ...prev,
-        `Keyboard layout: ${currentKeyboardLayout.displayName}`,
-      ]);
+      announce(`Keyboard layout: ${currentKeyboardLayout.displayName}`);
     }
-  }, [currentKeyboardLayout]);
+  }, [currentKeyboardLayout, announce]);
 
-  // High contrast mode support
+  // Update editor options when accessibility font/line-height preferences change
   useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-contrast: high)');
-    const handleChange = () => {
-      if (mediaQuery.matches) {
-        // Apply high contrast theme adjustments
-        document.body.classList.add('high-contrast');
-      } else {
-        document.body.classList.remove('high-contrast');
+    if (editorRef.current) {
+      editorRef.current.updateOptions({
+        fontSize: fontSizeSetting,
+        lineHeight: lineHeightSetting,
+      });
+    }
+  }, [fontSizeSetting, lineHeightSetting]);
+
+  // Capture Escape while the editor is focused so focus returns to the container
+  useEffect(() => {
+    if (!isTypingMode || !editorRef.current) return;
+
+    const node = editorRef.current.getContainerDomNode?.();
+    if (!node) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        focusContainer();
       }
     };
 
-    handleChange();
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
-
-  // Reduced motion support
-  useEffect(() => {
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const handleChange = () => {
-      if (mediaQuery.matches) {
-        document.body.classList.add('reduced-motion');
-      } else {
-        document.body.classList.remove('reduced-motion');
-      }
-    };
-
-    handleChange();
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
-
-  // Handle text changes and announce to screen readers
-  useEffect(() => {
-    if (currentText.length > 0 && currentText.length % 10 === 0) {
-      const progress = Math.round(
-        (currentText.length / targetText.length) * 100
-      );
-      setAnnouncements(prev => [...prev, `Progress: ${progress}% complete`]);
-    }
-  }, [currentText.length, targetText.length]);
-
-  // Handle errors and announce to screen readers
-  useEffect(() => {
-    if (currentText.length > 0) {
-      const lastChar = currentText[currentText.length - 1];
-      const expectedChar = targetText[currentText.length - 1];
-      if (lastChar !== expectedChar) {
-        setAnnouncements(prev => [
-          ...prev,
-          `Error: expected ${expectedChar}, got ${lastChar}`,
-        ]);
-      }
-    }
-  }, [currentText, targetText]);
+    node.addEventListener('keydown', handleKeyDown);
+    return () => node.removeEventListener('keydown', handleKeyDown);
+  }, [isTypingMode, focusContainer]);
 
   // Apply theme to Monaco Editor
   const applyTheme = useCallback(
@@ -445,6 +392,7 @@ const MonacoTypingInterface: React.FC<MonacoTypingInterfaceProps> = ({
     return (
       <div
         ref={overlayRef}
+        data-testid="typing-target-text"
         className={`typing-overlay ${className}`}
         style={{
           position: 'absolute',
@@ -466,15 +414,11 @@ const MonacoTypingInterface: React.FC<MonacoTypingInterfaceProps> = ({
           const isTyped = index < currentText.length;
           const isCorrect = isTyped && currentText[index] === char;
           const isCurrent = index === currentText.length;
-          const hasError = isTyped && !isCorrect;
 
           let className = 'typing-char';
-          let beforeContent = '';
-          let afterContent = '';
 
           if (isCurrent) {
             className += ' typing-char-current';
-            beforeContent = '█';
           } else if (isTyped) {
             if (isCorrect) {
               className += ' typing-char-correct';
@@ -485,22 +429,9 @@ const MonacoTypingInterface: React.FC<MonacoTypingInterfaceProps> = ({
             className += ' typing-char-pending';
           }
 
-          // Add error indicators
-          if (hasError) {
-            afterContent = '✗';
-          }
-
           return (
             <span key={index} className={className}>
-              {beforeContent}
-              {char === '\n'
-                ? '↵\n'
-                : char === ' '
-                  ? '·'
-                  : char === '\t'
-                    ? '→   '
-                    : char}
-              {afterContent}
+              {char === '\n' ? '↵\n' : char}
             </span>
           );
         })}
@@ -526,10 +457,11 @@ const MonacoTypingInterface: React.FC<MonacoTypingInterfaceProps> = ({
 
   return (
     <div
+      ref={containerRef}
       className="monaco-typing-container"
       style={{ position: 'relative', width: '100%', height: '100%' }}
       onKeyDown={handleKeyDown}
-      tabIndex={-1}
+      tabIndex={0}
     >
       <Editor
         height="100%"
@@ -559,6 +491,7 @@ const MonacoTypingInterface: React.FC<MonacoTypingInterfaceProps> = ({
 
       {/* ARIA live region for screen reader announcements */}
       <div
+        role="status"
         aria-live="polite"
         aria-atomic="true"
         className="sr-only"
@@ -570,15 +503,18 @@ const MonacoTypingInterface: React.FC<MonacoTypingInterfaceProps> = ({
           overflow: 'hidden',
         }}
       >
-        {announcements.map((announcement, index) => (
-          <div key={index}>{announcement}</div>
-        ))}
+        {announcements.length > 0 && (
+          <div key={announcements.length}>
+            {announcements[announcements.length - 1]}
+          </div>
+        )}
       </div>
 
       {/* Hidden instructions for screen readers */}
       <div id="typing-instructions" className="sr-only">
-        Type the code shown above. Use Tab to navigate and Enter to start
-        typing. Your progress and any errors will be announced automatically.
+        Type the code shown above. Use Tab to reach the editor, then Enter to
+        focus it and Escape to return. Your progress and any errors will be
+        announced automatically.
       </div>
 
       {/* Custom typing overlay */}
