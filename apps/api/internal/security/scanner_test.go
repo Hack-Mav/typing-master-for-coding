@@ -3,165 +3,12 @@ package security
 import (
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestVulnerabilityScanner_XSSDetection(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	config := DefaultScannerConfig()
-	logger := &SecurityLogger{} // Mock logger for testing
-	scanner := NewVulnerabilityScanner(config, logger)
-
-	tests := []struct {
-		name         string
-		queryParams  map[string]string
-		expectThreat bool
-		expectedType string
-	}{
-		{
-			name: "Clean query parameters",
-			queryParams: map[string]string{
-				"search": "hello world",
-				"page":   "1",
-			},
-			expectThreat: false,
-		},
-		{
-			name: "XSS in query parameter",
-			queryParams: map[string]string{
-				"search": "<script>alert('xss')</script>",
-			},
-			expectThreat: true,
-			expectedType: "XSS",
-		},
-		{
-			name: "JavaScript URL",
-			queryParams: map[string]string{
-				"redirect": "javascript:alert('xss')",
-			},
-			expectThreat: true,
-			expectedType: "XSS",
-		},
-		{
-			name: "Event handler injection",
-			queryParams: map[string]string{
-				"input": "onload=alert('xss')",
-			},
-			expectThreat: true,
-			expectedType: "XSS",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create request with query parameters
-			req := httptest.NewRequest("GET", "/test", nil)
-			q := req.URL.Query()
-			for key, value := range tt.queryParams {
-				q.Add(key, value)
-			}
-			req.URL.RawQuery = q.Encode()
-
-			// Create Gin context
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = req
-
-			// Scan request
-			threat := scanner.ScanRequest(c)
-
-			if tt.expectThreat {
-				assert.NotNil(t, threat, "Expected threat to be detected")
-				assert.Equal(t, tt.expectedType, threat.Type, "Expected threat type to match")
-				assert.True(t, threat.Blocked, "Expected threat to be blocked")
-			} else {
-				assert.Nil(t, threat, "Expected no threat to be detected")
-			}
-		})
-	}
-}
-
-func TestVulnerabilityScanner_SQLInjectionDetection(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	config := DefaultScannerConfig()
-	logger := &SecurityLogger{} // Mock logger for testing
-	scanner := NewVulnerabilityScanner(config, logger)
-
-	tests := []struct {
-		name         string
-		queryParams  map[string]string
-		expectThreat bool
-		expectedType string
-	}{
-		{
-			name: "Clean query parameters",
-			queryParams: map[string]string{
-				"id":   "123",
-				"name": "john",
-			},
-			expectThreat: false,
-		},
-		{
-			name: "Union select injection",
-			queryParams: map[string]string{
-				"id": "1 UNION SELECT * FROM users",
-			},
-			expectThreat: true,
-			expectedType: "SQL_INJECTION",
-		},
-		{
-			name: "Drop table injection",
-			queryParams: map[string]string{
-				"query": "'; DROP TABLE users; --",
-			},
-			expectThreat: true,
-			expectedType: "SQL_INJECTION",
-		},
-		{
-			name: "Always true condition",
-			queryParams: map[string]string{
-				"filter": "' OR '1'='1",
-			},
-			expectThreat: true,
-			expectedType: "SQL_INJECTION",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create request with query parameters
-			req := httptest.NewRequest("GET", "/test", nil)
-			q := req.URL.Query()
-			for key, value := range tt.queryParams {
-				q.Add(key, value)
-			}
-			req.URL.RawQuery = q.Encode()
-
-			// Create Gin context
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = req
-
-			// Scan request
-			threat := scanner.ScanRequest(c)
-
-			if tt.expectThreat {
-				assert.NotNil(t, threat, "Expected threat to be detected")
-				assert.Equal(t, tt.expectedType, threat.Type, "Expected threat type to match")
-				assert.True(t, threat.Blocked, "Expected threat to be blocked")
-			} else {
-				assert.Nil(t, threat, "Expected no threat to be detected")
-			}
-		})
-	}
-}
 
 func TestVulnerabilityScanner_RequestSizeLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -215,76 +62,6 @@ func TestVulnerabilityScanner_RequestSizeLimit(t *testing.T) {
 	}
 }
 
-func TestVulnerabilityScanner_FormDataScanning(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-
-	config := DefaultScannerConfig()
-	logger := &SecurityLogger{} // Mock logger for testing
-	scanner := NewVulnerabilityScanner(config, logger)
-
-	tests := []struct {
-		name         string
-		formData     map[string]string
-		expectThreat bool
-		expectedType string
-	}{
-		{
-			name: "Clean form data",
-			formData: map[string]string{
-				"username": "john",
-				"email":    "john@example.com",
-			},
-			expectThreat: false,
-		},
-		{
-			name: "XSS in form data",
-			formData: map[string]string{
-				"comment": "<script>alert('xss')</script>",
-			},
-			expectThreat: true,
-			expectedType: "XSS",
-		},
-		{
-			name: "SQL injection in form data",
-			formData: map[string]string{
-				"search": "'; DROP TABLE users; --",
-			},
-			expectThreat: true,
-			expectedType: "SQL_INJECTION",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Create form data
-			formData := url.Values{}
-			for key, value := range tt.formData {
-				formData.Set(key, value)
-			}
-
-			// Create POST request with form data
-			req := httptest.NewRequest("POST", "/test", strings.NewReader(formData.Encode()))
-			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-			// Create Gin context
-			w := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(w)
-			c.Request = req
-
-			// Scan request
-			threat := scanner.ScanRequest(c)
-
-			if tt.expectThreat {
-				assert.NotNil(t, threat, "Expected threat to be detected")
-				assert.Equal(t, tt.expectedType, threat.Type, "Expected threat type to match")
-				assert.True(t, threat.Blocked, "Expected threat to be blocked")
-			} else {
-				assert.Nil(t, threat, "Expected no threat to be detected")
-			}
-		})
-	}
-}
-
 func TestSecurityScanMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -313,14 +90,14 @@ func TestSecurityScanMiddleware(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "XSS attack",
+			name:           "XSS attack (no longer blocked by regex)",
 			url:            "/test?search=<script>alert('xss')</script>",
-			expectedStatus: http.StatusForbidden,
+			expectedStatus: http.StatusOK,
 		},
 		{
-			name:           "SQL injection",
+			name:           "SQL injection (no longer blocked by regex)",
 			url:            "/test?id=%27+OR+%271%27%3D%271",
-			expectedStatus: http.StatusForbidden,
+			expectedStatus: http.StatusOK,
 		},
 		{
 			name:           "Health check (should be allowed)",
@@ -344,7 +121,6 @@ func TestSecurityScanMiddleware(t *testing.T) {
 func TestCSRFProtectionMiddleware(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Create router with CSRF middleware
 	router := gin.New()
 	router.Use(CSRFProtectionMiddleware())
 	router.POST("/test", func(c *gin.Context) {
@@ -354,55 +130,49 @@ func TestCSRFProtectionMiddleware(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"message": "success"})
 	})
 
-	tests := []struct {
-		name           string
-		method         string
-		headers        map[string]string
-		expectedStatus int
-	}{
-		{
-			name:           "GET request (should pass)",
-			method:         "GET",
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:           "POST without origin/referer",
-			method:         "POST",
-			expectedStatus: http.StatusForbidden,
-		},
-		{
-			name:   "POST with origin header",
-			method: "POST",
-			headers: map[string]string{
-				"Origin": "https://example.com",
-			},
-			expectedStatus: http.StatusOK,
-		},
-		{
-			name:   "POST with referer header",
-			method: "POST",
-			headers: map[string]string{
-				"Referer": "https://example.com/page",
-			},
-			expectedStatus: http.StatusOK,
-		},
+	// GET request should set CSRF cookie
+	req := httptest.NewRequest("GET", "/test", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var token string
+	for _, c := range w.Result().Cookies() {
+		if c.Name == csrfCookieName {
+			token = c.Value
+			break
+		}
 	}
+	assert.NotEmpty(t, token, "Expected CSRF cookie to be set")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := httptest.NewRequest(tt.method, "/test", nil)
+	// POST without CSRF cookie should fail
+	req = httptest.NewRequest("POST", "/test", nil)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusForbidden, w.Code)
 
-			// Add headers
-			for key, value := range tt.headers {
-				req.Header.Set(key, value)
-			}
+	// POST with cookie but no token header should fail
+	req = httptest.NewRequest("POST", "/test", nil)
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: token})
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusForbidden, w.Code)
 
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
+	// POST with cookie and matching token header should pass
+	req = httptest.NewRequest("POST", "/test", nil)
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: token})
+	req.Header.Set(csrfHeaderName, token)
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusOK, w.Code)
 
-			assert.Equal(t, tt.expectedStatus, w.Code, "Expected status code to match")
-		})
-	}
+	// POST with cookie and mismatched token header should fail
+	req = httptest.NewRequest("POST", "/test", nil)
+	req.AddCookie(&http.Cookie{Name: csrfCookieName, Value: token})
+	req.Header.Set(csrfHeaderName, "invalid-token")
+	w = httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
 func TestSecureHeadersMiddleware(t *testing.T) {

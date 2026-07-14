@@ -2,16 +2,38 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/typing-master-for-coding-backend/internal/cache"
 	"github.com/typing-master-for-coding-backend/internal/database"
 	"github.com/typing-master-for-coding-backend/internal/rbac"
 	"github.com/typing-master-for-coding-backend/internal/security"
 
 	"github.com/gin-gonic/gin"
 )
+
+// hasAuthHeader returns true when the request includes an Authorization header.
+func hasAuthHeader(c *gin.Context) bool {
+	return c.GetHeader("Authorization") != ""
+}
+
+// hasAccessTokenCookie returns true when the access_token cookie is present.
+func hasAccessTokenCookie(c *gin.Context) bool {
+	_, err := c.Cookie("access_token")
+	return err == nil
+}
+
+// isPublicAuthEndpoint returns true for routes that are inherently public and
+// should not be gated by CSRF protection (e.g. login, register, anonymous).
+func isPublicAuthEndpoint(c *gin.Context) bool {
+	path := c.Request.URL.Path
+	return strings.HasPrefix(path, "/api/v1/auth/") ||
+		strings.HasPrefix(path, "/api/v1/sessions/anonymous") ||
+		strings.HasPrefix(path, "/api/v1/embed/")
+}
 
 // SecurityMiddleware creates a comprehensive security middleware
 func SecurityMiddleware(db *database.DatastoreClient) gin.HandlerFunc {
@@ -25,26 +47,28 @@ func SecurityMiddleware(db *database.DatastoreClient) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 		// Apply security scanning
-		scanMiddleware := scanner.SecurityScanMiddleware()
-		scanMiddleware(c)
-
-		// If request was blocked by scanner, don't continue
-		if c.IsAborted() {
+		if threat := scanner.ScanRequest(c); threat != nil {
+			logger.LogSecurityEvent(context.Background(), *threat)
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "Request blocked due to security policy violation",
+				"code":  "SECURITY_VIOLATION",
+			})
+			c.Abort()
 			return
 		}
 
-		// Apply secure headers
-		secureHeadersMiddleware := security.SecureHeadersMiddleware()
-		secureHeadersMiddleware(c)
+		// Apply secure headers and CSRF protection
+		security.SetSecureHeaders(c)
 
-		// Apply CSRF protection for state-changing requests
-		if c.Request.Method != "GET" && c.Request.Method != "HEAD" && c.Request.Method != "OPTIONS" {
-			csrfMiddleware := security.CSRFProtectionMiddleware()
-			csrfMiddleware(c)
+		// CSRF is only a concern for authenticated cookie-based sessions on non-public
+		// routes. Public auth endpoints (login, register, anonymous, etc.) should not be
+		// blocked by CSRF, even if an access_token cookie happens to be present.
+		if !isPublicAuthEndpoint(c) && (hasAuthHeader(c) || hasAccessTokenCookie(c)) {
+			security.CSRFProtection(c)
+		}
 
-			if c.IsAborted() {
-				return
-			}
+		if c.IsAborted() {
+			return
 		}
 
 		// Log audit event for authenticated requests
@@ -86,38 +110,23 @@ func SecurityMiddleware(db *database.DatastoreClient) gin.HandlerFunc {
 	}
 }
 
-// RateLimitMiddleware implements rate limiting
-func RateLimitMiddleware(requestsPerMinute int) gin.HandlerFunc {
-	// Simple in-memory rate limiter (in production, use Redis or similar)
-	clients := make(map[string][]time.Time)
+// RateLimitMiddleware implements distributed rate limiting using a cache-backed counter.
+func RateLimitMiddleware(cacheClient *cache.InMemoryCache, requestsPerMinute int) gin.HandlerFunc {
+	window := time.Minute
 
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
-		now := time.Now()
+		key := fmt.Sprintf("rate_limit:%s", clientIP)
 
-		// Clean old entries
-		if requests, exists := clients[clientIP]; exists {
-			var validRequests []time.Time
-			for _, reqTime := range requests {
-				if now.Sub(reqTime) < time.Minute {
-					validRequests = append(validRequests, reqTime)
-				}
-			}
-			clients[clientIP] = validRequests
-		}
-
-		// Check rate limit
-		if len(clients[clientIP]) >= requestsPerMinute {
+		count := cacheClient.IncrWithTTL(key, window)
+		if count > int64(requestsPerMinute) {
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error":       "Rate limit exceeded",
-				"retry_after": 60,
+				"retry_after": int(window.Seconds()),
 			})
 			c.Abort()
 			return
 		}
-
-		// Add current request
-		clients[clientIP] = append(clients[clientIP], now)
 
 		c.Next()
 	}

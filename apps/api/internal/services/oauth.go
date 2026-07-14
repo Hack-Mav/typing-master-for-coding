@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/typing-master-for-coding-backend/internal/cache"
 	"github.com/typing-master-for-coding-backend/internal/database"
 	"github.com/typing-master-for-coding-backend/internal/models"
 
@@ -20,7 +22,7 @@ import (
 type OAuthService struct {
 	db           *database.DatastoreClient
 	oauthConfigs map[string]*oauth2.Config
-	stateStore   map[string]*OAuthState
+	cache        *cache.InMemoryCache
 	httpClient   *http.Client
 }
 
@@ -60,7 +62,7 @@ type OAuthUserInfo struct {
 }
 
 // NewOAuthService creates a new OAuth service
-func NewOAuthService(db *database.DatastoreClient) *OAuthService {
+func NewOAuthService(db *database.DatastoreClient, cacheClient *cache.InMemoryCache) *OAuthService {
 	// Initialize OAuth configurations for different providers
 	oauthConfigs := make(map[string]*oauth2.Config)
 
@@ -103,44 +105,17 @@ func NewOAuthService(db *database.DatastoreClient) *OAuthService {
 	return &OAuthService{
 		db:           db,
 		oauthConfigs: oauthConfigs,
-		stateStore:   make(map[string]*OAuthState),
+		cache:        cacheClient,
 		httpClient:   &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
 // InitiateOAuthFlow initiates the OAuth authentication flow
 func (s *OAuthService) InitiateOAuthFlow(c *gin.Context, provider, userID string, redirectURI string, scopes []string) error {
-	// Check if provider is supported
-	config, exists := s.oauthConfigs[provider]
-	if !exists {
-		return fmt.Errorf("unsupported OAuth provider: %s", provider)
+	authURL, err := s.GetOAuthURL(c, provider, userID, redirectURI, scopes)
+	if err != nil {
+		return err
 	}
-
-	// Generate state parameter
-	state := s.generateSecureState()
-
-	// Store OAuth state
-	oauthState := &OAuthState{
-		State:       state,
-		Provider:    provider,
-		UserID:      userID,
-		RedirectURI: redirectURI,
-		Scopes:      scopes,
-		CreatedAt:   time.Now(),
-		ExpiresAt:   time.Now().Add(10 * time.Minute), // State expires in 10 minutes
-		Metadata:    make(map[string]interface{}),
-	}
-
-	s.stateStore[state] = oauthState
-
-	// Update config with redirect URI and scopes
-	config.RedirectURL = redirectURI
-	if len(scopes) > 0 {
-		config.Scopes = scopes
-	}
-
-	// Generate authorization URL
-	authURL := config.AuthCodeURL(state, oauth2.AccessTypeOffline)
 
 	// Redirect user to OAuth provider
 	c.Redirect(http.StatusFound, authURL)
@@ -163,15 +138,9 @@ func (s *OAuthService) HandleOAuthCallback(c *gin.Context) error {
 	}
 
 	// Retrieve OAuth state
-	oauthState, exists := s.stateStore[state]
-	if !exists {
-		return fmt.Errorf("invalid or expired state")
-	}
-
-	// Check if state has expired
-	if time.Now().After(oauthState.ExpiresAt) {
-		delete(s.stateStore, state)
-		return fmt.Errorf("OAuth state has expired")
+	oauthState, err := s.loadState(c, state)
+	if err != nil {
+		return err
 	}
 
 	// Get OAuth configuration
@@ -200,7 +169,7 @@ func (s *OAuthService) HandleOAuthCallback(c *gin.Context) error {
 	}
 
 	// Clean up state
-	delete(s.stateStore, state)
+	s.cache.Delete(s.stateCacheKey(state))
 
 	// Redirect to success page
 	c.Redirect(http.StatusFound, oauthState.RedirectURI+"?success=true&provider="+oauthState.Provider)
@@ -305,7 +274,7 @@ func (s *OAuthService) ValidateToken(ctx context.Context, provider, accessToken 
 }
 
 // GetOAuthURL returns the OAuth authorization URL for a provider
-func (s *OAuthService) GetOAuthURL(provider, userID, redirectURI string, scopes []string) (string, error) {
+func (s *OAuthService) GetOAuthURL(c *gin.Context, provider, userID, redirectURI string, scopes []string) (string, error) {
 	config, exists := s.oauthConfigs[provider]
 	if !exists {
 		return "", fmt.Errorf("unsupported OAuth provider: %s", provider)
@@ -314,7 +283,7 @@ func (s *OAuthService) GetOAuthURL(provider, userID, redirectURI string, scopes 
 	// Generate state
 	state := s.generateSecureState()
 
-	// Store OAuth state
+	// Store OAuth state with TTL and bind to session cookie
 	oauthState := &OAuthState{
 		State:       state,
 		Provider:    provider,
@@ -325,8 +294,9 @@ func (s *OAuthService) GetOAuthURL(provider, userID, redirectURI string, scopes 
 		ExpiresAt:   time.Now().Add(10 * time.Minute),
 		Metadata:    make(map[string]interface{}),
 	}
-
-	s.stateStore[state] = oauthState
+	if err := s.storeState(c, state, oauthState); err != nil {
+		return "", err
+	}
 
 	// Update config
 	config.RedirectURL = redirectURI
@@ -335,9 +305,7 @@ func (s *OAuthService) GetOAuthURL(provider, userID, redirectURI string, scopes 
 	}
 
 	// Generate authorization URL
-	authURL := config.AuthCodeURL(state, oauth2.AccessTypeOffline)
-
-	return authURL, nil
+	return config.AuthCodeURL(state, oauth2.AccessTypeOffline), nil
 }
 
 // Helper functions
@@ -346,6 +314,62 @@ func (s *OAuthService) generateSecureState() string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return base64.URLEncoding.EncodeToString(b)
+}
+
+const oauthStateCookieName = "oauth_state"
+const oauthStateTTL = 10 * time.Minute
+
+func (s *OAuthService) stateCacheKey(state string) string {
+	return fmt.Sprintf("oauth_state:%s", state)
+}
+
+func (s *OAuthService) storeState(c *gin.Context, state string, oauthState *OAuthState) error {
+	data, err := json.Marshal(oauthState)
+	if err != nil {
+		return err
+	}
+	s.cache.SetWithTTL(s.stateCacheKey(state), string(data), oauthStateTTL)
+
+	isSecure := c.Request.TLS != nil || c.Request.Header.Get("X-Forwarded-Proto") == "https"
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     oauthStateCookieName,
+		Value:    state,
+		Path:     "/",
+		Secure:   isSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		MaxAge:   int(oauthStateTTL.Seconds()),
+	})
+	return nil
+}
+
+func (s *OAuthService) loadState(c *gin.Context, state string) (*OAuthState, error) {
+	cookie, err := c.Request.Cookie(oauthStateCookieName)
+	if err != nil || cookie.Value != state {
+		return nil, fmt.Errorf("invalid or missing OAuth state cookie")
+	}
+
+	val, exists := s.cache.Get(s.stateCacheKey(state))
+	if !exists {
+		return nil, fmt.Errorf("invalid or expired state")
+	}
+
+	data, ok := val.(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid state data")
+	}
+
+	var oauthState OAuthState
+	if err := json.Unmarshal([]byte(data), &oauthState); err != nil {
+		return nil, err
+	}
+
+	if time.Now().After(oauthState.ExpiresAt) {
+		s.cache.Delete(s.stateCacheKey(state))
+		return nil, fmt.Errorf("OAuth state has expired")
+	}
+
+	return &oauthState, nil
 }
 
 func (s *OAuthService) getUserInfo(ctx context.Context, provider, accessToken string) (*OAuthUserInfo, error) {
@@ -410,7 +434,7 @@ func (s *OAuthService) createOrUpdateIntegration(ctx context.Context, provider, 
 		Filter("Provider =", provider)
 
 	var integrations []*models.Integration
-	_, err := s.db.Client.GetAll(ctx, q, &integrations)
+	_, err := s.db.GetAll(ctx, q, &integrations)
 	if err != nil {
 		return err
 	}
@@ -449,8 +473,8 @@ func (s *OAuthService) createOrUpdateIntegration(ctx context.Context, provider, 
 		integration.Status = "active"
 		integration.UpdatedAt = time.Now()
 
-		key := database.NameKey("Integration", integration.ID)
-		_, err = s.db.Client.Put(ctx, key, integration)
+		key := database.NameKey("Integration", integration.ID, nil)
+		_, err = s.db.Put(ctx, key, integration)
 		return err
 	} else {
 		// Create new integration
@@ -464,8 +488,8 @@ func (s *OAuthService) createOrUpdateIntegration(ctx context.Context, provider, 
 			UpdatedAt: time.Now(),
 		}
 
-		key := database.NameKey("Integration", integration.ID)
-		_, err = s.db.Client.Put(ctx, key, integration)
+		key := database.NameKey("Integration", integration.ID, nil)
+		_, err = s.db.Put(ctx, key, integration)
 		return err
 	}
 }
@@ -477,7 +501,7 @@ func (s *OAuthService) getUserIntegration(ctx context.Context, provider, userID 
 		Filter("Status =", "active")
 
 	var integrations []*models.Integration
-	_, err := s.db.Client.GetAll(ctx, q, &integrations)
+	_, err := s.db.GetAll(ctx, q, &integrations)
 	if err != nil {
 		return nil, err
 	}
@@ -492,10 +516,10 @@ func (s *OAuthService) getUserIntegration(ctx context.Context, provider, userID 
 }
 
 func (s *OAuthService) updateIntegrationToken(ctx context.Context, integrationID string, token *oauth2.Token) error {
-	key := database.NameKey("Integration", integrationID)
+	key := database.NameKey("Integration", integrationID, nil)
 	var integration models.Integration
 
-	err := s.db.Client.Get(ctx, key, &integration)
+	err := s.db.Get(ctx, key, &integration)
 	if err != nil {
 		return err
 	}
@@ -512,13 +536,13 @@ func (s *OAuthService) updateIntegrationToken(ctx context.Context, integrationID
 
 	integration.UpdatedAt = time.Now()
 
-	_, err = s.db.Client.Put(ctx, key, &integration)
+	_, err = s.db.Put(ctx, key, &integration)
 	return err
 }
 
 func (s *OAuthService) deleteIntegration(ctx context.Context, integrationID string) error {
-	key := database.NameKey("Integration", integrationID)
-	return s.db.Client.Delete(ctx, key)
+	key := database.NameKey("Integration", integrationID, nil)
+	return s.db.Delete(ctx, key)
 }
 
 func (s *OAuthService) revokeGitHubToken(ctx context.Context, accessToken string) error {

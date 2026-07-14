@@ -47,38 +47,10 @@ func LoadSecurityConfig() *SecurityConfig {
 func loadScannerConfig() *ScannerConfig {
 	config := DefaultScannerConfig()
 
-	if val := os.Getenv("SECURITY_ENABLE_XSS_PROTECTION"); val != "" {
-		config.EnableXSSProtection = val == "true"
-	}
-
-	if val := os.Getenv("SECURITY_ENABLE_SQL_INJECTION_CHECK"); val != "" {
-		config.EnableSQLInjectionCheck = val == "true"
-	}
-
-	if val := os.Getenv("SECURITY_ENABLE_CSRF_PROTECTION"); val != "" {
-		config.EnableCSRFProtection = val == "true"
-	}
-
 	if val := os.Getenv("SECURITY_MAX_REQUEST_SIZE"); val != "" {
 		if size, err := strconv.ParseInt(val, 10, 64); err == nil {
 			config.MaxRequestSize = size
 		}
-	}
-
-	if val := os.Getenv("SECURITY_RATE_LIMIT_REQUESTS"); val != "" {
-		if requests, err := strconv.Atoi(val); err == nil {
-			config.RateLimitRequests = requests
-		}
-	}
-
-	if val := os.Getenv("SECURITY_RATE_LIMIT_WINDOW"); val != "" {
-		if window, err := time.ParseDuration(val); err == nil {
-			config.RateLimitWindow = window
-		}
-	}
-
-	if val := os.Getenv("SECURITY_BLOCKED_PATTERNS"); val != "" {
-		config.BlockedPatterns = strings.Split(val, ",")
 	}
 
 	return config

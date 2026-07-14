@@ -7,10 +7,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/typing-master-for-coding-backend/internal/database"
-
-	"cloud.google.com/go/datastore"
 	"github.com/google/uuid"
+	"github.com/typing-master-for-coding-backend/internal/database"
 )
 
 // SecurityLogger handles security event logging and alerting
@@ -135,7 +133,7 @@ func (sl *SecurityLogger) logToDatabase(ctx context.Context, event SecurityEvent
 	}
 
 	eventID := uuid.New().String()
-	key := datastore.NameKey("SecurityEvent", eventID, nil)
+	key := database.NameKey("SecurityEvent", eventID, nil)
 
 	_, err := sl.db.Put(ctx, key, &event)
 	if err != nil {
@@ -155,7 +153,7 @@ func (sl *SecurityLogger) checkAndCreateAlert(ctx context.Context, event Securit
 	now := time.Now().UTC()
 	windowStart := now.Add(-sl.config.AlertWindow)
 
-	query := datastore.NewQuery("SecurityEvent").
+	query := database.NewQuery("SecurityEvent").
 		Filter("type =", event.Type).
 		Filter("ip =", event.IP).
 		Filter("timestamp >=", windowStart)
@@ -177,7 +175,7 @@ func (sl *SecurityLogger) checkAndCreateAlert(ctx context.Context, event Securit
 // createOrUpdateAlert creates a new alert or updates an existing one
 func (sl *SecurityLogger) createOrUpdateAlert(ctx context.Context, event SecurityEvent, eventCount int) error {
 	// Check if there's an existing unresolved alert for this type and IP
-	query := datastore.NewQuery("SecurityAlert").
+	query := database.NewQuery("SecurityAlert").
 		Filter("type =", event.Type).
 		Filter("resolved =", false).
 		Limit(1)
@@ -218,7 +216,7 @@ func (sl *SecurityLogger) createOrUpdateAlert(ctx context.Context, event Securit
 		}
 
 		alertID := uuid.New().String()
-		key := datastore.NameKey("SecurityAlert", alertID, nil)
+		key := database.NameKey("SecurityAlert", alertID, nil)
 		_, err = sl.db.Put(ctx, key, &alert)
 		if err != nil {
 			return fmt.Errorf("failed to create security alert: %w", err)
@@ -233,7 +231,7 @@ func (sl *SecurityLogger) createOrUpdateAlert(ctx context.Context, event Securit
 
 // GetSecurityEvents retrieves security events with filtering
 func (sl *SecurityLogger) GetSecurityEvents(ctx context.Context, filters SecurityEventFilters) ([]SecurityEvent, error) {
-	query := datastore.NewQuery("SecurityEvent")
+	query := database.NewQuery("SecurityEvent")
 
 	// Apply filters
 	if filters.Type != "" {
@@ -275,7 +273,7 @@ func (sl *SecurityLogger) GetSecurityEvents(ctx context.Context, filters Securit
 
 // GetSecurityAlerts retrieves security alerts
 func (sl *SecurityLogger) GetSecurityAlerts(ctx context.Context, includeResolved bool) ([]SecurityAlert, error) {
-	query := datastore.NewQuery("SecurityAlert")
+	query := database.NewQuery("SecurityAlert")
 
 	if !includeResolved {
 		query = query.Filter("resolved =", false)
@@ -298,7 +296,7 @@ func (sl *SecurityLogger) GetSecurityAlerts(ctx context.Context, includeResolved
 
 // ResolveAlert marks a security alert as resolved
 func (sl *SecurityLogger) ResolveAlert(ctx context.Context, alertID, resolvedBy string) error {
-	key := datastore.NameKey("SecurityAlert", alertID, nil)
+	key := database.NameKey("SecurityAlert", alertID, nil)
 	var alert SecurityAlert
 	err := sl.db.Get(ctx, key, &alert)
 	if err != nil {
@@ -334,7 +332,7 @@ func (sl *SecurityLogger) GetSecurityMetrics(ctx context.Context, window time.Du
 	windowStart := now.Add(-window)
 
 	// Query events in the time window
-	query := datastore.NewQuery("SecurityEvent").
+	query := database.NewQuery("SecurityEvent").
 		Filter("timestamp >=", windowStart)
 
 	var events []SecurityEvent

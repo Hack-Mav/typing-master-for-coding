@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/typing-master-for-coding-backend/internal/database"
-
-	"cloud.google.com/go/datastore"
 	"github.com/google/uuid"
+	"github.com/typing-master-for-coding-backend/internal/database"
 )
 
 // AuditService handles security auditing and compliance
@@ -77,7 +75,7 @@ func (as *AuditService) LogAuditEvent(ctx context.Context, event AuditEvent) err
 	event.Timestamp = time.Now().UTC()
 	event.CreatedAt = time.Now().UTC()
 
-	key := datastore.NameKey("AuditEvent", event.ID, nil)
+	key := database.NameKey("AuditEvent", event.ID, nil)
 	_, err := as.db.Put(ctx, key, &event)
 	if err != nil {
 		return fmt.Errorf("failed to log audit event: %w", err)
@@ -88,7 +86,7 @@ func (as *AuditService) LogAuditEvent(ctx context.Context, event AuditEvent) err
 
 // GetAuditEvents retrieves audit events with filtering
 func (as *AuditService) GetAuditEvents(ctx context.Context, filters AuditEventFilters) ([]AuditEvent, error) {
-	query := datastore.NewQuery("AuditEvent")
+	query := database.NewQuery("AuditEvent")
 
 	// Apply filters
 	if filters.Type != "" {
